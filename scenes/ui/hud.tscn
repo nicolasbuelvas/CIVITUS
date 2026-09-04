@@ -1,0 +1,321 @@
+[gd_scene load_steps=2 format=3 uid="uid://chud01"]
+
+[ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1_hud"]
+
+[node name="HUD" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_hud")
+
+[node name="TopHeader" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -250.0
+offset_top = 16.0
+offset_right = 250.0
+offset_bottom = 76.0
+grow_horizontal = 2
+alignment = 1
+
+[node name="PlanetNameLabel" type="Label" parent="TopHeader"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Terranova Alpha"
+horizontal_alignment = 1
+
+[node name="EnvInfoLabel" type="Label" parent="TopHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.8, 0.9, 1)
+theme_override_font_sizes/font_size = 14
+text = "GRAV: 9.8 m/s² | TEMP: 22°C | NIVEL: 0"
+horizontal_alignment = 1
+
+[node name="TopVitals" type="PanelContainer" parent="."]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 16.0
+offset_right = 260.0
+offset_bottom = 146.0
+
+[node name="VBox" type="VBoxContainer" parent="TopVitals"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="O2Container" type="HBoxContainer" parent="TopVitals/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="TopVitals/VBox/O2Container"]
+custom_minimum_size = Vector2(45, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "O2"
+
+[node name="ProgressBar" type="ProgressBar" parent="TopVitals/VBox/O2Container"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+
+[node name="FuelContainer" type="HBoxContainer" parent="TopVitals/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="TopVitals/VBox/FuelContainer"]
+custom_minimum_size = Vector2(45, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "FUEL"
+
+[node name="ProgressBar" type="ProgressBar" parent="TopVitals/VBox/FuelContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+
+[node name="HullContainer" type="HBoxContainer" parent="TopVitals/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="TopVitals/VBox/HullContainer"]
+custom_minimum_size = Vector2(45, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "CASCO"
+
+[node name="ProgressBar" type="ProgressBar" parent="TopVitals/VBox/HullContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 100.0
+
+[node name="QuotaContainer" type="HBoxContainer" parent="TopVitals/VBox"]
+layout_mode = 2
+
+[node name="QuotaLabel" type="Label" parent="TopVitals/VBox/QuotaContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "MINERALES: 0 / 15"
+
+[node name="CamRotateControls" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -160.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 80.0
+grow_horizontal = 0
+theme_override_constants/separation = 12
+
+[node name="RotateLeftBtn" type="Button" parent="CamRotateControls"]
+custom_minimum_size = Vector2(60, 50)
+layout_mode = 2
+text = "↺ [Q]"
+
+[node name="RotateRightBtn" type="Button" parent="CamRotateControls"]
+custom_minimum_size = Vector2(60, 50)
+layout_mode = 2
+text = "[E] ↻"
+
+[node name="MobileTouchControls" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -200.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="ThrustButton" type="Button" parent="MobileTouchControls"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -180.0
+offset_top = -120.0
+offset_right = -30.0
+offset_bottom = -30.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 18
+text = "PROPULSIÓN 🚀"
+
+[node name="DPad" type="GridContainer" parent="MobileTouchControls"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = -180.0
+offset_right = 210.0
+offset_bottom = -20.0
+grow_vertical = 0
+columns = 3
+
+[node name="Empty1" type="Control" parent="MobileTouchControls/DPad"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="UpBtn" type="Button" parent="MobileTouchControls/DPad"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "▲"
+
+[node name="Empty2" type="Control" parent="MobileTouchControls/DPad"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="LeftBtn" type="Button" parent="MobileTouchControls/DPad"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "◀"
+
+[node name="DownBtn" type="Button" parent="MobileTouchControls/DPad"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "▼"
+
+[node name="RightBtn" type="Button" parent="MobileTouchControls/DPad"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+text = "▶"
+
+[node name="ActionContainer" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -120.0
+offset_top = -90.0
+offset_right = 120.0
+offset_bottom = -30.0
+grow_horizontal = 2
+grow_vertical = 0
+alignment = 1
+
+[node name="EscapeButton" type="Button" parent="ActionContainer"]
+custom_minimum_size = Vector2(240, 55)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "DESPEGAR A LA ÓRBITA 🛸"
+
+[node name="GameOverModal" type="Panel" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -120.0
+offset_right = 200.0
+offset_bottom = 120.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="GameOverModal"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="Title" type="Label" parent="GameOverModal/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.25, 0.25, 1)
+theme_override_font_sizes/font_size = 24
+text = "EXPEDICIÓN FALLIDA"
+horizontal_alignment = 1
+
+[node name="ReasonLabel" type="Label" parent="GameOverModal/VBox"]
+layout_mode = 2
+text = "Sistemas vitales agotados."
+horizontal_alignment = 1
+
+[node name="RetryBtn" type="Button" parent="GameOverModal/VBox"]
+layout_mode = 2
+text = "Reintentar Misión"
+
+[node name="MenuBtn" type="Button" parent="GameOverModal/VBox"]
+layout_mode = 2
+text = "Volver al Menú"
+
+[node name="VictoryModal" type="Panel" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -130.0
+offset_right = 220.0
+offset_bottom = 130.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="VictoryModal"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="Title" type="Label" parent="VictoryModal/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 1, 0.4, 1)
+theme_override_font_sizes/font_size = 24
+text = "¡EXPEDICIÓN EXITOSA!"
+horizontal_alignment = 1
+
+[node name="Message" type="Label" parent="VictoryModal/VBox"]
+layout_mode = 2
+text = "Cargamento asegurado. Has escapado a la órbita."
+horizontal_alignment = 1
+
+[node name="NextBtn" type="Button" parent="VictoryModal/VBox"]
+layout_mode = 2
+text = "Siguiente Destino"
+
+[connection signal="pressed" from="CamRotateControls/RotateLeftBtn" to="." method="_on_rotate_left_pressed"]
+[connection signal="pressed" from="CamRotateControls/RotateRightBtn" to="." method="_on_rotate_right_pressed"]
+[connection signal="button_down" from="MobileTouchControls/ThrustButton" to="." method="_on_thrust_button_down"]
+[connection signal="button_up" from="MobileTouchControls/ThrustButton" to="." method="_on_thrust_button_up"]
+[connection signal="pressed" from="ActionContainer/EscapeButton" to="." method="_on_escape_button_pressed"]
+[connection signal="pressed" from="GameOverModal/VBox/RetryBtn" to="." method="_on_retry_pressed"]
+[connection signal="pressed" from="GameOverModal/VBox/MenuBtn" to="." method="_on_menu_pressed"]
+[connection signal="pressed" from="VictoryModal/VBox/NextBtn" to="." method="_on_menu_pressed"]

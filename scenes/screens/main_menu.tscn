@@ -1,0 +1,240 @@
+[gd_scene load_steps=2 format=3 uid="uid://cmainmenu01"]
+
+[ext_resource type="Script" path="res://scripts/screens/main_menu.gd" id="1_menu"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.04, 0.05, 0.09, 1)
+
+[node name="MainPanel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -250.0
+offset_right = 300.0
+offset_bottom = 250.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="MainPanel"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="Title" type="Label" parent="MainPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "ASTROSTRANDED"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="MainPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+theme_override_font_sizes/font_size = 14
+text = "Paper Odyssey • Supervivencia Procedural 2.5D"
+horizontal_alignment = 1
+
+[node name="DiffContainer" type="VBoxContainer" parent="MainPanel/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="MainPanel/VBox/DiffContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Elegir Dificultad del Planeta:"
+
+[node name="DifficultyOption" type="OptionButton" parent="MainPanel/VBox/DiffContainer"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+
+[node name="PreviewLabel" type="Label" parent="MainPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.85, 0.95, 1)
+theme_override_font_sizes/font_size = 12
+text = "Planeta: Terranova Alpha\nGravedad: 9.8 m/s² | Temp: 22°C"
+horizontal_alignment = 1
+
+[node name="StartExpeditionBtn" type="Button" parent="MainPanel/VBox"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "COMENZAR EXPEDICIÓN 🚀"
+
+[node name="EditPlanetBtn" type="Button" parent="MainPanel/VBox"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+text = "EDITAR PLANETA (SANDBOX) 🛠️"
+
+[node name="StoreBtn" type="Button" parent="MainPanel/VBox"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "TIENDA & DONACIONES 💎"
+
+[node name="PaywallModal" type="Panel" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -200.0
+offset_right = 260.0
+offset_bottom = 200.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="PaywallModal"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="Title" type="Label" parent="PaywallModal/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_font_sizes/font_size = 20
+text = "Licencia de Espacio Profundo"
+horizontal_alignment = 1
+
+[node name="Desc" type="Label" parent="PaywallModal/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Desbloquea los niveles extremos 4 y 5 y el Modo Arquitecto / Sandbox."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="BuyMonthlyBtn" type="Button" parent="PaywallModal/VBox"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "Suscripción Comandante - $1.99 USD / mes"
+
+[node name="BuyLifetimeBtn" type="Button" parent="PaywallModal/VBox"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "Acceso Vitalicio Completo - $3.99 USD"
+
+[node name="ClosePaywallBtn" type="Button" parent="PaywallModal/VBox"]
+layout_mode = 2
+text = "Cerrar"
+
+[node name="SandboxModal" type="Panel" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -180.0
+offset_right = 260.0
+offset_bottom = 180.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="SandboxModal"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="Title" type="Label" parent="SandboxModal/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Modo Arquitecto (Sandbox)"
+horizontal_alignment = 1
+
+[node name="GravBox" type="HBoxContainer" parent="SandboxModal/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="SandboxModal/VBox/GravBox"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+text = "Gravedad:"
+
+[node name="HSlider" type="HSlider" parent="SandboxModal/VBox/GravBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 1.0
+max_value = 25.0
+step = 0.5
+value = 9.8
+
+[node name="ValLabel" type="Label" parent="SandboxModal/VBox/GravBox"]
+custom_minimum_size = Vector2(65, 0)
+layout_mode = 2
+text = "9.8 m/s²"
+
+[node name="TempBox" type="HBoxContainer" parent="SandboxModal/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="SandboxModal/VBox/TempBox"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+text = "Temperatura:"
+
+[node name="HSlider" type="HSlider" parent="SandboxModal/VBox/TempBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -200.0
+max_value = 600.0
+step = 10.0
+value = 22.0
+
+[node name="ValLabel" type="Label" parent="SandboxModal/VBox/TempBox"]
+custom_minimum_size = Vector2(65, 0)
+layout_mode = 2
+text = "22 °C"
+
+[node name="ApplySandboxBtn" type="Button" parent="SandboxModal/VBox"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "Guardar y Lanzar Sandbox"
+
+[node name="CloseSandboxBtn" type="Button" parent="SandboxModal/VBox"]
+layout_mode = 2
+text = "Volver"
+
+[connection signal="pressed" from="PaywallModal/VBox/BuyMonthlyBtn" to="." method="_on_buy_monthly_pressed"]
+[connection signal="pressed" from="PaywallModal/VBox/BuyLifetimeBtn" to="." method="_on_buy_lifetime_pressed"]
+[connection signal="pressed" from="PaywallModal/VBox/ClosePaywallBtn" to="." method="_on_close_paywall_pressed"]
+[connection signal="value_changed" from="SandboxModal/VBox/GravBox/HSlider" to="." method="_on_grav_slider_value_changed"]
+[connection signal="value_changed" from="SandboxModal/VBox/TempBox/HSlider" to="." method="_on_temp_slider_value_changed"]
+[connection signal="pressed" from="SandboxModal/VBox/ApplySandboxBtn" to="." method="_on_apply_sandbox_pressed"]
+[connection signal="pressed" from="SandboxModal/VBox/CloseSandboxBtn" to="SandboxModal" method="hide"]

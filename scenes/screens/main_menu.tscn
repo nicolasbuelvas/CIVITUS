@@ -42,15 +42,15 @@ alignment = 1
 [node name="Title" type="Label" parent="MainPanel/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
-theme_override_font_sizes/font_size = 28
-text = "ASTROSTRANDED"
+theme_override_font_sizes/font_size = 32
+text = "CIVITUS"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="MainPanel/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
 theme_override_font_sizes/font_size = 14
-text = "Paper Odyssey • Supervivencia Procedural 2.5D"
+text = "Paper Odyssey • Supervivencia Espacial 2.5D"
 horizontal_alignment = 1
 
 [node name="DiffContainer" type="VBoxContainer" parent="MainPanel/VBox"]

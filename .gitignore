@@ -1,14 +1,15 @@
 # Godot 4 editor data
 .godot/
 
-# Android build cache
-android/build/build/
-android/build/.gradle/
-
-# Export builds (keep .aab in build/ if needed or track)
-*.tmp
-*.log
+# Android build cache and binaries
+build/
+*.aab
+*.apk
+*.idsig
+android/build/
 
 # Windows / OS
 Thumbs.db
 .DS_Store
+*.tmp
+*.log

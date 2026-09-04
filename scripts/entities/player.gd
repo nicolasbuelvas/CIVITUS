@@ -84,6 +84,9 @@ func _physics_process(delta: float) -> void:
 		sprite.rotation.z = wobble
 		sprite.scale.y = 1.0 + abs(wobble) * 0.5
 		
+		if is_on_floor() and fmod(walk_anim_timer, PI) < 0.2:
+			AudioManager.play("hop", 1.2)
+		
 		# Determine facing based on screen space right/left
 		var screen_dot = move_vector.dot(cam_right)
 		if screen_dot > 0.1:
@@ -164,8 +167,11 @@ func process_mining(delta: float) -> void:
 		if target and target.has_method("mine"):
 			current_mine_progress += delta * 1.5
 			mining_progress.emit(min(current_mine_progress, 1.0))
+			if fmod(current_mine_progress * 4.0, 1.0) < 0.15:
+				AudioManager.play("mine", 1.0 + current_mine_progress)
 			if current_mine_progress >= 1.0:
 				target.mine()
+				AudioManager.play("collect")
 				GameManager.player_stats.minerals_collected += target.mineral_value
 				current_mine_progress = 0.0
 				mining_progress.emit(0.0)

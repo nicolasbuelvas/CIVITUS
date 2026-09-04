@@ -6,8 +6,8 @@ config_version=5
 
 [application]
 
-config/name="AstroStranded: Paper Odyssey"
-config/description="2.5D Procedural Space Survival game inspired by Paper Mario, Blocktales and Waste of Space."
+config/name="CIVITUS: Paper Odyssey"
+config/description="CIVITUS: 2.5D Procedural Space Survival game inspired by Paper Mario, Blocktales and Waste of Space."
 run/main_scene="res://scenes/screens/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="res://icon.png"
@@ -17,6 +17,7 @@ boot_splash/bg_color=Color(0.04, 0.04, 0.08, 1)
 
 GameManager="*res://scripts/autoloads/game_manager.gd"
 RevenueCatManager="*res://scripts/autoloads/revenuecat_manager.gd"
+AudioManager="*res://scripts/autoloads/audio_manager.gd"
 
 [display]
 

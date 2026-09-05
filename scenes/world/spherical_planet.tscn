@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3 uid="uid://csphereplanet01"]
+
+[ext_resource type="Script" path="res://scripts/world/spherical_planet.gd" id="1_planet"]
+
+[node name="SphericalPlanet" type="Node3D"]
+script = ExtResource("1_planet")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+
+[node name="StaticBody3D" type="StaticBody3D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D"]

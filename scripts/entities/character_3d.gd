@@ -4,12 +4,13 @@ signal stats_changed(oxygen: float, fuel: float, hull: float)
 signal interaction_available(type: String, target_node: Node3D)
 signal interaction_lost()
 
-@export var walk_speed: float = 6.0
-@export var jump_velocity: float = 6.5
-@export var jetpack_accel: float = 12.0
-@export var world_wrap_size: float = 40.0 # Bounded round world
+@export var walk_speed: float = 7.0
+@export var jump_velocity: float = 7.5
+@export var jetpack_accel: float = 14.0
+@export var planet_radius: float = 36.0
 
 # Node references
+@onready var visuals: Node3D = $Visuals
 @onready var head: MeshInstance3D = $Visuals/Head
 @onready var helmet: Node3D = $Visuals/Head/Helmet
 @onready var hair: MeshInstance3D = $Visuals/Head/Hair
@@ -27,11 +28,12 @@ var nearby_interactable: Node3D = null
 var current_interactable_type: String = ""
 
 var walk_time: float = 0.0
+var vertical_speed: float = 0.0
 var laser_immediate: ImmediateMesh = ImmediateMesh.new()
 
 # Touch camera rotation state
 var cam_yaw: float = 0.0
-var cam_pitch: float = -30.0
+var cam_pitch: float = -25.0
 
 func _ready() -> void:
 	laser_mesh.mesh = laser_immediate
@@ -39,7 +41,7 @@ func _ready() -> void:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.albedo_color = Color(0.2, 0.9, 1.0)
 	laser_mesh.material_override = mat
-	set_suit_mode(true) # Starts outside
+	set_suit_mode(true)
 
 func set_suit_mode(outside: bool) -> void:
 	is_in_space_suit = outside
@@ -50,7 +52,7 @@ func set_suit_mode(outside: bool) -> void:
 
 func rotate_camera_by(drag_offset: Vector2) -> void:
 	cam_yaw -= drag_offset.x * 0.006
-	cam_pitch = clamp(cam_pitch - drag_offset.y * 0.006, -70.0, -10.0)
+	cam_pitch = clamp(cam_pitch - drag_offset.y * 0.006, -65.0, 10.0)
 	camera_pivot.rotation.y = cam_yaw
 	camera_pivot.rotation.x = deg_to_rad(cam_pitch)
 
@@ -58,19 +60,21 @@ func _physics_process(delta: float) -> void:
 	var planet = GameManager.current_planet
 	var gravity_val: float = planet.get("gravity", 9.8)
 
-	# 1. Toroidal seamless world wrapping
-	var half_w = world_wrap_size
-	if position.x > half_w:
-		position.x -= half_w * 2.0
-	elif position.x < -half_w:
-		position.x += half_w * 2.0
-		
-	if position.z > half_w:
-		position.z -= half_w * 2.0
-	elif position.z < -half_w:
-		position.z += half_w * 2.0
+	# 1. SPHERICAL GRAVITY & RADIAL ALIGNMENT (KSP / Juno style)
+	# Center of the planet is at (0, 0, 0)
+	var up_dir = global_position.normalized()
+	if up_dir.length_squared() < 0.001:
+		up_dir = Vector3.UP
+	up_direction = up_dir
 
-	# 2. Survival vitals (only drain when outside in space suit)
+	# Align character's local Y basis to point radially outwards from planet center
+	var cur_up = global_transform.basis.y
+	if cur_up.cross(up_dir).length() > 0.001:
+		var rot_axis = cur_up.cross(up_dir).normalized()
+		var rot_angle = cur_up.angle_to(up_dir)
+		global_rotate(rot_axis, rot_angle)
+
+	# 2. Survival vitals
 	if is_in_space_suit:
 		if not planet.get("has_oxygen", false):
 			GameManager.player_stats.oxygen = max(0.0, GameManager.player_stats.oxygen - 1.2 * delta)
@@ -85,7 +89,7 @@ func _physics_process(delta: float) -> void:
 		set_physics_process(false)
 		return
 
-	# 3. Movement input relative to camera
+	# 3. Movement input projected onto the spherical tangent plane
 	var input_dir := Vector2.ZERO
 	input_dir.x = Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
 	input_dir.y = Input.get_action_strength("move_backward") - Input.get_action_strength("move_forward")
@@ -93,62 +97,63 @@ func _physics_process(delta: float) -> void:
 
 	var cam_basis = camera_pivot.global_transform.basis
 	var cam_fwd = -cam_basis.z
-	var cam_rt = cam_basis.x
-	cam_fwd.y = 0.0
-	cam_rt.y = 0.0
-	cam_fwd = cam_fwd.normalized()
-	cam_rt = cam_rt.normalized()
+	# Project forward onto spherical tangent plane
+	cam_fwd = (cam_fwd - up_dir * cam_fwd.dot(up_dir)).normalized()
+	var cam_rt = up_dir.cross(cam_fwd).normalized()
 
-	var move_vec = (cam_rt * input_dir.x + cam_fwd * input_dir.y).normalized()
+	var move_tangent = (cam_rt * input_dir.x + cam_fwd * input_dir.y).normalized()
 
-	if move_vec.length() > 0.1:
-		velocity.x = move_vec.x * walk_speed
-		velocity.z = move_vec.z * walk_speed
+	# Horizontal speed along planet surface
+	var horizontal_vel = Vector3.ZERO
+	if move_tangent.length() > 0.1:
+		horizontal_vel = move_tangent * walk_speed
 		
-		# Rotate character body to face movement direction
-		var target_angle = atan2(-move_vec.x, -move_vec.z)
-		$Visuals.rotation.y = lerp_angle($Visuals.rotation.y, target_angle, delta * 12.0)
+		# Rotate visuals locally to face move direction
+		var local_move = to_local(global_position + move_tangent).normalized()
+		var target_yaw = atan2(-local_move.x, -local_move.z)
+		visuals.rotation.y = lerp_angle(visuals.rotation.y, target_yaw, delta * 12.0)
 		
-		# 3D Walk cycle animation
-		walk_time += delta * 10.0
+		# Walk animation
+		walk_time += delta * 11.0
 		left_leg.rotation.x = sin(walk_time) * 0.6
 		right_leg.rotation.x = -sin(walk_time) * 0.6
 		left_arm.rotation.x = -sin(walk_time) * 0.5
 		right_arm.rotation.x = sin(walk_time) * 0.5
-		head.position.y = 1.35 + abs(sin(walk_time)) * 0.08
+		head.position.y = 1.48 + abs(sin(walk_time)) * 0.08
 	else:
-		velocity.x = move_toward(velocity.x, 0, walk_speed * delta * 8.0)
-		velocity.z = move_toward(velocity.z, 0, walk_speed * delta * 8.0)
 		left_leg.rotation.x = move_toward(left_leg.rotation.x, 0.0, delta * 4.0)
 		right_leg.rotation.x = move_toward(right_leg.rotation.x, 0.0, delta * 4.0)
 		left_arm.rotation.x = move_toward(left_arm.rotation.x, 0.0, delta * 4.0)
 		right_arm.rotation.x = move_toward(right_arm.rotation.x, 0.0, delta * 4.0)
-		head.position.y = move_toward(head.position.y, 1.35, delta * 2.0)
+		head.position.y = move_toward(head.position.y, 1.48, delta * 2.0)
 
-	# 4. Jump & Jetpack
-	if Input.is_action_just_pressed("jump_thrust"):
-		if is_on_floor():
-			velocity.y = jump_velocity
+	# 4. Vertical Velocity / Radial Jump & Jetpack
+	if is_on_floor():
+		vertical_speed = 0.0
+		if Input.is_action_just_pressed("jump_thrust"):
+			vertical_speed = jump_velocity
 			AudioManager.play("hop", 1.1)
-	elif Input.is_action_pressed("jump_thrust"):
-		if not is_on_floor() and GameManager.player_stats.fuel > 0.0:
-			velocity.y += jetpack_accel * delta
-			velocity.y = min(velocity.y, 8.0)
+	else:
+		if Input.is_action_pressed("jump_thrust") and GameManager.player_stats.fuel > 0.0:
+			vertical_speed += jetpack_accel * delta
+			vertical_speed = min(vertical_speed, 8.5)
 			GameManager.player_stats.fuel = max(0.0, GameManager.player_stats.fuel - 20.0 * delta)
-			AudioManager.play("thruster", 1.0, -8.0)
+			if fmod(Time.get_ticks_msec(), 250) < 50:
+				AudioManager.play("thruster", 1.0, -8.0)
+		else:
+			vertical_speed -= gravity_val * delta
 
-	if not is_on_floor():
-		velocity.y -= gravity_val * delta
-
+	# Combine spherical tangent velocity + radial vertical velocity
+	velocity = horizontal_vel + up_dir * vertical_speed
 	move_and_slide()
 
-	# 5. Nearby Interactables Scan (Context-sensitive UX)
+	# 5. Nearby Interactables Scan (Context UX)
 	check_nearby_interactables()
 
 	# 6. Mining
 	if is_mining and nearby_interactable and current_interactable_type == "mine":
 		nearby_interactable.mine_tick(delta)
-		_draw_laser(nearby_interactable.global_position + Vector3(0, 0.6, 0))
+		_draw_laser(nearby_interactable.global_position)
 		AudioManager.start_laser_loop()
 	else:
 		laser_mesh.visible = false
@@ -160,10 +165,10 @@ func check_nearby_interactables() -> void:
 	var space = get_world_3d().direct_space_state
 	var q = PhysicsShapeQueryParameters3D.new()
 	var sphere = SphereShape3D.new()
-	sphere.radius = 3.2
+	sphere.radius = 3.5
 	q.shape = sphere
 	q.transform = global_transform
-	q.collision_mask = 2 # Minerals layer
+	q.collision_mask = 2 | 4 # Minerals & Ship interactables
 	
 	var hits = space.intersect_shape(q, 1)
 	if hits.size() > 0:
@@ -173,6 +178,24 @@ func check_nearby_interactables() -> void:
 				nearby_interactable = target
 				current_interactable_type = "mine"
 				interaction_available.emit("mine", target)
+			return
+		elif target and target.is_in_group("interactable_fabricator"):
+			if nearby_interactable != target:
+				nearby_interactable = target
+				current_interactable_type = "fabricator"
+				interaction_available.emit("fabricator", target)
+			return
+		elif target and target.is_in_group("interactable_hyperdrive"):
+			if nearby_interactable != target:
+				nearby_interactable = target
+				current_interactable_type = "hyperdrive"
+				interaction_available.emit("hyperdrive", target)
+			return
+		elif target and target.is_in_group("interactable_starmap"):
+			if nearby_interactable != target:
+				nearby_interactable = target
+				current_interactable_type = "starmap"
+				interaction_available.emit("starmap", target)
 			return
 
 	if nearby_interactable != null:
@@ -184,7 +207,7 @@ func _draw_laser(target_world_pos: Vector3) -> void:
 	laser_mesh.visible = true
 	laser_immediate.clear_surfaces()
 	laser_immediate.surface_begin(Mesh.PRIMITIVE_LINES)
-	var local_start = to_local(head.global_position + Vector3(0, -0.2, 0))
+	var local_start = to_local(head.global_position)
 	var local_end = to_local(target_world_pos)
 	laser_immediate.surface_add_vertex(local_start)
 	laser_immediate.surface_add_vertex(local_end)

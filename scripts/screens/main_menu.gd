@@ -1,22 +1,25 @@
 extends Control
 
-@onready var difficulty_selector: OptionButton = $MainPanel/VBox/DiffContainer/DifficultyOption
-@onready var planet_preview_label: Label = $MainPanel/VBox/PreviewLabel
-@onready var start_button: Button = $MainPanel/VBox/StartExpeditionBtn
-@onready var editor_button: Button = $MainPanel/VBox/EditPlanetBtn
-@onready var store_button: Button = $MainPanel/VBox/StoreBtn
+@onready var planet_pivot: Node3D = $SubViewportContainer/SubViewport/World3D/PlanetPivot
+@onready var difficulty_selector: OptionButton = $MenuLayer/MainPanel/VBox/DiffContainer/DifficultyOption
+@onready var planet_name_label: Label = $MenuLayer/MainPanel/VBox/InfoCard/VBox/PlanetName
+@onready var planet_details_label: Label = $MenuLayer/MainPanel/VBox/InfoCard/VBox/PlanetDetails
+@onready var coords_badge: Label = $MenuLayer/MainPanel/VBox/InfoCard/VBox/CoordsBadge
+
+@onready var start_button: Button = $MenuLayer/MainPanel/VBox/Buttons/StartBtn
+@onready var sandbox_button: Button = $MenuLayer/MainPanel/VBox/Buttons/SandboxBtn
+@onready var store_button: Button = $MenuLayer/MainPanel/VBox/Buttons/StoreBtn
 
 # Modals
-@onready var paywall_modal: Panel = $PaywallModal
-@onready var paywall_title: Label = $PaywallModal/VBox/Title
-@onready var paywall_desc: Label = $PaywallModal/VBox/Desc
-@onready var sandbox_modal: Panel = $SandboxModal
+@onready var paywall_modal: Panel = $MenuLayer/PaywallModal
+@onready var paywall_title: Label = $MenuLayer/PaywallModal/VBox/Title
+@onready var paywall_desc: Label = $MenuLayer/PaywallModal/VBox/Desc
+@onready var sandbox_modal: Panel = $MenuLayer/SandboxModal
 
-# Sandbox inputs
-@onready var grav_slider: HSlider = $SandboxModal/VBox/GravBox/HSlider
-@onready var temp_slider: HSlider = $SandboxModal/VBox/TempBox/HSlider
-@onready var grav_val_label: Label = $SandboxModal/VBox/GravBox/ValLabel
-@onready var temp_val_label: Label = $SandboxModal/VBox/TempBox/ValLabel
+@onready var grav_slider: HSlider = $MenuLayer/SandboxModal/VBox/GravBox/HSlider
+@onready var temp_slider: HSlider = $MenuLayer/SandboxModal/VBox/TempBox/HSlider
+@onready var grav_val_label: Label = $MenuLayer/SandboxModal/VBox/GravBox/ValLabel
+@onready var temp_val_label: Label = $MenuLayer/SandboxModal/VBox/TempBox/ValLabel
 
 func _ready() -> void:
 	paywall_modal.visible = false
@@ -27,8 +30,14 @@ func _ready() -> void:
 	
 	difficulty_selector.item_selected.connect(_on_difficulty_selected)
 	start_button.pressed.connect(_on_start_pressed)
-	editor_button.pressed.connect(_on_editor_pressed)
+	sandbox_button.pressed.connect(_on_sandbox_pressed)
 	store_button.pressed.connect(_on_store_pressed)
+
+func _process(delta: float) -> void:
+	# Cinematic slow planetary rotation (KSP / Waste of Space menu style)
+	if planet_pivot:
+		planet_pivot.rotation.y += delta * 0.15
+		planet_pivot.rotation.x = sin(Time.get_ticks_msec() / 4000.0) * 0.08
 
 func setup_difficulty_dropdown() -> void:
 	difficulty_selector.clear()
@@ -42,31 +51,36 @@ func setup_difficulty_dropdown() -> void:
 
 func _on_difficulty_selected(idx: int) -> void:
 	if idx >= 4 and not RevenueCatManager.has_premium_access():
-		# Revert selection and trigger paywall
 		difficulty_selector.selected = GameManager.current_difficulty
-		open_paywall("Niveles Extremos 4 y 5 Bloqueados", "Desbloquea el abismo estelar y los desafíos mortales con la Licencia de Espacio Profundo.")
+		open_paywall("Sectores Extremos 4 y 5 Bloqueados", "Desbloquea el abismo estelar y los desafíos mortales con la Licencia de Espacio Profundo.")
 		return
 		
 	GameManager.set_difficulty(idx as GameManager.Difficulty)
 	update_planet_preview()
+	AudioManager.play("click")
 
 func update_planet_preview() -> void:
 	var p = GameManager.current_planet
-	planet_preview_label.text = "Planeta: %s\nGravedad: %.1f m/s² | Temp: %.0f°C | Atmósfera: %.1f atm\nRadiación: %.2f rad/s | Cuota: %d Cristales" % [
-		p.name, p.gravity, p.temperature, p.atmosphere, p.radiation, GameManager.player_stats.target_minerals
+	planet_name_label.text = str(p.name)
+	coords_badge.text = str(p.get("coords_str", ""))
+	planet_details_label.text = "Gravedad: %.1f m/s² | Temp: %.0f°C | Atmósfera: %.1f atm\nRadiación: %.2f rad/s | Órbita: %.2f AU" % [
+		p.gravity, p.temperature, p.atmosphere, p.radiation, p.get("orbit_au", 1.0)
 	]
 
 func _on_start_pressed() -> void:
+	AudioManager.play("click")
 	GameManager.start_expedition()
 
-func _on_editor_pressed() -> void:
+func _on_sandbox_pressed() -> void:
 	if not RevenueCatManager.has_premium_access():
-		open_paywall("Modo Arquitecto / Editor Bloqueado", "Personaliza la física, gravedad de 0.1G a 25G, temperaturas extremas y biomas procedurales ilimitados.")
+		open_paywall("Modo Arquitecto / Editor Bloqueado", "Personaliza la física, gravedad de 0.1G a 25G, temperaturas extremas y biomas procedurales.")
 		return
 	sandbox_modal.visible = true
+	AudioManager.play("click")
 
 func _on_store_pressed() -> void:
-	open_paywall("Tienda de Expedición Estelar", "Apoya el desarrollo de AstroStranded y desbloquea contenido infinito.")
+	open_paywall("Tienda Estelar (RevenueCat)", "Apoya el desarrollo de CIVITUS y desbloquea el Modo Arquitecto y Niveles 4-5.")
+	AudioManager.play("click")
 
 func open_paywall(title: String, desc: String) -> void:
 	paywall_title.text = title
@@ -99,3 +113,4 @@ func _on_apply_sandbox_pressed() -> void:
 	GameManager.current_planet["name"] = "Sector Personalizado (Sandbox)"
 	update_planet_preview()
 	sandbox_modal.visible = false
+	AudioManager.play("click")

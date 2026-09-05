@@ -128,8 +128,17 @@ func _physics_process(delta: float) -> void:
 		head.position.y = move_toward(head.position.y, 1.48, delta * 2.0)
 
 	# 4. Vertical Velocity / Radial Jump & Jetpack
-	if is_on_floor():
-		vertical_speed = 0.0
+	var on_ground = is_on_floor()
+	if not on_ground:
+		for i in range(get_slide_collision_count()):
+			var col = get_slide_collision(i)
+			if col.get_normal().dot(up_dir) > 0.35:
+				on_ground = true
+				break
+
+	if on_ground:
+		if vertical_speed < 0.0:
+			vertical_speed = 0.0
 		if Input.is_action_just_pressed("jump_thrust"):
 			vertical_speed = jump_velocity
 			AudioManager.play("hop", 1.1)
@@ -142,6 +151,7 @@ func _physics_process(delta: float) -> void:
 				AudioManager.play("thruster", 1.0, -8.0)
 		else:
 			vertical_speed -= gravity_val * delta
+			vertical_speed = max(vertical_speed, -25.0) # Clamp terminal velocity!
 
 	# Combine spherical tangent velocity + radial vertical velocity
 	velocity = horizontal_vel + up_dir * vertical_speed

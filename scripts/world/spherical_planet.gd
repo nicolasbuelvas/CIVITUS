@@ -46,9 +46,10 @@ func generate_planet() -> void:
 	mesh_instance.mesh = planet_mesh
 	mesh_instance.material_override = mat
 	
-	# Create perfect 360-degree continuous collision mesh (NO GAPS, NO VOID!)
-	var trimesh_shape = planet_mesh.create_trimesh_shape()
-	collision_shape.shape = trimesh_shape
+	# Create solid 360-degree SphereShape3D (PHYSICALLY IMPOSSIBLE TO PENETRATE!)
+	var solid_sphere = SphereShape3D.new()
+	solid_sphere.radius = radius - 0.2
+	collision_shape.shape = solid_sphere
 	
 	# Place Spaceship at North Pole
 	var north_pos = Vector3.UP * (radius + _get_elevation(Vector3.UP) + 0.1)
@@ -60,11 +61,13 @@ func generate_planet() -> void:
 	# Spawn features across the spherical surface
 	_spawn_spherical_features(planet_params)
 	
-	# Position Player in front of the Spaceship ramp
+	# Position Player safely in front of the Spaceship on open ground
 	var player = get_parent().get_node_or_null("Character3D")
 	var hud = get_parent().get_node_or_null("HUD")
 	if player:
-		var start_dir = (Vector3.UP + Vector3.FORWARD * 0.12).normalized()
+		player.floor_snap_length = 0.6
+		player.floor_max_angle = deg_to_rad(65.0)
+		var start_dir = (Vector3.UP + Vector3.FORWARD * 0.28).normalized()
 		var start_pos = start_dir * (radius + _get_elevation(start_dir) + 1.2)
 		player.position = start_pos
 		player.planet_radius = radius

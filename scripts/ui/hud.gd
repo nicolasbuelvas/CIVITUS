@@ -1,6 +1,10 @@
 extends Control
 
 @onready var virtual_joystick = $MobileLayer/VirtualJoystick
+@onready var touch_camera_zone: Control = $MobileLayer/TouchCameraZone
+@onready var jump_btn: TextureButton = $MobileLayer/ActionCluster/JumpBtn
+@onready var context_action_btn: Button = $MobileLayer/ActionCluster/ContextActionBtn
+
 @onready var o2_bar: ProgressBar = $TopLayer/Vitals/O2Bar
 @onready var fuel_bar: ProgressBar = $TopLayer/Vitals/FuelBar
 @onready var hull_bar: ProgressBar = $TopLayer/Vitals/HullBar
@@ -22,18 +26,19 @@ extends Control
 @onready var inv_silicon_label: Label = $Modals/CraftingModal/VBox/InvGrid/SiliconLabel
 @onready var inv_uranium_label: Label = $Modals/CraftingModal/VBox/InvGrid/UraniumLabel
 
-# Hyperdrive UI labels
+# Hyperdrive UI
 @onready var hyperdrive_status_label: Label = $Modals/HyperdriveModal/VBox/StatusLabel
 @onready var hyperdrive_list_container: VBoxContainer = $Modals/HyperdriveModal/VBox/PartsList
 @onready var launch_btn: Button = $Modals/HyperdriveModal/VBox/LaunchBtn
-
-# Starmap list
 @onready var starmap_list: VBoxContainer = $Modals/StarmapModal/VBox/Scroll/PlanetList
 
 var player: CharacterBody3D = null
+var current_context_type: String = ""
+var touch_cam_id: int = -1
 
 func _ready() -> void:
 	close_all_modals()
+	context_action_btn.visible = false
 	_update_header()
 	
 	GameManager.game_over.connect(_on_game_over)
@@ -54,45 +59,83 @@ func close_all_modals() -> void:
 func init_player(p_node: CharacterBody3D) -> void:
 	player = p_node
 	player.stats_changed.connect(_on_stats_changed)
+	player.interaction_available.connect(_on_interaction_available)
+	player.interaction_lost.connect(_on_interaction_lost)
 
 func _update_header() -> void:
 	var p = GameManager.current_planet
 	planet_name_label.text = str(p.get("name", "Civitus-Alpha"))
-	coords_label.text = str(p.get("coords_str", "[X: 0.0, Y: 0.0, Z: 0.0]"))
+	coords_label.text = str(p.get("coords_str", ""))
 
 func _on_stats_changed(o2: float, fuel: float, hull: float) -> void:
 	o2_bar.value = o2
 	fuel_bar.value = fuel
 	hull_bar.value = hull
 
-# Mobile Button Handlers
-func _on_thrust_down() -> void:
+# Smooth Touch Camera Orbit (Right half of the screen)
+func _on_touch_camera_gui_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed and touch_cam_id == -1:
+			touch_cam_id = event.index
+		elif not event.pressed and event.index == touch_cam_id:
+			touch_cam_id = -1
+	elif event is InputEventScreenDrag and event.index == touch_cam_id:
+		if player and player.has_method("rotate_camera_by"):
+			player.rotate_camera_by(event.relative)
+	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		if player and player.has_method("rotate_camera_by"):
+			player.rotate_camera_by(event.relative)
+
+# Jump / Jetpack
+func _on_jump_down() -> void:
 	Input.action_press("jump_thrust")
 
-func _on_thrust_up() -> void:
+func _on_jump_up() -> void:
 	Input.action_release("jump_thrust")
 
-func _on_mine_down() -> void:
-	if player and player.has_method("set_mining_active"):
-		player.set_mining_active(true)
+# Context-Sensitive Interaction
+func _on_interaction_available(type: String, target: Node3D) -> void:
+	current_context_type = type
+	context_action_btn.visible = true
+	match type:
+		"mine":
+			context_action_btn.text = "⛏️ MINAR"
+			context_action_btn.modulate = Color(0.2, 0.9, 1.0)
+		"fabricator":
+			context_action_btn.text = "🛠️ FABRICAR"
+			context_action_btn.modulate = Color(0.3, 1.0, 0.4)
+		"hyperdrive":
+			context_action_btn.text = "⚡ HYPERDRIVE"
+			context_action_btn.modulate = Color(1.0, 0.8, 0.2)
+		"starmap":
+			context_action_btn.text = "🌌 MAPA ESTELAR"
+			context_action_btn.modulate = Color(0.8, 0.5, 1.0)
 
-func _on_mine_up() -> void:
-	if player and player.has_method("set_mining_active"):
-		player.set_mining_active(false)
-
-func _on_cam_left_pressed() -> void:
+func _on_interaction_lost() -> void:
+	current_context_type = ""
+	context_action_btn.visible = false
 	if player:
-		player.rotate_camera(-PI / 4.0)
+		player.is_mining = false
 
-func _on_cam_right_pressed() -> void:
-	if player:
-		player.rotate_camera(PI / 4.0)
+func _on_context_btn_down() -> void:
+	match current_context_type:
+		"mine":
+			if player:
+				player.is_mining = true
+		"fabricator":
+			crafting_modal.visible = true
+			AudioManager.play("click")
+		"hyperdrive":
+			hyperdrive_modal.visible = true
+			AudioManager.play("click")
+		"starmap":
+			starmap_modal.visible = true
+			_build_starmap_ui()
+			AudioManager.play("click")
 
-func _on_craft_toggle_pressed() -> void:
-	crafting_modal.visible = not crafting_modal.visible
-	if crafting_modal.visible:
-		_update_crafting_ui()
-		AudioManager.play("click")
+func _on_context_btn_up() -> void:
+	if current_context_type == "mine" and player:
+		player.is_mining = false
 
 func _on_hyperdrive_badge_pressed() -> void:
 	hyperdrive_modal.visible = not hyperdrive_modal.visible
@@ -100,13 +143,7 @@ func _on_hyperdrive_badge_pressed() -> void:
 		_update_hyperdrive_ui()
 		AudioManager.play("click")
 
-func _on_starmap_pressed() -> void:
-	starmap_modal.visible = not starmap_modal.visible
-	if starmap_modal.visible:
-		_build_starmap_ui()
-		AudioManager.play("click")
-
-# Crafting Handlers
+# Crafting
 func _update_crafting_ui() -> void:
 	var inv = GameManager.crafting.inventory
 	inv_iron_label.text = "Hierro: %d" % inv.get("iron", 0)
@@ -120,7 +157,7 @@ func _on_craft_item_pressed(item_name: String) -> void:
 		_update_crafting_ui()
 		_update_hyperdrive_ui()
 
-# Hyperdrive Handlers
+# Hyperdrive
 func _update_hyperdrive_ui() -> void:
 	var prog = GameManager.crafting.get_hyperdrive_progress()
 	hyperdrive_badge.text = "⚡ HYPERDRIVE: %d%%" % int(prog * 100)
@@ -132,7 +169,6 @@ func _update_hyperdrive_ui() -> void:
 		hyperdrive_status_label.text = "ESTADO: DAÑADO - PIEZAS REQUERIDAS:"
 		launch_btn.visible = false
 		
-	# Rebuild parts list
 	for child in hyperdrive_list_container.get_children():
 		child.queue_free()
 		
@@ -145,7 +181,7 @@ func _update_hyperdrive_ui() -> void:
 		var lbl = Label.new()
 		var needed = reqs[part]
 		var cur = installed.get(part, 0)
-		lbl.text = "%s: %d / %d (En mochila: %d)" % [part.capitalize(), cur, needed, inv.get(part, 0)]
+		lbl.text = "%s: %d / %d (Mochila: %d)" % [part.capitalize(), cur, needed, inv.get(part, 0)]
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lbl)
 		
@@ -167,7 +203,7 @@ func _on_launch_hyperdrive_pressed() -> void:
 	if ship and ship.has_method("trigger_hyperjump"):
 		ship.trigger_hyperjump()
 
-# Starmap UI
+# Starmap
 func _build_starmap_ui() -> void:
 	for c in starmap_list.get_children():
 		c.queue_free()

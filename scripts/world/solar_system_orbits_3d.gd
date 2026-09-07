@@ -1,10 +1,10 @@
 extends Node3D
 class_name SolarSystemOrbits3D
 
-@onready var orbits_mesh_instance: MeshInstance3D = $OrbitsMesh
-@onready var hz_mesh_instance: MeshInstance3D = $HabitableZoneMesh
-@onready var planets_container: Node3D = $PlanetsContainer
-@onready var star_mesh_instance: MeshInstance3D = $StarCenterMesh
+var orbits_mesh_instance: MeshInstance3D = null
+var hz_mesh_instance: MeshInstance3D = null
+var planets_container: Node3D = null
+var star_mesh_instance: MeshInstance3D = null
 
 const AU_SCALE: float = 12.0 # 1 AU = 12 meters in 3D solar system view
 

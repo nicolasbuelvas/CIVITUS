@@ -24,6 +24,7 @@ var current_view: ViewState = ViewState.ROOT_MENU
 @onready var subtitle_label: Label = $MenuLayer/RootLayer/BrandBox/Subtitle
 
 @onready var play_btn: Button = $MenuLayer/RootLayer/ActionButtons/PlayBtn
+@onready var planet_editor_btn: Button = $MenuLayer/RootLayer/ActionButtons/PlanetEditorBtn
 @onready var settings_btn: Button = $MenuLayer/RootLayer/ActionButtons/SettingsBtn
 @onready var store_btn: Button = $MenuLayer/RootLayer/ActionButtons/StoreBtn
 @onready var exit_btn: Button = $MenuLayer/RootLayer/ActionButtons/ExitBtn
@@ -36,7 +37,7 @@ var current_view: ViewState = ViewState.ROOT_MENU
 
 @onready var prev_planet_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/PrevBtn
 @onready var next_planet_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/NextBtn
-@onready var planet_carousel: HBoxContainer = $MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/PlanetScroll/PlanetHBox
+@onready var planet_badge_label: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/PlanetBadgeLabel
 
 @onready var planet_tab_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/TabBar/PlanetTabBtn
 @onready var system_tab_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/TabBar/SystemTabBtn
@@ -45,8 +46,10 @@ var current_view: ViewState = ViewState.ROOT_MENU
 @onready var planet_info_box: VBoxContainer = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox
 @onready var planet_name_label: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow/PlanetName
 @onready var planet_type_label: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow/PlanetType
+@onready var toggle_details_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow/ToggleDetailsBtn
 
 # Graphical Meters
+@onready var meters_grid: GridContainer = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid
 @onready var hab_label: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/HabBox/Label
 @onready var hab_bar: ProgressBar = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/HabBox/Bar
 @onready var hab_val: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/HabBox/Val
@@ -70,6 +73,7 @@ var current_view: ViewState = ViewState.ROOT_MENU
 @onready var planets_count_line: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/SystemInfoBox/PlanetsCountLine
 
 @onready var back_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons/BackBtn
+@onready var unlock_ad_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons/UnlockAdBtn
 @onready var launch_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons/LaunchBtn
 
 # UI References - Settings Modal
@@ -91,30 +95,50 @@ var current_view: ViewState = ViewState.ROOT_MENU
 @onready var sfx_val_label: Label = $MenuLayer/SettingsModal/VBox/SfxBox/ValLabel
 
 @onready var save_settings_btn: Button = $MenuLayer/SettingsModal/VBox/ButtonRow/SaveSettingsBtn
+@onready var reset_defaults_btn: Button = $MenuLayer/SettingsModal/VBox/ButtonRow/ResetDefaultsBtn
 @onready var close_settings_btn: Button = $MenuLayer/SettingsModal/VBox/ButtonRow/CloseSettingsBtn
 
 # UI References - Store Modal
 @onready var store_modal: Panel = $MenuLayer/StoreModal
 @onready var store_title: Label = $MenuLayer/StoreModal/VBox/Title
 @onready var store_desc: Label = $MenuLayer/StoreModal/VBox/Desc
-@onready var buy_monthly_btn: Button = $MenuLayer/StoreModal/VBox/BuyMonthlyBtn
-@onready var buy_lifetime_btn: Button = $MenuLayer/StoreModal/VBox/BuyLifetimeBtn
-@onready var close_store_btn: Button = $MenuLayer/StoreModal/VBox/CloseStoreBtn
+@onready var buy_no_ads_btn: Button = $MenuLayer/StoreModal/VBox/BuyNoAdsBtn
+@onready var buy_full_game_btn: Button = $MenuLayer/StoreModal/VBox/BuyFullGameBtn
+@onready var buy_editor_btn: Button = $MenuLayer/StoreModal/VBox/BuyEditorBtn
+@onready var store_status_label: Label = $MenuLayer/StoreModal/VBox/StatusLabel
+@onready var restore_btn: Button = $MenuLayer/StoreModal/VBox/BottomRow/RestoreBtn
+@onready var close_store_btn: Button = $MenuLayer/StoreModal/VBox/BottomRow/CloseStoreBtn
 
-# 360-Degree Free Spherical Rotation (Arcball / Basis model without gimbal lock or pole clamps)
-var planet_basis: Basis = Basis.IDENTITY
-var rot_velocity: Vector2 = Vector2(0.06, 0.0) # Gentle horizontal idle spin
+# UI References - Ad Transmission Modal
+@onready var ad_modal: Panel = $MenuLayer/AdTransmissionModal
+@onready var ad_title: Label = $MenuLayer/AdTransmissionModal/Card/VBox/Title
+@onready var ad_subtitle: Label = $MenuLayer/AdTransmissionModal/Card/VBox/Subtitle
+@onready var ad_progress_bar: ProgressBar = $MenuLayer/AdTransmissionModal/Card/VBox/ProgressBar
+@onready var ad_tip_label: Label = $MenuLayer/AdTransmissionModal/Card/VBox/TipLabel
+@onready var ad_skip_btn: Button = $MenuLayer/AdTransmissionModal/Card/VBox/SkipBtn
+
+# Warp Transition Overlay
+@onready var warp_overlay: ColorRect = $MenuLayer/WarpOverlay
+@onready var warp_label: Label = $MenuLayer/WarpOverlay/WarpLabel
+
+# 360-Degree Free Spherical Orbital Camera Controller
+var cam_yaw: float = 0.25
+var cam_pitch: float = 0.18
+var cam_yaw_velocity: float = 0.04
+var cam_pitch_velocity: float = 0.0
 
 var is_dragging: bool = false
 var last_drag_pos: Vector2 = Vector2.ZERO
 
-var camera_dist: float = 12.0
-var target_camera_dist: float = 12.0
-var target_planet_pos: Vector3 = Vector3.ZERO
+var camera_dist: float = 11.5
+var target_camera_dist: float = 11.5
+var current_focal_point: Vector3 = Vector3.ZERO
+var target_focal_point: Vector3 = Vector3.ZERO
 
 var selected_planet_index: int = 0
 var active_info_tab: String = "planet" # "planet" or "system"
 var is_transitioning: bool = false
+var is_telemetry_expanded: bool = false
 
 # Cached settings before opening modal for Cancel/Revert
 var cached_master: float = 0.85
@@ -129,9 +153,33 @@ func _ready() -> void:
 	
 	# Connect Root Menu buttons
 	play_btn.pressed.connect(_on_play_pressed)
+	if planet_editor_btn:
+		planet_editor_btn.pressed.connect(_on_planet_editor_pressed)
 	settings_btn.pressed.connect(_on_settings_pressed)
 	store_btn.pressed.connect(_on_store_pressed)
 	exit_btn.pressed.connect(_on_exit_pressed)
+	
+	# Connect Store Modal buttons
+	if buy_no_ads_btn:
+		buy_no_ads_btn.pressed.connect(_on_buy_no_ads_pressed)
+	if buy_full_game_btn:
+		buy_full_game_btn.pressed.connect(_on_buy_full_game_pressed)
+	if buy_editor_btn:
+		buy_editor_btn.pressed.connect(_on_buy_editor_pressed)
+	if restore_btn:
+		restore_btn.pressed.connect(_on_restore_purchases_pressed)
+	if close_store_btn:
+		close_store_btn.pressed.connect(_on_close_store_pressed)
+	
+	# Connect Ad Modal buttons
+	if ad_skip_btn:
+		ad_skip_btn.pressed.connect(_on_ad_skip_pressed)
+	if unlock_ad_btn:
+		unlock_ad_btn.pressed.connect(_on_unlock_ad_pressed)
+	
+	# Connect RevenueCat signals
+	RevenueCatManager.purchases_restored.connect(_on_purchases_restored)
+	RevenueCatManager.entitlement_updated.connect(_on_entitlement_updated)
 	
 	# Connect Selector buttons
 	new_system_btn.pressed.connect(_on_new_system_pressed)
@@ -146,13 +194,13 @@ func _ready() -> void:
 	# Setup Settings UI
 	_setup_settings_ui()
 	
+	# Connect Details Toggle
+	if toggle_details_btn:
+		toggle_details_btn.pressed.connect(_on_toggle_details_pressed)
+	
 	# Connect to GameManager signals
 	GameManager.language_changed.connect(_on_language_changed)
 	GameManager.solar_system_updated.connect(_on_solar_system_updated)
-	
-	# Initialize rotation basis
-	if planet_pivot:
-		planet_basis = planet_pivot.transform.basis.orthonormalized()
 	
 	# Update texts & initial view
 	_apply_localization()
@@ -173,6 +221,8 @@ func _ready() -> void:
 func _apply_localization() -> void:
 	# Root Menu
 	play_btn.text = GameManager.loc("play")
+	if planet_editor_btn:
+		planet_editor_btn.text = GameManager.loc("planet_editor")
 	settings_btn.text = GameManager.loc("settings")
 	store_btn.text = GameManager.loc("store")
 	exit_btn.text = GameManager.loc("exit")
@@ -190,13 +240,26 @@ func _apply_localization() -> void:
 	music_label.text = GameManager.loc("vol_music")
 	sfx_label.text = GameManager.loc("vol_sfx")
 	save_settings_btn.text = GameManager.loc("save_btn")
+	reset_defaults_btn.text = GameManager.loc("reset_defaults")
 	close_settings_btn.text = GameManager.loc("discard_btn")
 	
 	# Store Modal
 	store_title.text = GameManager.loc("store_title")
-	buy_monthly_btn.text = GameManager.loc("monthly_pass")
-	buy_lifetime_btn.text = GameManager.loc("lifetime_pass")
-	close_store_btn.text = GameManager.loc("close")
+	store_desc.text = GameManager.loc("store_desc")
+	if buy_no_ads_btn:
+		buy_no_ads_btn.text = GameManager.loc("buy_no_ads")
+	if buy_full_game_btn:
+		buy_full_game_btn.text = GameManager.loc("buy_full_game")
+	if buy_editor_btn:
+		buy_editor_btn.text = GameManager.loc("buy_editor")
+	if restore_btn:
+		restore_btn.text = GameManager.loc("restore_purchases")
+	if close_store_btn:
+		close_store_btn.text = GameManager.loc("close")
+	if unlock_ad_btn:
+		unlock_ad_btn.text = GameManager.loc("unlock_ad_btn")
+	if ad_tip_label:
+		ad_tip_label.text = GameManager.loc("ad_tip")
 	
 	# Meters Labels
 	hab_label.text = "%s:" % GameManager.loc("habitability")
@@ -214,43 +277,54 @@ func _show_view(new_view: ViewState) -> void:
 			root_layer.visible = true
 			selector_layer.visible = false
 			target_camera_dist = 12.0
-			target_planet_pos = Vector3.ZERO
+			target_focal_point = Vector3.ZERO
+			planet_pivot.visible = true
 			if star_pivot:
 				star_pivot.visible = false
+			if orbits_view:
+				orbits_view.visible = false
 		ViewState.PLANET_SELECTOR:
 			root_layer.visible = false
 			selector_layer.visible = true
-			target_camera_dist = 11.2
-			target_planet_pos = Vector3(0.0, 0.38, 0.0)
+			target_camera_dist = 11.5
+			target_focal_point = Vector3.ZERO
+			planet_pivot.visible = true
 			if star_pivot:
 				star_pivot.visible = true
+			if orbits_view:
+				orbits_view.visible = false
 			_refresh_solar_system_ui()
 
 func _process(delta: float) -> void:
-	# Full 360-degree free spherical rotation in all directions (poles, equator, diagonals)
+	# Idle orbital camera drift when not dragging
 	if not is_dragging:
-		var delta_rot_y = Basis(Vector3.UP, rot_velocity.x * delta)
-		var delta_rot_x = Basis(Vector3.RIGHT, rot_velocity.y * delta)
-		planet_basis = (delta_rot_y * delta_rot_x * planet_basis).orthonormalized()
+		cam_yaw += cam_yaw_velocity * delta
+		cam_pitch += cam_pitch_velocity * delta
+		cam_pitch = clamp(cam_pitch, -1.25, 1.25)
+		cam_yaw_velocity = lerp(cam_yaw_velocity, 0.025, delta * 1.5)
+		cam_pitch_velocity = lerp(cam_pitch_velocity, 0.0, delta * 2.5)
 		
-		rot_velocity.y = lerp(rot_velocity.y, 0.0, delta * 3.5)
-		rot_velocity.x = lerp(rot_velocity.x, 0.06, delta * 1.8)
-		
-	if planet_pivot:
-		planet_pivot.transform.basis = planet_basis
-		planet_pivot.position = planet_pivot.position.lerp(target_planet_pos, delta * 8.0)
+	# Planet spins on its own polar axis
+	if planet_mesh and planet_pivot and planet_pivot.visible:
+		planet_mesh.rotation.y += delta * 0.05
 		
 	# Star slow drift
-	if star_pivot:
-		star_pivot.rotation.y += delta * 0.02
+	if star_pivot and star_pivot.visible:
+		star_pivot.rotation.y += delta * 0.01
 		
-	# Smooth camera distance zoom
-	camera_dist = lerp(camera_dist, target_camera_dist, delta * 8.0)
+	# Smooth focal point and camera distance
+	current_focal_point = current_focal_point.lerp(target_focal_point, delta * 7.0)
+	camera_dist = lerp(camera_dist, target_camera_dist, delta * 7.0)
+	
+	# Position camera orbiting around current_focal_point
 	if camera_3d:
-		camera_3d.position.z = camera_dist
+		var quat = Quaternion.from_euler(Vector3(cam_pitch, cam_yaw, 0.0))
+		var offset = quat * Vector3(0.0, 0.0, camera_dist)
+		camera_3d.position = current_focal_point + offset
+		camera_3d.look_at(current_focal_point, quat * Vector3.UP)
 
 func _gui_input(event: InputEvent) -> void:
-	# Free 360° omnidirectional trackball drag
+	# Free 360° omnidirectional orbit drag
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
@@ -259,9 +333,15 @@ func _gui_input(event: InputEvent) -> void:
 			else:
 				is_dragging = false
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			target_camera_dist = clamp(target_camera_dist - 0.6, 5.2, 18.0)
+			if active_info_tab == "planet":
+				target_camera_dist = clamp(target_camera_dist - 0.6, 5.5, 20.0)
+			else:
+				target_camera_dist = clamp(target_camera_dist - 2.5, 25.0, 95.0)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			target_camera_dist = clamp(target_camera_dist + 0.6, 5.2, 18.0)
+			if active_info_tab == "planet":
+				target_camera_dist = clamp(target_camera_dist + 0.6, 5.5, 20.0)
+			else:
+				target_camera_dist = clamp(target_camera_dist + 2.5, 25.0, 95.0)
 			
 	elif event is InputEventMouseMotion and is_dragging:
 		var delta_pos = event.position - last_drag_pos
@@ -279,15 +359,17 @@ func _gui_input(event: InputEvent) -> void:
 		_apply_free_drag(event.relative)
 
 func _apply_free_drag(delta_pos: Vector2) -> void:
-	var rot_speed = 0.0055
-	var angle_x = delta_pos.x * rot_speed
-	var angle_y = delta_pos.y * rot_speed
-	
-	var rot_h = Basis(Vector3.UP, angle_x)
-	var rot_v = Basis(Vector3.RIGHT, angle_y)
-	planet_basis = (rot_h * rot_v * planet_basis).orthonormalized()
-	
-	rot_velocity = delta_pos * rot_speed * 18.0
+	var sens = 0.005
+	cam_yaw -= delta_pos.x * sens
+	cam_pitch = clamp(cam_pitch - delta_pos.y * sens, -1.25, 1.25)
+	cam_yaw_velocity = -delta_pos.x * sens * 14.0
+	cam_pitch_velocity = -delta_pos.y * sens * 14.0
+
+func _on_toggle_details_pressed() -> void:
+	AudioManager.play("click")
+	is_telemetry_expanded = !is_telemetry_expanded
+	meters_grid.visible = is_telemetry_expanded
+	toggle_details_btn.text = "[ - INFO ]" if is_telemetry_expanded else "[ + INFO ]"
 
 # ----------------- Navigation & Button Callbacks -----------------
 
@@ -300,17 +382,46 @@ func _on_back_to_menu_pressed() -> void:
 	_show_view(ViewState.ROOT_MENU)
 
 func _on_new_system_pressed() -> void:
-	AudioManager.play("hyperdrive", 1.0, -4.0)
-	# Warp hyperspace transition: zoom out into space void, generate new system, zoom back in!
-	var tween = create_tween()
+	if is_transitioning:
+		return
 	is_transitioning = true
-	tween.tween_property(self, "target_camera_dist", 22.0, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	AudioManager.play("hyperdrive", 1.0, 0.0)
+	
+	if warp_overlay:
+		warp_overlay.visible = true
+		warp_overlay.color = Color(0.08, 0.35, 0.85, 0.0)
+		if warp_label:
+			warp_label.text = "CALCULANDO SALTO HIPERESPACIAL..." if GameManager.current_language == "es" else "CALCULATING HYPERDRIVE VECTOR..."
+	
+	var tween = create_tween()
+	# Phase 1: 0.0s - 1.8s Spool up, warp stretch FOV from 45 to 75, camera pull back
+	tween.parallel().tween_property(self, "target_camera_dist", 30.0, 1.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.parallel().tween_property(camera_3d, "fov", 75.0, 1.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	if warp_overlay:
+		tween.parallel().tween_property(warp_overlay, "color:a", 0.40, 1.8)
+		
+	# Phase 2: 1.8s - 2.4s Hyperspace jump flash peak & generate new solar system
 	tween.tween_callback(func():
+		if warp_label:
+			warp_label.text = "TRÁNSITO HIPERESPACIAL EN CURSO..." if GameManager.current_language == "es" else "HYPERSPACE TRANSIT IN PROGRESS..."
 		GameManager.generate_new_solar_system()
+		_refresh_solar_system_ui()
 	)
-	tween.tween_property(self, "target_camera_dist", 11.2, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if warp_overlay:
+		tween.tween_property(warp_overlay, "color", Color(0.85, 0.95, 1.0, 0.70), 0.3)
+		tween.tween_property(warp_overlay, "color", Color(0.08, 0.35, 0.85, 0.25), 0.3)
+		
+	# Phase 3: 2.4s - 4.0s Deceleration, drop out of hyperspace, smooth return to orbit
+	tween.parallel().tween_property(self, "target_camera_dist", 11.5, 1.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(camera_3d, "fov", 45.0, 1.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if warp_overlay:
+		tween.parallel().tween_property(warp_overlay, "color:a", 0.0, 1.6)
+		
 	tween.tween_callback(func():
+		if warp_overlay:
+			warp_overlay.visible = false
 		is_transitioning = false
+		_update_telemetry_ui()
 	)
 
 func _on_prev_planet_pressed() -> void:
@@ -329,17 +440,19 @@ func _on_next_planet_pressed() -> void:
 
 func _transition_to_planet(new_idx: int) -> void:
 	AudioManager.play("click")
-	is_transitioning = true
-	# Camera zooms out slightly to reveal distant solar system, switches, and zooms in
-	var tween = create_tween()
-	tween.tween_property(self, "target_camera_dist", 16.0, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tween.tween_callback(func():
+	if active_info_tab == "planet":
+		is_transitioning = true
+		var tween = create_tween()
+		tween.tween_property(self, "target_camera_dist", 14.5, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_callback(func():
+			_select_planet(new_idx)
+		)
+		tween.tween_property(self, "target_camera_dist", 11.5, 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tween.tween_callback(func():
+			is_transitioning = false
+		)
+	else:
 		_select_planet(new_idx)
-	)
-	tween.tween_property(self, "target_camera_dist", 11.2, 0.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.tween_callback(func():
-		is_transitioning = false
-	)
 
 func _on_solar_system_updated(sys: Dictionary) -> void:
 	selected_planet_index = 0
@@ -372,42 +485,23 @@ func _refresh_solar_system_ui() -> void:
 	if orbits_view and orbits_view.has_method("setup_system"):
 		orbits_view.setup_system(sys, selected_planet_index)
 		
-	# Clear & populate planet carousel buttons
-	for child in planet_carousel.get_children():
-		planet_carousel.remove_child(child)
-		child.queue_free()
-		
-	var planets: Array = sys.get("planets", [])
-	for i in range(planets.size()):
-		var p_data = planets[i]
-		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(130, 46)
-		
-		var lvl = p_data.get("level", 0)
-		var is_pro = (lvl >= 4)
-		
-		var btn_title = "P-%d: L%d" % [i + 1, lvl]
-		if is_pro:
-			btn_title += " [PRO]"
-			
-		btn.text = btn_title
-		btn.focus_mode = Control.FOCUS_NONE
-		
-		if i == selected_planet_index:
-			btn.modulate = Color(0.3, 0.95, 1.0)
-		elif is_pro:
-			btn.modulate = Color(1.0, 0.65, 0.3)
-		else:
-			btn.modulate = Color(0.85, 0.90, 0.95)
-			
-		btn.pressed.connect(_on_planet_button_pressed.bind(i))
-		planet_carousel.add_child(btn)
-		
+	_update_planet_badge()
 	_select_planet(selected_planet_index)
 
-func _on_planet_button_pressed(idx: int) -> void:
-	if idx != selected_planet_index:
-		_transition_to_planet(idx)
+func _update_planet_badge() -> void:
+	var sys = GameManager.current_solar_system
+	var planets: Array = sys.get("planets", [])
+	if planets.is_empty() or selected_planet_index >= planets.size():
+		return
+	var p_data = planets[selected_planet_index]
+	var p_name = p_data.get("name", "Sector")
+	var lvl = p_data.get("level", 0)
+	var is_pro = (lvl >= 4)
+	var badge = "Planeta %d de %d : %s [Nivel %d]" % [selected_planet_index + 1, planets.size(), p_name, lvl]
+	if is_pro:
+		badge += " ★ VIP"
+	if planet_badge_label:
+		planet_badge_label.text = badge
 
 func _select_planet(idx: int) -> void:
 	selected_planet_index = idx
@@ -445,19 +539,8 @@ func _select_planet(idx: int) -> void:
 	# Update 3D planet appearance via shader uniforms
 	_apply_planet_to_3d_mesh(p)
 	
-	# Update UI & carousel button highlights
-	var buttons = planet_carousel.get_children()
-	for i in range(buttons.size()):
-		var btn = buttons[i] as Button
-		if not btn or i >= planets.size():
-			continue
-		if i == idx:
-			btn.modulate = Color(0.2, 0.95, 1.0)
-		elif planets[i].get("level", 0) >= 4:
-			btn.modulate = Color(1.0, 0.65, 0.3)
-		else:
-			btn.modulate = Color(0.85, 0.90, 0.95)
-				
+	# Update UI & planet badge
+	_update_planet_badge()
 	_update_telemetry_ui()
 	_update_launch_button_text()
 
@@ -509,6 +592,10 @@ func _update_telemetry_ui() -> void:
 	# Planet Tab Data
 	planet_name_label.text = "%s [%s %d]" % [p_name, GameManager.loc("level"), p_lvl]
 	planet_type_label.text = p_type
+	if toggle_details_btn:
+		toggle_details_btn.text = "[ - INFO ]" if is_telemetry_expanded else "[ + INFO ]"
+	if meters_grid:
+		meters_grid.visible = is_telemetry_expanded
 	
 	var tg = p.get("telemetry_graph", {})
 	var hab_score = tg.get("habitability", 0.85) * 100.0
@@ -561,12 +648,16 @@ func _on_planet_tab_pressed() -> void:
 	planet_tab_btn.modulate = Color(1.0, 1.0, 1.0)
 	system_tab_btn.modulate = Color(0.65, 0.75, 0.85, 0.6)
 	
-	# Smooth swoop down to close-up planet view
-	var tween = create_tween()
-	tween.tween_property(self, "target_camera_dist", 11.2, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	target_planet_pos = Vector3(0.0, 0.38, 0.0)
+	# Show close-up planet and host star in distance
+	planet_pivot.visible = true
+	if star_pivot:
+		star_pivot.visible = true
 	if orbits_view:
 		orbits_view.visible = false
+		
+	target_focal_point = Vector3.ZERO
+	var tween = create_tween()
+	tween.tween_property(self, "target_camera_dist", 11.5, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 func _on_system_tab_pressed() -> void:
 	AudioManager.play("click")
@@ -576,16 +667,21 @@ func _on_system_tab_pressed() -> void:
 	planet_tab_btn.modulate = Color(0.65, 0.75, 0.85, 0.6)
 	system_tab_btn.modulate = Color(1.0, 1.0, 1.0)
 	
-	# Space Engine / Universe Sandbox elevated solar system overview
-	var tween = create_tween()
-	tween.tween_property(self, "target_camera_dist", 58.0, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	target_planet_pos = Vector3(0.0, -8.0, -18.0)
+	# HIDE close-up planet and background star to completely resolve floating/duplicate bugs!
+	planet_pivot.visible = false
+	if star_pivot:
+		star_pivot.visible = false
 	if orbits_view:
 		orbits_view.visible = true
+		orbits_view.setup_system(GameManager.current_solar_system, selected_planet_index)
+		
+	target_focal_point = Vector3.ZERO
+	var tween = create_tween()
+	tween.tween_property(self, "target_camera_dist", 56.0, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 func _update_launch_button_text() -> void:
 	var p = GameManager.current_planet
-	var is_locked = p.get("is_locked", false) and not RevenueCatManager.has_premium_access()
+	var is_locked = p.get("is_locked", false) and not GameManager.is_vip_unlocked(p.get("level", 0))
 	
 	if is_locked:
 		launch_btn.text = GameManager.loc("unlock_tier")
@@ -597,7 +693,7 @@ func _update_launch_button_text() -> void:
 func _on_launch_pressed() -> void:
 	AudioManager.play("click")
 	var p = GameManager.current_planet
-	var is_locked = p.get("is_locked", false) and not RevenueCatManager.has_premium_access()
+	var is_locked = p.get("is_locked", false) and not GameManager.is_vip_unlocked(p.get("level", 0))
 	
 	if is_locked:
 		open_store_modal(GameManager.loc("pro_sector_locked"), GameManager.loc("pro_sector_desc"))
@@ -625,6 +721,8 @@ func _setup_settings_ui() -> void:
 	master_slider.value_changed.connect(_on_master_slider_changed)
 	music_slider.value_changed.connect(_on_music_slider_changed)
 	sfx_slider.value_changed.connect(_on_sfx_slider_changed)
+	
+	reset_defaults_btn.pressed.connect(Callable(self, "_on_reset_defaults_pressed"))
 
 func _update_slider_labels() -> void:
 	master_val_label.text = "%d%%" % int(master_slider.value * 100)
@@ -669,6 +767,19 @@ func _on_close_settings_pressed() -> void:
 	GameManager._apply_audio_bus_volumes()
 	settings_modal.visible = false
 
+func _on_reset_defaults_pressed() -> void:
+	AudioManager.play("click")
+	GameManager.reset_settings_to_default()
+	master_slider.value = GameManager.master_volume
+	music_slider.value = GameManager.music_volume
+	sfx_slider.value = GameManager.sfx_volume
+	_update_slider_labels()
+	lang_option.selected = 0
+	cached_master = GameManager.master_volume
+	cached_music = GameManager.music_volume
+	cached_sfx = GameManager.sfx_volume
+	cached_lang = GameManager.current_language
+
 func _on_lang_selected(idx: int) -> void:
 	var lang = "es" if idx == 0 else "en"
 	GameManager.set_language(lang)
@@ -684,34 +795,142 @@ func _on_master_slider_changed(val: float) -> void:
 
 func _on_music_slider_changed(val: float) -> void:
 	music_val_label.text = "%d%%" % int(val * 100)
+	var idx = AudioServer.get_bus_index("Music")
+	if idx >= 0:
+		AudioServer.set_bus_volume_db(idx, linear_to_db(val))
 
 func _on_sfx_slider_changed(val: float) -> void:
 	sfx_val_label.text = "%d%%" % int(val * 100)
+	var idx = AudioServer.get_bus_index("SFX")
+	if idx >= 0:
+		AudioServer.set_bus_volume_db(idx, linear_to_db(val))
+
+func _on_planet_editor_pressed() -> void:
+	AudioManager.play("click")
+	if RevenueCatManager.has_planet_editor():
+		get_tree().change_scene_to_file("res://scenes/screens/planet_editor.tscn")
+	else:
+		open_store_modal(GameManager.loc("store_editor_locked"), GameManager.loc("store_editor_desc"), true)
 
 func _on_store_pressed() -> void:
 	AudioManager.play("click")
 	# Mutual exclusivity: Close settings if open
 	settings_modal.visible = false
-	open_store_modal(GameManager.loc("pro_sector_locked"), GameManager.loc("pro_sector_desc"))
+	open_store_modal(GameManager.loc("pro_sector_locked"), GameManager.loc("pro_sector_desc"), false)
 
-func open_store_modal(title: String, desc: String) -> void:
+func open_store_modal(title: String, desc: String, highlight_editor: bool = false) -> void:
 	store_title.text = title
 	store_desc.text = desc
 	store_modal.visible = true
+	if store_status_label:
+		store_status_label.visible = false
+	if highlight_editor and buy_editor_btn:
+		buy_editor_btn.modulate = Color(1.0, 0.88, 0.25)
+		if buy_full_game_btn:
+			buy_full_game_btn.modulate = Color(0.35, 0.95, 1.0)
+	else:
+		if buy_editor_btn:
+			buy_editor_btn.modulate = Color(1.0, 1.0, 1.0)
+		if buy_full_game_btn:
+			buy_full_game_btn.modulate = Color(1.0, 1.0, 1.0)
 
 func _on_close_store_pressed() -> void:
 	AudioManager.play("click")
 	store_modal.visible = false
 
-func _on_buy_monthly_pressed() -> void:
-	RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_MONTHLY_PASS)
+func _on_buy_no_ads_pressed() -> void:
+	AudioManager.play("click")
+	RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_NO_ADS)
 	store_modal.visible = false
 	_update_launch_button_text()
 
-func _on_buy_lifetime_pressed() -> void:
-	RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_LIFETIME)
+func _on_buy_full_game_pressed() -> void:
+	AudioManager.play("click")
+	RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_FULL_GAME)
 	store_modal.visible = false
 	_update_launch_button_text()
+
+func _on_buy_editor_pressed() -> void:
+	AudioManager.play("click")
+	RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_PLANET_EDITOR)
+	store_modal.visible = false
+	_update_launch_button_text()
+	if RevenueCatManager.has_planet_editor():
+		get_tree().change_scene_to_file("res://scenes/screens/planet_editor.tscn")
+
+func _on_restore_purchases_pressed() -> void:
+	AudioManager.play("click")
+	if store_status_label:
+		store_status_label.visible = true
+		store_status_label.text = "Sincronizando con Samsung Galaxy Store..." if GameManager.current_language == "es" else "Synchronizing with Samsung Galaxy Store..."
+		store_status_label.modulate = Color(0.35, 0.85, 1.0)
+	RevenueCatManager.restore_purchases()
+
+func _on_purchases_restored(success: bool) -> void:
+	if store_status_label:
+		store_status_label.visible = true
+		if success and (RevenueCatManager.has_premium_access() or RevenueCatManager.has_no_ads() or RevenueCatManager.has_planet_editor()):
+			store_status_label.text = GameManager.loc("purchases_restored_ok")
+			store_status_label.modulate = Color(0.35, 0.9, 0.6)
+		else:
+			store_status_label.text = GameManager.loc("purchases_restored_none")
+			store_status_label.modulate = Color(0.9, 0.7, 0.3)
+	_update_launch_button_text()
+
+func _on_entitlement_updated(_entitlement: String, _active: bool) -> void:
+	_update_launch_button_text()
+
+# ----------------- Ads & VIP Transmission System -----------------
+
+var current_ad_is_rewarded: bool = false
+var ad_tween: Tween = null
+
+func _on_unlock_ad_pressed() -> void:
+	AudioManager.play("click")
+	_show_ad_transmission(true)
+
+func _show_ad_transmission(is_rewarded: bool) -> void:
+	current_ad_is_rewarded = is_rewarded
+	if not ad_modal:
+		return
+		
+	ad_modal.visible = true
+	ad_progress_bar.value = 0.0
+	ad_skip_btn.disabled = true
+	
+	if is_rewarded:
+		ad_title.text = GameManager.loc("ad_rewarded_title")
+		ad_subtitle.text = "Sincronizando baliza de acceso clasificado con la flota orbital..." if GameManager.current_language == "es" else "Synchronizing classified beacon access with orbital fleet..."
+		ad_skip_btn.text = "AUTORIZANDO (3s)..." if GameManager.current_language == "es" else "AUTHORIZING (3s)..."
+	else:
+		ad_title.text = GameManager.loc("ad_transmission_title")
+		ad_subtitle.text = "Transmisión de telemetría interplanetaria en curso..." if GameManager.current_language == "es" else "Interplanetary telemetry broadcast in progress..."
+		ad_skip_btn.text = "TRANSMISIÓN (3s)..." if GameManager.current_language == "es" else "BROADCAST (3s)..."
+	
+	if ad_tween:
+		ad_tween.kill()
+	ad_tween = create_tween()
+	ad_tween.tween_property(ad_progress_bar, "value", 100.0, 3.0).set_trans(Tween.TRANS_LINEAR)
+	ad_tween.finished.connect(_on_ad_finished)
+
+func _on_ad_finished() -> void:
+	ad_skip_btn.disabled = false
+	ad_skip_btn.text = GameManager.loc("ad_skip")
+	if current_ad_is_rewarded:
+		var p = GameManager.current_planet
+		var p_lvl = p.get("level", 0)
+		GameManager.unlock_vip_temporarily(p_lvl)
+		_update_launch_button_text()
+
+func _on_ad_skip_pressed() -> void:
+	AudioManager.play("click")
+	ad_modal.visible = false
+	if current_ad_is_rewarded:
+		var p = GameManager.current_planet
+		var p_lvl = p.get("level", 0)
+		GameManager.unlock_vip_temporarily(p_lvl)
+		_update_launch_button_text()
+		_on_launch_pressed()
 
 func _on_exit_pressed() -> void:
 	AudioManager.play("click")

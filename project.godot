@@ -19,8 +19,8 @@ config/icon="res://icon.png"
 
 [autoload]
 
-GameManager="*res://scripts/autoloads/game_manager.gd"
 RevenueCatManager="*res://scripts/autoloads/revenuecat_manager.gd"
+GameManager="*res://scripts/autoloads/game_manager.gd"
 AudioManager="*res://scripts/autoloads/audio_manager.gd"
 
 [display]

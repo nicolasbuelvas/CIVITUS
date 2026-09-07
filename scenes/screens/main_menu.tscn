@@ -30,8 +30,8 @@ glow_intensity = 0.6
 glow_bloom = 0.2
 
 [sub_resource type="SphereMesh" id="SphereMesh_Star"]
-radius = 7.0
-height = 14.0
+radius = 3.5
+height = 7.0
 
 [sub_resource type="StandardMaterial3D" id="Mat_Star"]
 shading_mode = 0
@@ -141,6 +141,21 @@ corner_radius_top_right = 14
 corner_radius_bottom_right = 14
 corner_radius_bottom_left = 14
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_HighlightBtn"]
+bg_color = Color(0.16, 0.42, 0.82, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.82, 0.25, 0.9)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_AdBg"]
+bg_color = Color(0.02, 0.03, 0.06, 0.92)
+
 [node name="MainMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -180,7 +195,7 @@ shadow_enabled = true
 
 [node name="StarPivot" type="Node3D" parent="SubViewportContainer/SubViewport/World3D"]
 visible = false
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -42.0, 14.0, -68.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60.0, 18.0, -95.0)
 
 [node name="StarMesh" type="MeshInstance3D" parent="SubViewportContainer/SubViewport/World3D/StarPivot"]
 mesh = SubResource("SphereMesh_Star")
@@ -247,38 +262,45 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -300.0
+offset_left = -400.0
 offset_top = -84.0
-offset_right = 300.0
+offset_right = 400.0
 offset_bottom = -28.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_constants/separation = 14
+theme_override_constants/separation = 12
 alignment = 1
 
 [node name="PlayBtn" type="Button" parent="MenuLayer/RootLayer/ActionButtons"]
-custom_minimum_size = Vector2(175, 54)
+custom_minimum_size = Vector2(160, 54)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 theme_override_styles/normal = SubResource("StyleBoxFlat_PlayBtn")
 text = "JUGAR"
 
+[node name="PlanetEditorBtn" type="Button" parent="MenuLayer/RootLayer/ActionButtons"]
+custom_minimum_size = Vector2(175, 54)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "EDITOR DE PLANETAS"
+
 [node name="SettingsBtn" type="Button" parent="MenuLayer/RootLayer/ActionButtons"]
-custom_minimum_size = Vector2(130, 54)
+custom_minimum_size = Vector2(120, 54)
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
 text = "AJUSTES"
 
 [node name="StoreBtn" type="Button" parent="MenuLayer/RootLayer/ActionButtons"]
-custom_minimum_size = Vector2(130, 54)
+custom_minimum_size = Vector2(120, 54)
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
 text = "TIENDA"
 
 [node name="ExitBtn" type="Button" parent="MenuLayer/RootLayer/ActionButtons"]
-custom_minimum_size = Vector2(100, 54)
+custom_minimum_size = Vector2(90, 54)
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
@@ -343,31 +365,29 @@ grow_vertical = 0
 theme_override_constants/separation = 6
 
 [node name="CarouselRow" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock"]
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 
 [node name="PrevBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
-custom_minimum_size = Vector2(46, 46)
+custom_minimum_size = Vector2(48, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 18
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
 text = "◄"
 
-[node name="PlanetScroll" type="ScrollContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
+[node name="PlanetBadgeLabel" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-vertical_scroll_mode = 0
-
-[node name="PlanetHBox" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/PlanetScroll"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 8
+theme_override_colors/font_color = Color(0.85, 0.92, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Planeta 1 de 4"
+horizontal_alignment = 1
 
 [node name="NextBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
-custom_minimum_size = Vector2(46, 46)
+custom_minimum_size = Vector2(48, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 18
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
 text = "►"
 
@@ -391,16 +411,16 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_TabInactive")
 text = "INFORMACIÓN DEL SISTEMA"
 
 [node name="TelemetryCard" type="PanelContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock"]
-custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_Card")
 
 [node name="PlanetInfoBox" type="VBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard"]
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 6
 
 [node name="HeaderRow" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox"]
 layout_mode = 2
+theme_override_constants/separation = 10
 
 [node name="PlanetName" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow"]
 layout_mode = 2
@@ -415,10 +435,18 @@ theme_override_colors/font_color = Color(0.70, 0.82, 0.95, 1)
 theme_override_font_sizes/font_size = 12
 text = "Rocoso Templado (Clase H)"
 
+[node name="ToggleDetailsBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow"]
+custom_minimum_size = Vector2(130, 30)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "[ + INFO ]"
+
 [node name="MetersGrid" type="GridContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox"]
+visible = false
 layout_mode = 2
 theme_override_constants/h_separation = 16
-theme_override_constants/v_separation = 2
+theme_override_constants/v_separation = 4
 columns = 2
 
 [node name="HabBox" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid"]
@@ -550,13 +578,22 @@ text = "Cuerpos Orbitales: 6 planetas (1 habitable) • Radiación media: 0.04 r
 
 [node name="NavButtons" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 14
 
 [node name="BackBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons"]
-custom_minimum_size = Vector2(180, 44)
+custom_minimum_size = Vector2(170, 44)
 layout_mode = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
 text = "VOLVER AL MENÚ"
+
+[node name="UnlockAdBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons"]
+visible = false
+custom_minimum_size = Vector2(240, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.88, 0.35, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "DESBLOQUEAR CON ANUNCIO"
 
 [node name="LaunchBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons"]
 custom_minimum_size = Vector2(0, 44)
@@ -695,6 +732,13 @@ size_flags_horizontal = 3
 theme_override_styles/normal = SubResource("StyleBoxFlat_PlayBtn")
 text = "GUARDAR"
 
+[node name="ResetDefaultsBtn" type="Button" parent="MenuLayer/SettingsModal/VBox/ButtonRow"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "RESTABLECER"
+
 [node name="CloseSettingsBtn" type="Button" parent="MenuLayer/SettingsModal/VBox/ButtonRow"]
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
@@ -710,10 +754,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -270.0
-offset_top = -190.0
-offset_right = 270.0
-offset_bottom = 190.0
+offset_left = -310.0
+offset_top = -235.0
+offset_right = 310.0
+offset_bottom = 235.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_Modal")
@@ -723,10 +767,10 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 20.0
-offset_top = 18.0
-offset_right = -20.0
-offset_bottom = -18.0
+offset_left = 22.0
+offset_top = 16.0
+offset_right = -22.0
+offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 10
@@ -736,38 +780,162 @@ alignment = 1
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
 theme_override_font_sizes/font_size = 18
-text = "LICENCIA DE ESPACIO PROFUNDO"
+text = "TERMINAL DE SUMINISTROS // LICENCIAS"
 horizontal_alignment = 1
 
 [node name="Desc" type="Label" parent="MenuLayer/StoreModal/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.88, 0.94, 1)
 theme_override_font_sizes/font_size = 12
-text = "• Acceso a Sectores Pro 4 y 5 (Singularidad y Tartarus)
-• Desbloqueo del Modo Arquitecto (Física y biomas)
-• Soporte directo para el desarrollo continuo"
+text = "Adquiere autorizaciones de vuelo y herramientas avanzadas de exploración."
+horizontal_alignment = 1
 autowrap_mode = 2
 
-[node name="BuyMonthlyBtn" type="Button" parent="MenuLayer/StoreModal/VBox"]
-custom_minimum_size = Vector2(0, 44)
+[node name="BuyNoAdsBtn" type="Button" parent="MenuLayer/StoreModal/VBox"]
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "Pase de Comandante - $1.99 USD / mes"
+text = "Supresión de Anuncios - $0.99 USD"
 
-[node name="BuyLifetimeBtn" type="Button" parent="MenuLayer/StoreModal/VBox"]
-custom_minimum_size = Vector2(0, 44)
+[node name="BuyFullGameBtn" type="Button" parent="MenuLayer/StoreModal/VBox"]
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
-theme_override_styles/normal = SubResource("StyleBoxFlat_PlayBtn")
-text = "Licencia Vitalicia Completa - $3.99 USD"
+theme_override_styles/normal = SubResource("StyleBoxFlat_HighlightBtn")
+text = "PROTOCOLO TOTAL (JUEGO COMPLETO) - $2.99 USD"
 
-[node name="CloseStoreBtn" type="Button" parent="MenuLayer/StoreModal/VBox"]
+[node name="BuyEditorBtn" type="Button" parent="MenuLayer/StoreModal/VBox"]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "Módulo Arquitecto (Editor) - $1.99 USD"
+
+[node name="StatusLabel" type="Label" parent="MenuLayer/StoreModal/VBox"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.9, 0.6, 1)
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+
+[node name="BottomRow" type="HBoxContainer" parent="MenuLayer/StoreModal/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="RestoreBtn" type="Button" parent="MenuLayer/StoreModal/VBox/BottomRow"]
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "RESTAURAR COMPRAS"
+
+[node name="CloseStoreBtn" type="Button" parent="MenuLayer/StoreModal/VBox/BottomRow"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
 text = "CERRAR"
 
+[node name="AdTransmissionModal" type="Panel" parent="MenuLayer"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_AdBg")
+
+[node name="Card" type="Panel" parent="MenuLayer/AdTransmissionModal"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -140.0
+offset_right = 260.0
+offset_bottom = 140.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_Modal")
+
+[node name="VBox" type="VBoxContainer" parent="MenuLayer/AdTransmissionModal/Card"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 20.0
+offset_right = -24.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="Title" type="Label" parent="MenuLayer/AdTransmissionModal/Card/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "TRANSMISIÓN ORBITAL EN CURSO"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="MenuLayer/AdTransmissionModal/Card/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.80, 0.85, 0.92, 1)
+theme_override_font_sizes/font_size = 12
+text = "Sincronizando canal de comunicaciones con la flota..."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ProgressBar" type="ProgressBar" parent="MenuLayer/AdTransmissionModal/Card/VBox"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_MeterBg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_PlayBtn")
+value = 0.0
+
+[node name="TipLabel" type="Label" parent="MenuLayer/AdTransmissionModal/Card/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.65, 0.75, 1)
+theme_override_font_sizes/font_size = 10
+text = "Consejo: Puedes suprimir transmisiones permanentemente en la Tienda."
+horizontal_alignment = 1
+
+[node name="SkipBtn" type="Button" parent="MenuLayer/AdTransmissionModal/Card/VBox"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "CONTINUAR"
+
+[node name="WarpOverlay" type="ColorRect" parent="MenuLayer"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.12, 0.45, 0.95, 0.0)
+
+[node name="WarpLabel" type="Label" parent="MenuLayer/WarpOverlay"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -20.0
+offset_right = 300.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.88, 0.96, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "SALTO HIPERESPACIAL EN CURSO..."
+horizontal_alignment = 1
+
 [connection signal="pressed" from="MenuLayer/SettingsModal/VBox/ButtonRow/SaveSettingsBtn" to="." method="_on_save_settings_pressed"]
 [connection signal="pressed" from="MenuLayer/SettingsModal/VBox/ButtonRow/CloseSettingsBtn" to="." method="_on_close_settings_pressed"]
-[connection signal="pressed" from="MenuLayer/StoreModal/VBox/BuyMonthlyBtn" to="." method="_on_buy_monthly_pressed"]
-[connection signal="pressed" from="MenuLayer/StoreModal/VBox/BuyLifetimeBtn" to="." method="_on_buy_lifetime_pressed"]
-[connection signal="pressed" from="MenuLayer/StoreModal/VBox/CloseStoreBtn" to="." method="_on_close_store_pressed"]

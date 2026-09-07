@@ -26,11 +26,21 @@ var crafting = CraftingSystemClass.new()
 var current_solar_system: Dictionary = {}
 var current_planet: Dictionary = {}
 
+# Default Settings Constants
+const DEFAULT_LANGUAGE: String = "es"
+const DEFAULT_MASTER_VOLUME: float = 0.85
+const DEFAULT_MUSIC_VOLUME: float = 0.70
+const DEFAULT_SFX_VOLUME: float = 0.90
+
 # Settings
-var current_language: String = "es" # "es" or "en"
-var master_volume: float = 0.85
-var music_volume: float = 0.70
-var sfx_volume: float = 0.90
+var current_language: String = DEFAULT_LANGUAGE # "es" or "en"
+var master_volume: float = DEFAULT_MASTER_VOLUME
+var music_volume: float = DEFAULT_MUSIC_VOLUME
+var sfx_volume: float = DEFAULT_SFX_VOLUME
+
+# Progression and Ads/VIP tracking
+var expeditions_completed: int = 0
+var temp_unlocked_vip_levels: Array[int] = []
 
 # Player Expedition Session stats
 var player_stats: Dictionary = {
@@ -91,6 +101,7 @@ const LOCALIZATION: Dictionary = {
 		"settings_title": "CONFIGURACIÓN // AJUSTES",
 		"lang_label": "Idioma de Interfaz:",
 		"save_btn": "GUARDAR",
+		"reset_defaults": "RESTABLECER",
 		"discard_btn": "CERRAR",
 		"system_info_tab": "SISTEMA SOLAR",
 		"planet_info_tab": "PLANETA SELECCIONADO",
@@ -98,7 +109,57 @@ const LOCALIZATION: Dictionary = {
 		"water": "Agua / Hidrosfera",
 		"hazard": "Nivel de Peligro",
 		"star_type": "Estrella Central",
-		"planets_count": "Cuerpos Orbitales"
+		"planets_count": "Cuerpos Orbitales",
+		"store_title": "TERMINAL DE SUMINISTROS // LICENCIAS",
+		"store_desc": "Adquiere autorizaciones de vuelo y herramientas avanzadas de exploración.",
+		"buy_no_ads": "Supresión de Anuncios - $0.99 USD",
+		"buy_no_ads_desc": "Elimina las transmisiones orbitales entre expediciones.",
+		"buy_full_game": "Protocolo Total (Juego Completo) - $2.99 USD",
+		"buy_full_game_desc": "Cero anuncios + Sectores VIP 4 y 5 + Modo Arquitecto permanente.",
+		"buy_editor": "Módulo Arquitecto (Editor) - $1.99 USD",
+		"buy_editor_desc": "Simulador de terraformación para personalizar mundos.",
+		"restore_purchases": "RESTAURAR COMPRAS",
+		"purchases_restored_ok": "Licencias sincronizadas correctamente.",
+		"purchases_restored_none": "No se encontraron licencias previas registradas.",
+		"unlock_ad_btn": "DESBLOQUEAR CON ANUNCIO",
+		"ad_transmission_title": "TRANSMISIÓN ORBITAL EN CURSO",
+		"ad_rewarded_title": "AUTORIZANDO SECTOR CLASIFICADO...",
+		"ad_skip": "CONTINUAR",
+		"ad_tip": "Puedes suprimir transmisiones permanentemente en la Tienda.",
+		"planet_editor": "EDITOR DE PLANETAS",
+		"architect_mode": "MODO ARQUITECTO",
+		"editor_subtitle": "Diseño Planetario y Simulación de Atmósfera",
+		"planet_name": "Nombre del Planeta",
+		"radius_size": "Radio / Tamaño",
+		"gravity_label": "Gravedad",
+		"temp_label": "Temperatura",
+		"atmosphere_density": "Densidad Atmosférica",
+		"water_coverage": "Cobertura de Agua",
+		"surface_color": "Color de Superficie",
+		"atmosphere_tint": "Tinte Atmosférico",
+		"planetary_rings": "Anillos Planetarios",
+		"rings_tint": "Color de Anillos",
+		"randomize": "ALEATORIO",
+		"launch_custom": "INICIAR CON ESTE PLANETA",
+		"store_editor_locked": "Modo Arquitecto Bloqueado",
+		"store_editor_desc": "Desbloquea el Editor de Planetas para crear mundos personalizados con control total de física, biomas y atmósfera.",
+		"color_rocky_grey": "Gris Rocoso",
+		"color_desert_rust": "Óxido Desértico",
+		"color_forest_green": "Verde Forestal",
+		"color_oceanic_blue": "Azul Oceánico",
+		"color_volcanic_obsidian": "Obsidiana Ígnea",
+		"color_cryo_azure": "Azul Criogénico",
+		"atmo_earth_cyan": "Cian Terrestre",
+		"atmo_golden_dust": "Polvo Dorado",
+		"atmo_alien_emerald": "Esmeralda Alien",
+		"atmo_crimson_haze": "Bruma Carmesí",
+		"atmo_violet_aurora": "Aurora Violeta",
+		"atmo_vacuum": "Vacío (Sin Tinte)",
+		"rings_ice": "Hielo Perlado",
+		"rings_dust": "Polvo Áureo",
+		"rings_obsidian": "Obsidiana Oscura",
+		"rings_plasma": "Plasma Cuántico",
+		"editor_custom_desc": "Mundo terraformado diseñado a medida en el Modo Arquitecto."
 	},
 	"en": {
 		"play": "PLAY",
@@ -146,6 +207,7 @@ const LOCALIZATION: Dictionary = {
 		"settings_title": "SETTINGS // SYSTEM",
 		"lang_label": "Interface Language:",
 		"save_btn": "SAVE",
+		"reset_defaults": "RESET DEFAULTS",
 		"discard_btn": "CLOSE",
 		"system_info_tab": "SOLAR SYSTEM",
 		"planet_info_tab": "SELECTED PLANET",
@@ -153,7 +215,57 @@ const LOCALIZATION: Dictionary = {
 		"water": "Hydrosphere / Water",
 		"hazard": "Hazard Rating",
 		"star_type": "Host Star",
-		"planets_count": "Orbital Bodies"
+		"planets_count": "Orbital Bodies",
+		"store_title": "FLEET PROCUREMENT // LICENSES",
+		"store_desc": "Acquire flight authorizations and specialized exploration modules.",
+		"buy_no_ads": "Ad Suppression License - $0.99 USD",
+		"buy_no_ads_desc": "Eliminates orbital broadcast ads between expeditions.",
+		"buy_full_game": "Total Protocol (Full Game) - $2.99 USD",
+		"buy_full_game_desc": "Zero ads + Pro Sectors 4 & 5 + Permanent Architect Mode.",
+		"buy_editor": "Architect Module (Editor) - $1.99 USD",
+		"buy_editor_desc": "Terraforming simulator to design customized planets.",
+		"restore_purchases": "RESTORE PURCHASES",
+		"purchases_restored_ok": "Licenses synchronized successfully.",
+		"purchases_restored_none": "No prior registered licenses found.",
+		"unlock_ad_btn": "UNLOCK WITH AD",
+		"ad_transmission_title": "ORBITAL TRANSMISSION IN PROGRESS",
+		"ad_rewarded_title": "AUTHORIZING CLASSIFIED SECTOR...",
+		"ad_skip": "CONTINUE",
+		"ad_tip": "You can permanently suppress transmissions in the Store.",
+		"planet_editor": "PLANET EDITOR",
+		"architect_mode": "ARCHITECT MODE",
+		"editor_subtitle": "Planetary Design & Atmospheric Simulation",
+		"planet_name": "Planet Name",
+		"radius_size": "Radius / Size",
+		"gravity_label": "Gravity",
+		"temp_label": "Temperature",
+		"atmosphere_density": "Atmospheric Density",
+		"water_coverage": "Water Coverage",
+		"surface_color": "Surface Base Color",
+		"atmosphere_tint": "Atmosphere Tint",
+		"planetary_rings": "Planetary Rings",
+		"rings_tint": "Rings Tint",
+		"randomize": "RANDOMIZE",
+		"launch_custom": "LAUNCH WITH THIS PLANET",
+		"store_editor_locked": "Architect Mode Restricted",
+		"store_editor_desc": "Unlock the Planet Editor to craft custom worlds with full control over physics, biomes, and atmosphere.",
+		"color_rocky_grey": "Rocky Grey",
+		"color_desert_rust": "Desert Rust",
+		"color_forest_green": "Forest Green",
+		"color_oceanic_blue": "Oceanic Blue",
+		"color_volcanic_obsidian": "Volcanic Obsidian",
+		"color_cryo_azure": "Cryo Azure",
+		"atmo_earth_cyan": "Earth Cyan",
+		"atmo_golden_dust": "Golden Dust",
+		"atmo_alien_emerald": "Alien Emerald",
+		"atmo_crimson_haze": "Crimson Haze",
+		"atmo_violet_aurora": "Violet Aurora",
+		"atmo_vacuum": "Vacuum (No Tint)",
+		"rings_ice": "Pearly Ice",
+		"rings_dust": "Golden Dust",
+		"rings_obsidian": "Dark Obsidian",
+		"rings_plasma": "Quantum Plasma",
+		"editor_custom_desc": "Terraformed custom world crafted in Architect Mode."
 	}
 }
 
@@ -212,13 +324,57 @@ func save_settings() -> void:
 func load_settings() -> void:
 	var cfg = ConfigFile.new()
 	if cfg.load("user://settings.cfg") == OK:
-		current_language = cfg.get_value("settings", "language", "es")
-		master_volume = cfg.get_value("audio", "master", 0.85)
-		music_volume = cfg.get_value("audio", "music", 0.70)
-		sfx_volume = cfg.get_value("audio", "sfx", 0.90)
+		current_language = cfg.get_value("settings", "language", DEFAULT_LANGUAGE)
+		master_volume = cfg.get_value("audio", "master", DEFAULT_MASTER_VOLUME)
+		music_volume = cfg.get_value("audio", "music", DEFAULT_MUSIC_VOLUME)
+		sfx_volume = cfg.get_value("audio", "sfx", DEFAULT_SFX_VOLUME)
 		_apply_audio_bus_volumes()
 
 func _apply_audio_bus_volumes() -> void:
 	var master_idx = AudioServer.get_bus_index("Master")
 	if master_idx >= 0:
 		AudioServer.set_bus_volume_db(master_idx, linear_to_db(master_volume))
+	var music_idx = AudioServer.get_bus_index("Music")
+	if music_idx >= 0:
+		AudioServer.set_bus_volume_db(music_idx, linear_to_db(music_volume))
+	var sfx_idx = AudioServer.get_bus_index("SFX")
+	if sfx_idx >= 0:
+		AudioServer.set_bus_volume_db(sfx_idx, linear_to_db(sfx_volume))
+
+func reset_settings_to_default() -> void:
+	current_language = DEFAULT_LANGUAGE
+	master_volume = DEFAULT_MASTER_VOLUME
+	music_volume = DEFAULT_MUSIC_VOLUME
+	sfx_volume = DEFAULT_SFX_VOLUME
+	_apply_audio_bus_volumes()
+	save_settings()
+	language_changed.emit(DEFAULT_LANGUAGE)
+
+# ----------------- VIP and Ads Progression -----------------
+
+func _get_revenuecat_manager() -> Node:
+	if is_inside_tree():
+		return get_node_or_null("/root/RevenueCatManager")
+	elif get_parent():
+		return get_parent().get_node_or_null("RevenueCatManager")
+	return null
+
+func unlock_vip_temporarily(level: int) -> void:
+	if not level in temp_unlocked_vip_levels:
+		temp_unlocked_vip_levels.append(level)
+
+func is_vip_unlocked(level: int) -> bool:
+	if level < 4:
+		return true
+	var rcm = _get_revenuecat_manager()
+	if rcm and rcm.has_premium_access():
+		return true
+	return level in temp_unlocked_vip_levels
+
+func record_expedition_completed() -> bool:
+	expeditions_completed += 1
+	var rcm = _get_revenuecat_manager()
+	var has_no_ads: bool = rcm.has_no_ads() if rcm else false
+	var should_show_ad: bool = (expeditions_completed % 2 == 0) and not has_no_ads
+	return should_show_ad
+

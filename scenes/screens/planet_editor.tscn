@@ -1,0 +1,522 @@
+[gd_scene load_steps=18 format=3 uid="uid://cplaneteditor01"]
+
+[ext_resource type="Script" path="res://scripts/screens/planet_editor.gd" id="1_editor"]
+[ext_resource type="Shader" path="res://assets/shaders/planet_sphere.gdshader" id="2_planet_shader"]
+[ext_resource type="Shader" path="res://assets/shaders/planet_rings.gdshader" id="3_rings_shader"]
+[ext_resource type="Shader" path="res://assets/shaders/space_sky.gdshader" id="4_space_sky"]
+
+[sub_resource type="ShaderMaterial" id="SkyMat_Space"]
+shader = ExtResource("4_space_sky")
+shader_parameter/space_color = Color(0.018, 0.024, 0.042, 1)
+shader_parameter/nebula_color_1 = Color(0.08, 0.03, 0.16, 1)
+shader_parameter/nebula_color_2 = Color(0.02, 0.08, 0.14, 1)
+shader_parameter/nebula_accent = Color(0.12, 0.05, 0.10, 1)
+shader_parameter/nebula_intensity = 1.25
+shader_parameter/star_brightness = 0.55
+shader_parameter/dynamic_speed = 0.015
+
+[sub_resource type="Sky" id="Sky_Space"]
+sky_material = SubResource("SkyMat_Space")
+
+[sub_resource type="Environment" id="Env_Editor"]
+background_mode = 2
+sky = SubResource("Sky_Space")
+ambient_light_source = 2
+ambient_light_color = Color(0.20, 0.25, 0.38, 1)
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.6
+glow_bloom = 0.2
+
+[sub_resource type="SphereMesh" id="SphereMesh_Planet"]
+radius = 3.5
+height = 7.0
+radial_segments = 64
+rings = 32
+
+[sub_resource type="ShaderMaterial" id="Mat_Planet"]
+render_priority = 0
+shader = ExtResource("2_planet_shader")
+
+[sub_resource type="QuadMesh" id="QuadMesh_Rings"]
+size = Vector2(14.0, 14.0)
+orientation = 1
+
+[sub_resource type="ShaderMaterial" id="Mat_Rings"]
+render_priority = 1
+shader = ExtResource("3_rings_shader")
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_TopBar"]
+content_margin_left = 24.0
+content_margin_top = 10.0
+content_margin_right = 24.0
+content_margin_bottom = 10.0
+bg_color = Color(0.03, 0.06, 0.12, 0.85)
+border_width_bottom = 1
+border_color = Color(0.20, 0.60, 0.95, 0.40)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_DockPanel"]
+content_margin_left = 18.0
+content_margin_top = 16.0
+content_margin_right = 18.0
+content_margin_bottom = 16.0
+bg_color = Color(0.04, 0.08, 0.15, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.20, 0.60, 0.95, 0.45)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Input"]
+content_margin_left = 10.0
+content_margin_right = 10.0
+bg_color = Color(0.07, 0.13, 0.22, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.65, 0.95, 0.50)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_PrimaryBtn"]
+content_margin_top = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.12, 0.52, 0.38, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.95, 0.65, 0.90)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_SecBtn"]
+content_margin_top = 8.0
+content_margin_bottom = 8.0
+bg_color = Color(0.08, 0.16, 0.28, 0.88)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.55, 0.85, 0.50)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_OutlineBtn"]
+content_margin_top = 8.0
+content_margin_bottom = 8.0
+bg_color = Color(0.05, 0.10, 0.18, 0.75)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.40, 0.50, 0.65, 0.40)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="PlanetEditor" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_editor")
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+mouse_filter = 2
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
+handle_input_locally = false
+size = Vector2i(1280, 720)
+render_target_update_mode = 4
+
+[node name="World3D" type="Node3D" parent="SubViewportContainer/SubViewport"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="SubViewportContainer/SubViewport/World3D"]
+environment = SubResource("Env_Editor")
+
+[node name="Camera3D" type="Camera3D" parent="SubViewportContainer/SubViewport/World3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8, 0, 11.5)
+fov = 45.0
+
+[node name="SunLight" type="DirectionalLight3D" parent="SubViewportContainer/SubViewport/World3D"]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 12, 15, 12)
+light_color = Color(1, 0.97, 0.92, 1)
+light_energy = 1.6
+shadow_enabled = true
+
+[node name="PlanetPivot" type="Node3D" parent="SubViewportContainer/SubViewport/World3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8, 0, 0)
+
+[node name="PlanetMesh" type="MeshInstance3D" parent="SubViewportContainer/SubViewport/World3D/PlanetPivot"]
+mesh = SubResource("SphereMesh_Planet")
+surface_material_override/0 = SubResource("Mat_Planet")
+
+[node name="RingsMesh" type="MeshInstance3D" parent="SubViewportContainer/SubViewport/World3D/PlanetPivot"]
+visible = false
+material_override = SubResource("Mat_Rings")
+mesh = SubResource("QuadMesh_Rings")
+
+[node name="DragArea" type="Control" parent="."]
+layout_mode = 1
+anchor_right = 0.60
+anchor_bottom = 1.0
+grow_vertical = 2
+
+[node name="TopBar" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 60.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_TopBar")
+
+[node name="HBox" type="HBoxContainer" parent="TopBar"]
+layout_mode = 2
+alignment = 0
+
+[node name="BrandBox" type="VBoxContainer" parent="TopBar/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="TopBar/HBox/BrandBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "MODO ARQUITECTO"
+
+[node name="Subtitle" type="Label" parent="TopBar/HBox/BrandBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.75, 0.88, 1)
+theme_override_font_sizes/font_size = 11
+text = "Diseño Planetario y Simulación de Atmósfera"
+
+[node name="StatusBox" type="VBoxContainer" parent="TopBar/HBox"]
+layout_mode = 2
+alignment = 1
+
+[node name="ClassBadge" type="Label" parent="TopBar/HBox/StatusBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.25, 0.95, 0.45, 1)
+theme_override_font_sizes/font_size = 13
+text = "[ NIVEL 0 • HABITABLE ]"
+horizontal_alignment = 2
+
+[node name="ClassDescLabel" type="Label" parent="TopBar/HBox/StatusBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.70, 0.80, 0.92, 1)
+theme_override_font_sizes/font_size = 11
+text = "Habitabilidad: 88% | Riesgo: 8%"
+horizontal_alignment = 2
+
+[node name="ControlDock" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -510.0
+offset_top = 68.0
+offset_right = -14.0
+offset_bottom = -14.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="ControlDock"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_DockPanel")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="ControlDock/PanelContainer"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="ControlsVBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="NameBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="LineEdit" type="LineEdit" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/NameBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxFlat_Input")
+placeholder_text = "Nombre del Planeta"
+text = "Aurelia Prime"
+
+[node name="HSeparator1" type="HSeparator" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+
+[node name="RadiusBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Radio / Tamaño"
+
+[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "3.5 R⊕"
+
+[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox"]
+layout_mode = 2
+min_value = 2.0
+max_value = 6.0
+step = 0.1
+value = 3.5
+
+[node name="GravityBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Gravedad"
+
+[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "9.8 m/s² (1.00 G)"
+
+[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox"]
+layout_mode = 2
+min_value = 1.0
+max_value = 25.0
+step = 0.1
+value = 9.8
+
+[node name="TempBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Temperatura"
+
+[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 1, 0.5, 1)
+theme_override_font_sizes/font_size = 12
+text = "+18 °C"
+
+[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox"]
+layout_mode = 2
+min_value = -180.0
+max_value = 120.0
+step = 1.0
+value = 18.0
+
+[node name="AtmoBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Densidad Atmosférica"
+
+[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "1.00 atm"
+
+[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox"]
+layout_mode = 2
+min_value = 0.0
+max_value = 5.0
+step = 0.05
+value = 1.0
+
+[node name="WaterBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Cobertura Oceánica"
+
+[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "48 %"
+
+[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox"]
+layout_mode = 2
+min_value = 0.0
+max_value = 1.0
+step = 0.02
+value = 0.48
+
+[node name="HSeparator2" type="HSeparator" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+
+[node name="SurfaceColorBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Color de Superficie"
+
+[node name="ColorPicker" type="ColorPickerButton" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox/Header"]
+custom_minimum_size = Vector2(40, 24)
+layout_mode = 2
+color = Color(0.2, 0.55, 0.26, 1)
+
+[node name="SwatchesRow" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AtmoColorBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Tinte Atmosférico"
+
+[node name="ColorPicker" type="ColorPickerButton" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox/Header"]
+custom_minimum_size = Vector2(40, 24)
+layout_mode = 2
+color = Color(0.3, 0.7, 1, 1)
+
+[node name="SwatchesRow" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="RingsBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Anillos Planetarios"
+
+[node name="CheckButton" type="CheckButton" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/Header"]
+layout_mode = 2
+
+[node name="RingsColorBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "Color de Anillos"
+
+[node name="ColorPicker" type="ColorPickerButton" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox/Header"]
+custom_minimum_size = Vector2(40, 24)
+layout_mode = 2
+color = Color(0.85, 0.92, 1, 1)
+
+[node name="SwatchesRow" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="HSeparator3" type="HSeparator" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+
+[node name="ActionButtons" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RandomBtn" type="Button" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/ActionButtons"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "ALEATORIO"
+
+[node name="LaunchBtn" type="Button" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/ActionButtons"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_PrimaryBtn")
+text = "INICIAR CON ESTE PLANETA"
+
+[node name="BackBtn" type="Button" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/ActionButtons"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxFlat_OutlineBtn")
+text = "VOLVER AL MENÚ"

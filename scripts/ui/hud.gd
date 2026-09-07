@@ -5,6 +5,7 @@ extends Control
 @onready var jump_btn: TextureButton = $MobileLayer/ActionCluster/JumpBtn
 @onready var context_action_btn: Button = $MobileLayer/ActionCluster/ContextActionBtn
 @onready var view_toggle_btn: Button = $MobileLayer/ActionCluster/ViewToggleBtn
+@onready var sprint_btn: Button = $MobileLayer/ActionCluster/SprintBtn
 
 @onready var o2_bar: ProgressBar = $TopLayer/Vitals/O2Bar
 @onready var fuel_bar: ProgressBar = $TopLayer/Vitals/FuelBar
@@ -20,16 +21,31 @@ extends Control
 
 # Modals
 @onready var pause_modal: Panel = $Modals/PauseModal
+@onready var settings_modal: Panel = $Modals/SettingsModal
+@onready var storage_modal: Panel = $Modals/StorageModal
 @onready var crafting_modal: Panel = $Modals/CraftingModal
 @onready var hyperdrive_modal: Panel = $Modals/HyperdriveModal
 @onready var starmap_modal: Panel = $Modals/StarmapModal
 @onready var game_over_modal: Panel = $Modals/GameOverModal
 @onready var victory_modal: Panel = $Modals/VictoryModal
 
-# Pause Buttons
+# Pause / Settings Buttons
 @onready var pause_resume_btn: Button = $Modals/PauseModal/VBox/ResumeBtn
-@onready var pause_reset_btn: Button = $Modals/PauseModal/VBox/ResetSettingsBtn
+@onready var pause_settings_btn: Button = $Modals/PauseModal/VBox/SettingsBtn
 @onready var pause_menu_btn: Button = $Modals/PauseModal/VBox/ExitMenuBtn
+
+@onready var master_slider: HSlider = $Modals/SettingsModal/VBox/MasterSlider
+@onready var music_slider: HSlider = $Modals/SettingsModal/VBox/MusicSlider
+@onready var reset_defaults_btn: Button = $Modals/SettingsModal/VBox/ResetDefaultsBtn
+@onready var close_settings_btn: Button = $Modals/SettingsModal/VBox/CloseSettingsBtn
+
+# Storage UI
+@onready var storage_iron_lbl: Label = $Modals/StorageModal/VBox/InvGrid/IronLabel
+@onready var storage_copper_lbl: Label = $Modals/StorageModal/VBox/InvGrid/CopperLabel
+@onready var storage_silicon_lbl: Label = $Modals/StorageModal/VBox/InvGrid/SiliconLabel
+@onready var storage_uranium_lbl: Label = $Modals/StorageModal/VBox/InvGrid/UraniumLabel
+@onready var deposit_all_btn: Button = $Modals/StorageModal/VBox/DepositAllBtn
+@onready var close_storage_btn: Button = $Modals/StorageModal/VBox/CloseStorageBtn
 
 # Crafting UI labels
 @onready var inv_iron_label: Label = $Modals/CraftingModal/VBox/InvGrid/IronLabel
@@ -60,19 +76,13 @@ func _ready() -> void:
 		jarvis_overlay.visible = false
 	_update_header()
 	
-	# Signal connections (if not already connected from scene)
-	if not jump_btn.button_down.is_connected(_on_jump_down):
-		jump_btn.button_down.connect(_on_jump_down)
-		jump_btn.button_up.connect(_on_jump_up)
-		context_action_btn.button_down.connect(_on_context_btn_down)
-		context_action_btn.button_up.connect(_on_context_btn_up)
-		view_toggle_btn.pressed.connect(_on_view_toggle_pressed)
-		hyperdrive_badge.pressed.connect(_on_hyperdrive_badge_pressed)
-		touch_camera_zone.gui_input.connect(_on_touch_camera_gui_input)
-		pause_btn.pressed.connect(_on_pause_btn_pressed)
-		pause_resume_btn.pressed.connect(_on_pause_resume_pressed)
-		pause_reset_btn.pressed.connect(_on_pause_reset_settings_pressed)
-		pause_menu_btn.pressed.connect(_on_pause_menu_pressed)
+	# Sliders initialization
+	if master_slider:
+		master_slider.value = GameManager.get_setting("master_volume", 85.0)
+		master_slider.value_changed.connect(_on_master_slider_changed)
+	if music_slider:
+		music_slider.value = GameManager.get_setting("music_volume", 70.0)
+		music_slider.value_changed.connect(_on_music_slider_changed)
 	
 	GameManager.game_over.connect(_on_game_over)
 	GameManager.expedition_completed.connect(_on_expedition_completed)
@@ -84,13 +94,19 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
-		if pause_modal.visible:
+		if settings_modal.visible:
+			_on_close_settings_pressed()
+		elif storage_modal.visible:
+			_on_close_storage_pressed()
+		elif pause_modal.visible:
 			_on_pause_resume_pressed()
 		else:
 			_on_pause_btn_pressed()
 
 func close_all_modals() -> void:
 	if pause_modal: pause_modal.visible = false
+	if settings_modal: settings_modal.visible = false
+	if storage_modal: storage_modal.visible = false
 	crafting_modal.visible = false
 	hyperdrive_modal.visible = false
 	starmap_modal.visible = false
@@ -127,7 +143,7 @@ func _on_stats_changed(o2: float, fuel: float, hull: float) -> void:
 	fuel_bar.value = fuel
 	hull_bar.value = hull
 
-# Smooth Touch Camera Orbit & Pinch Zoom
+# Smooth Touch Camera Orbit & Pinch Zoom (Right side of screen)
 func _on_touch_camera_gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
@@ -172,6 +188,12 @@ func _on_view_toggle_pressed() -> void:
 	if player and player.has_method("toggle_first_person"):
 		player.toggle_first_person()
 
+func _on_sprint_btn_pressed() -> void:
+	if player:
+		player.is_sprinting = not player.is_sprinting
+		if sprint_btn:
+			sprint_btn.modulate = Color(1.0, 0.8, 0.2) if player.is_sprinting else Color(1.0, 1.0, 1.0, 0.8)
+
 func _on_jump_down() -> void:
 	Input.action_press("jump_thrust")
 
@@ -189,15 +211,35 @@ func _on_pause_resume_pressed() -> void:
 	pause_modal.visible = false
 	get_tree().paused = false
 
-func _on_pause_reset_settings_pressed() -> void:
+func _on_pause_settings_pressed() -> void:
+	AudioManager.play("click")
+	settings_modal.visible = true
+	if master_slider:
+		master_slider.value = GameManager.get_setting("master_volume", 85.0)
+	if music_slider:
+		music_slider.value = GameManager.get_setting("music_volume", 70.0)
+
+func _on_close_settings_pressed() -> void:
+	AudioManager.play("click")
+	settings_modal.visible = false
+
+func _on_reset_settings_defaults_pressed() -> void:
 	AudioManager.play("click")
 	GameManager.reset_settings_to_default()
-	pause_reset_btn.text = "¡RESTABLECIDO!"
+	if master_slider: master_slider.value = 85.0
+	if music_slider: music_slider.value = 70.0
+	reset_defaults_btn.text = "¡RESTABLECIDO!"
 	var tween = create_tween()
 	tween.tween_interval(1.2)
 	tween.tween_callback(func():
-		if pause_reset_btn: pause_reset_btn.text = "RESTABLECER AJUSTES"
+		if reset_defaults_btn: reset_defaults_btn.text = "Restablecer Valores Predeterminados"
 	)
+
+func _on_master_slider_changed(val: float) -> void:
+	GameManager.update_setting("master_volume", val)
+
+func _on_music_slider_changed(val: float) -> void:
+	GameManager.update_setting("music_volume", val)
 
 func _on_pause_menu_pressed() -> void:
 	get_tree().paused = false
@@ -224,8 +266,11 @@ func _on_interaction_available(type: String, target: Node3D) -> void:
 		"airlock":
 			context_action_btn.text = "ESCLUSA"
 			context_action_btn.modulate = Color(0.2, 0.8, 1.0)
+		"storage":
+			context_action_btn.text = "CAJÓN DE SUMINISTROS"
+			context_action_btn.modulate = Color(1.0, 0.75, 0.2)
 		"repair":
-			context_action_btn.text = "REPARAR NAVE"
+			context_action_btn.text = "REPARAR CASCO"
 			context_action_btn.modulate = Color(1.0, 0.4, 0.2)
 
 func _on_interaction_lost() -> void:
@@ -249,8 +294,14 @@ func _on_context_btn_down() -> void:
 			starmap_modal.visible = true
 			_build_starmap_ui()
 			AudioManager.play("click")
+		"storage":
+			storage_modal.visible = true
+			_update_storage_ui()
+			AudioManager.play("click")
 		"airlock":
-			AudioManager.play("airlock", 1.0)
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			if ship and ship.has_method("open_airlock"):
+				ship.open_airlock()
 		"repair":
 			var ship = get_tree().get_first_node_in_group("spaceship")
 			if ship and ship.has_method("repair_hull_modules"):
@@ -265,6 +316,28 @@ func _on_hyperdrive_badge_pressed() -> void:
 	if hyperdrive_modal.visible:
 		_update_hyperdrive_ui()
 		AudioManager.play("click")
+
+# Storage / Cajón de Suministros
+func _update_storage_ui() -> void:
+	var inv = GameManager.crafting.inventory
+	if storage_iron_lbl: storage_iron_lbl.text = "Hierro: %d" % inv.get("iron", 0)
+	if storage_copper_lbl: storage_copper_lbl.text = "Cobre: %d" % inv.get("copper", 0)
+	if storage_silicon_lbl: storage_silicon_lbl.text = "Silicio: %d" % inv.get("silicon", 0)
+	if storage_uranium_lbl: storage_uranium_lbl.text = "Uranio: %d" % inv.get("uranium", 0)
+
+func _on_deposit_all_pressed() -> void:
+	AudioManager.play("crafting", 1.0)
+	_update_storage_ui()
+	deposit_all_btn.text = "¡SUMINISTROS ASEGURADOS!"
+	var tween = create_tween()
+	tween.tween_interval(1.2)
+	tween.tween_callback(func():
+		if deposit_all_btn: deposit_all_btn.text = "Depositar Minerales Recolectados"
+	)
+
+func _on_close_storage_pressed() -> void:
+	AudioManager.play("click")
+	storage_modal.visible = false
 
 # Crafting
 func _update_crafting_ui() -> void:

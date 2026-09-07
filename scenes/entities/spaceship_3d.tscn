@@ -1,4 +1,4 @@
-[gd_scene load_steps=29 format=3 uid="uid://cship3d01"]
+[gd_scene load_steps=31 format=3 uid="uid://cship3d01"]
 
 [ext_resource type="Script" path="res://scripts/entities/spaceship_3d.gd" id="1_ship"]
 [ext_resource type="PackedScene" uid="uid://c6j2yvxk3u8m1" path="res://assets/models/satelliteDish_detailed.glb" id="2_sat"]
@@ -32,7 +32,12 @@ transparency = 1
 albedo_color = Color(0.1, 0.12, 0.15, 1)
 emission_enabled = true
 emission = Color(0.2, 0.85, 1, 1)
-emission_energy_multiplier = 3.0
+emission_energy_multiplier = 2.5
+
+[sub_resource type="StandardMaterial3D" id="Mat_CrateMetal"]
+albedo_color = Color(0.25, 0.3, 0.38, 1)
+metallic = 0.8
+roughness = 0.4
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_HeatShield"]
 material = SubResource("Mat_DarkTrim")
@@ -45,6 +50,11 @@ radial_segments = 24
 top_radius = 3.7
 bottom_radius = 3.8
 height = 0.4
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_Ceiling"]
+top_radius = 3.6
+bottom_radius = 3.6
+height = 0.6
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_RoofCap"]
 material = SubResource("Mat_RescueOrange")
@@ -66,10 +76,10 @@ size = Vector3(1.65, 2.25, 0.15)
 
 [sub_resource type="BoxMesh" id="BoxMesh_Ramp"]
 material = SubResource("Mat_DarkTrim")
-size = Vector3(2.0, 0.15, 3.4)
+size = Vector3(1.9, 0.15, 2.8)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_Ramp"]
-size = Vector3(2.0, 0.15, 3.4)
+size = Vector3(1.9, 0.15, 2.8)
 
 [sub_resource type="BoxMesh" id="BoxMesh_Strut"]
 material = SubResource("Mat_DarkTrim")
@@ -82,18 +92,18 @@ bottom_radius = 0.65
 height = 0.2
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_AirlockTrigger"]
-size = Vector3(2.4, 2.5, 2.4)
+size = Vector3(2.6, 2.8, 2.8)
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_CabinArea"]
-top_radius = 3.1
-bottom_radius = 3.3
+top_radius = 3.2
+bottom_radius = 3.4
 height = 3.0
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_Reactor"]
 material = SubResource("Mat_GlowCyan")
-top_radius = 0.5
-bottom_radius = 0.5
-height = 1.6
+top_radius = 0.4
+bottom_radius = 0.45
+height = 0.9
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_Interact"]
 top_radius = 1.6
@@ -102,6 +112,13 @@ height = 2.0
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_DeskInteract"]
 size = Vector3(1.8, 1.4, 1.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_Crate"]
+material = SubResource("Mat_CrateMetal")
+size = Vector3(1.2, 0.75, 0.9)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_Crate"]
+size = Vector3(1.4, 1.2, 1.2)
 
 [node name="Spaceship3D" type="Node3D" groups=["interactable", "spaceship"]]
 script = ExtResource("1_ship")
@@ -118,6 +135,14 @@ mesh = SubResource("CylinderMesh_HeatShield")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/HeatShield"]
 shape = SubResource("CylinderShape3D_HeatShield")
+
+[node name="CeilingHitbox" type="StaticBody3D" parent="HullStructure"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4, 0)
+collision_layer = 1
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/CeilingHitbox"]
+shape = SubResource("CylinderShape3D_Ceiling")
 
 [node name="CapsuleHull" type="CSGCombiner3D" parent="HullStructure"]
 use_collision = true
@@ -170,47 +195,33 @@ omni_range = 16.0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, -3.4)
 mesh = SubResource("BoxMesh_ViewportGlass")
 
-[node name="AirlockChamber" type="Node3D" parent="HullStructure"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 2.8)
-
-[node name="OuterDoor" type="StaticBody3D" parent="HullStructure/AirlockChamber"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, 0.6)
+[node name="AirlockDoor" type="StaticBody3D" parent="HullStructure"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, 3.35)
 collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/AirlockChamber/OuterDoor"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/AirlockDoor"]
 mesh = SubResource("BoxMesh_AirlockDoor")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/AirlockChamber/OuterDoor"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/AirlockDoor"]
 shape = SubResource("BoxShape3D_AirlockDoor")
 
-[node name="InnerDoor" type="StaticBody3D" parent="HullStructure/AirlockChamber"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, -0.6)
-collision_layer = 1
-collision_mask = 0
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/AirlockChamber/InnerDoor"]
-mesh = SubResource("BoxMesh_AirlockDoor")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/AirlockChamber/InnerDoor"]
-shape = SubResource("BoxShape3D_AirlockDoor")
-
-[node name="AirlockLight" type="OmniLight3D" parent="HullStructure/AirlockChamber"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.6, 0)
+[node name="AirlockLight" type="OmniLight3D" parent="HullStructure"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 3.3)
 light_color = Color(0.2, 0.8, 1, 1)
-light_energy = 2.0
-omni_range = 3.5
+light_energy = 2.5
+omni_range = 4.0
 
-[node name="AirlockTrigger" type="Area3D" parent="HullStructure/AirlockChamber" groups=["interactable_airlock"]]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, 0)
+[node name="AirlockTrigger" type="Area3D" parent="HullStructure" groups=["interactable_airlock"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, 3.3)
 collision_layer = 4
 collision_mask = 1
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/AirlockChamber/AirlockTrigger"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/AirlockTrigger"]
 shape = SubResource("BoxShape3D_AirlockTrigger")
 
 [node name="BoardingRamp" type="StaticBody3D" parent="HullStructure"]
-transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, -0.1, 4.8)
+transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 0.05, 4.6)
 collision_layer = 1
 collision_mask = 0
 
@@ -263,7 +274,7 @@ collision_mask = 1
 shape = SubResource("CylinderShape3D_CabinArea")
 
 [node name="HyperdriveCore" type="Area3D" parent="CabinInterior" groups=["interactable_hyperdrive"]]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -0.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, -0.6)
 collision_layer = 4
 collision_mask = 0
 
@@ -274,13 +285,13 @@ mesh = SubResource("CylinderMesh_Reactor")
 shape = SubResource("CylinderShape3D_Interact")
 
 [node name="OmniLight3D" type="OmniLight3D" parent="CabinInterior/HyperdriveCore"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
 light_color = Color(0.2, 0.85, 1, 1)
-light_energy = 3.0
-omni_range = 8.0
+light_energy = 2.5
+omni_range = 6.0
 
 [node name="FabricatorStation" type="Area3D" parent="CabinInterior" groups=["interactable_fabricator"]]
-transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, -3.9, 0.2, -1.0)
+transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, -4.0, 0.2, -1.5)
 collision_layer = 4
 collision_mask = 0
 
@@ -291,7 +302,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0, 0.6, 1.5)
 shape = SubResource("BoxShape3D_DeskInteract")
 
 [node name="StarmapTerminal" type="Area3D" parent="CabinInterior" groups=["interactable_starmap"]]
-transform = Transform3D(1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0, -0.2, 0.2, -1.0)
+transform = Transform3D(1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0, -0.1, 0.2, -1.5)
 collision_layer = 4
 collision_mask = 0
 
@@ -301,14 +312,25 @@ collision_mask = 0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0, 0.6, 1.5)
 shape = SubResource("BoxShape3D_DeskInteract")
 
+[node name="StorageLocker" type="Area3D" parent="CabinInterior" groups=["interactable_storage"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -2.4)
+collision_layer = 4
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="CabinInterior/StorageLocker"]
+mesh = SubResource("BoxMesh_Crate")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="CabinInterior/StorageLocker"]
+shape = SubResource("BoxShape3D_Crate")
+
 [node name="CrewChairLeft" parent="CabinInterior" instance=ExtResource("5_chair")]
-transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, -3.1, 0.2, -3.4)
+transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, -3.1, 0.2, -3.3)
 
 [node name="CrewChairRight" parent="CabinInterior" instance=ExtResource("5_chair")]
-transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, -1.1, 0.2, -3.4)
+transform = Transform3D(1.1, 0, 0, 0, 1.1, 0, 0, 0, 1.1, -1.1, 0.2, -3.3)
 
 [node name="InteriorLight" type="OmniLight3D" parent="CabinInterior"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
 light_color = Color(0.92, 0.95, 1, 1)
-light_energy = 1.8
-omni_range = 6.5
+light_energy = 2.0
+omni_range = 7.5

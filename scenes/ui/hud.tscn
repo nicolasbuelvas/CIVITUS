@@ -203,6 +203,24 @@ theme_override_font_sizes/font_size = 14
 theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
 text = "👁"
 
+[node name="SprintBtn" type="Button" parent="MobileLayer/ActionCluster"]
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -170.0
+offset_top = -80.0
+offset_right = -120.0
+offset_bottom = -30.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
+text = "⚡"
+
 [node name="TopLayer" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 10
@@ -356,17 +374,159 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = "CONTINUAR"
 
-[node name="ResetSettingsBtn" type="Button" parent="Modals/PauseModal/VBox"]
-custom_minimum_size = Vector2(0, 40)
+[node name="SettingsBtn" type="Button" parent="Modals/PauseModal/VBox"]
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
-text = "RESTABLECER AJUSTES"
+theme_override_font_sizes/font_size = 14
+text = "AJUSTES"
 
 [node name="ExitMenuBtn" type="Button" parent="Modals/PauseModal/VBox"]
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = "VOLVER AL MENÚ"
+
+[node name="SettingsModal" type="Panel" parent="Modals"]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -210.0
+offset_top = -170.0
+offset_right = 210.0
+offset_bottom = 170.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_JarvisCard")
+
+[node name="VBox" type="VBoxContainer" parent="Modals/SettingsModal"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 16.0
+offset_right = -20.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Modals/SettingsModal/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.2, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "AJUSTES"
+horizontal_alignment = 1
+
+[node name="VolMasterLabel" type="Label" parent="Modals/SettingsModal/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Volumen Maestro"
+
+[node name="MasterSlider" type="HSlider" parent="Modals/SettingsModal/VBox"]
+layout_mode = 2
+max_value = 100.0
+value = 85.0
+
+[node name="VolMusicLabel" type="Label" parent="Modals/SettingsModal/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Música"
+
+[node name="MusicSlider" type="HSlider" parent="Modals/SettingsModal/VBox"]
+layout_mode = 2
+max_value = 100.0
+value = 70.0
+
+[node name="ResetDefaultsBtn" type="Button" parent="Modals/SettingsModal/VBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Restablecer Valores Predeterminados"
+
+[node name="CloseSettingsBtn" type="Button" parent="Modals/SettingsModal/VBox"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "CERRAR"
+
+[node name="StorageModal" type="Panel" parent="Modals"]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -160.0
+offset_right = 220.0
+offset_bottom = 160.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_JarvisCard")
+
+[node name="VBox" type="VBoxContainer" parent="Modals/StorageModal"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = 16.0
+offset_right = -18.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Modals/StorageModal/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1.0, 0.75, 0.2, 1)
+theme_override_font_sizes/font_size = 16
+text = "CAJÓN DE SUMINISTROS"
+horizontal_alignment = 1
+
+[node name="InvGrid" type="GridContainer" parent="Modals/StorageModal/VBox"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
+
+[node name="IronLabel" type="Label" parent="Modals/StorageModal/VBox/InvGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Hierro: 0"
+
+[node name="CopperLabel" type="Label" parent="Modals/StorageModal/VBox/InvGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Cobre: 0"
+
+[node name="SiliconLabel" type="Label" parent="Modals/StorageModal/VBox/InvGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Silicio: 0"
+
+[node name="UraniumLabel" type="Label" parent="Modals/StorageModal/VBox/InvGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Uranio: 0"
+
+[node name="DepositAllBtn" type="Button" parent="Modals/StorageModal/VBox"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Depositar Minerales Recolectados"
+
+[node name="CloseStorageBtn" type="Button" parent="Modals/StorageModal/VBox"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "CERRAR"
 
 [node name="CraftingModal" type="Panel" parent="Modals"]
 visible = false
@@ -692,9 +852,14 @@ text = "Siguiente Sector"
 [connection signal="pressed" from="MobileLayer/ActionCluster/ViewToggleBtn" to="." method="_on_view_toggle_pressed"]
 [connection signal="pressed" from="TopLayer/PauseBtn" to="." method="_on_pause_btn_pressed"]
 [connection signal="pressed" from="TopLayer/HyperdriveBadge" to="." method="_on_hyperdrive_badge_pressed"]
+[connection signal="pressed" from="MobileLayer/ActionCluster/SprintBtn" to="." method="_on_sprint_btn_pressed"]
 [connection signal="pressed" from="Modals/PauseModal/VBox/ResumeBtn" to="." method="_on_pause_resume_pressed"]
-[connection signal="pressed" from="Modals/PauseModal/VBox/ResetSettingsBtn" to="." method="_on_pause_reset_settings_pressed"]
+[connection signal="pressed" from="Modals/PauseModal/VBox/SettingsBtn" to="." method="_on_pause_settings_pressed"]
 [connection signal="pressed" from="Modals/PauseModal/VBox/ExitMenuBtn" to="." method="_on_pause_menu_pressed"]
+[connection signal="pressed" from="Modals/SettingsModal/VBox/ResetDefaultsBtn" to="." method="_on_reset_settings_defaults_pressed"]
+[connection signal="pressed" from="Modals/SettingsModal/VBox/CloseSettingsBtn" to="." method="_on_close_settings_pressed"]
+[connection signal="pressed" from="Modals/StorageModal/VBox/DepositAllBtn" to="." method="_on_deposit_all_pressed"]
+[connection signal="pressed" from="Modals/StorageModal/VBox/CloseStorageBtn" to="." method="_on_close_storage_pressed"]
 [connection signal="pressed" from="Modals/CraftingModal/VBox/Recipes/WrenchRow/Btn" to="." method="_on_craft_item_pressed" binds= ["wrench"]]
 [connection signal="pressed" from="Modals/CraftingModal/VBox/Recipes/WireRow/Btn" to="." method="_on_craft_item_pressed" binds= ["wire"]]
 [connection signal="pressed" from="Modals/CraftingModal/VBox/Recipes/ChipRow/Btn" to="." method="_on_craft_item_pressed" binds= ["microchip"]]

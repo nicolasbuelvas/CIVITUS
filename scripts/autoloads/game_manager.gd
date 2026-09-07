@@ -325,6 +325,27 @@ func save_settings() -> void:
 	cfg.set_value("audio", "sfx", sfx_volume)
 	cfg.save("user://settings.cfg")
 
+func get_setting(key: String, default_val = null):
+	match key:
+		"master_volume": return master_volume
+		"music_volume": return music_volume
+		"sfx_volume": return sfx_volume
+		"language": return current_language
+		_: return default_val
+
+func update_setting(key: String, val) -> void:
+	match key:
+		"master_volume":
+			master_volume = float(val)
+			_apply_audio_bus_volumes()
+		"music_volume":
+			music_volume = float(val)
+			_apply_audio_bus_volumes()
+		"sfx_volume":
+			sfx_volume = float(val)
+			_apply_audio_bus_volumes()
+	save_settings()
+
 func load_settings() -> void:
 	var cfg = ConfigFile.new()
 	if cfg.load("user://settings.cfg") == OK:

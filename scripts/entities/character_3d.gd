@@ -27,6 +27,7 @@ signal first_person_toggled(is_fps: bool)
 var is_in_space_suit: bool = true
 var is_mining: bool = false
 var is_first_person: bool = false
+var is_sprinting: bool = false
 var nearby_interactable: Node3D = null
 var current_interactable_type: String = ""
 
@@ -59,10 +60,14 @@ func set_suit_mode(outside: bool) -> void:
 	is_in_space_suit = outside
 	if helmet:
 		helmet.visible = not is_first_person
+	if not outside:
+		# Keep camera inside the capsule cabin without wall clipping
+		target_zoom = min(target_zoom, 2.5)
 
 func rotate_camera_by(drag_offset: Vector2) -> void:
-	var min_pitch = -75.0 if is_first_person else -30.0
-	var max_pitch = 75.0 if is_first_person else 65.0
+	# Stable full pitch range (-75 to +75 deg) both in 1P and 3P
+	var min_pitch = -75.0
+	var max_pitch = 75.0
 	target_yaw -= drag_offset.x * 0.005
 	target_pitch = clamp(target_pitch + drag_offset.y * 0.005, min_pitch, max_pitch)
 
@@ -142,27 +147,12 @@ func _physics_process(delta: float) -> void:
 		var rot_angle = cur_up.angle_to(up_dir)
 		global_rotate(rot_axis, rot_angle)
 
-	# 2. Survival vitals
-	if is_in_space_suit:
-		if not planet.get("has_oxygen", false):
-			GameManager.player_stats.oxygen = max(0.0, GameManager.player_stats.oxygen - 1.2 * delta)
-		var temp = planet.get("temperature", 20.0)
-		if temp > 90.0:
-			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - (temp - 90.0) * 0.03 * delta)
-		elif temp < -40.0:
-			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - abs(temp + 40.0) * 0.02 * delta)
-
-	if GameManager.player_stats.oxygen <= 0.0 or GameManager.player_stats.hull <= 0.0:
-		GameManager.game_over.emit("Sistemas vitales agotados.")
-		set_physics_process(false)
-		return
-
-	# 3. Movement input projected onto the spherical tangent plane
+	# 2. Movement input projected onto the spherical tangent plane
 	var input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	var input_fwd = -input_vec.y # W/stick up gives +1.0 forward
 	var input_str = input_vec.length()
 
-	var cam_basis = camera_pivot.global_transform.basis
+	var cam_basis = camera_pivot.global_transform.basis if camera_pivot else global_transform.basis
 	var cam_fwd = -cam_basis.z
 	# Project forward onto spherical tangent plane
 	cam_fwd = (cam_fwd - up_dir * cam_fwd.dot(up_dir)).normalized()
@@ -172,14 +162,41 @@ func _physics_process(delta: float) -> void:
 	if input_str > 0.05:
 		move_tangent = (cam_rt * input_vec.x + cam_fwd * input_fwd).normalized()
 
-	# Horizontal speed along planet surface
+	# 3. Survival vitals & Atmospheric oxygen
+	var is_sprint_active = is_sprinting or Input.is_key_pressed(KEY_SHIFT) or Input.is_action_pressed("sprint")
+	if is_in_space_suit:
+		if planet.get("has_oxygen", false):
+			# Breathable world: Oxygen regenerates to 100%!
+			GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 45.0 * delta)
+		else:
+			# Unbreathable world: Deplete oxygen (sprinting consumes 3.2x more!)
+			var o2_drain = 3.8 if (is_sprint_active and input_str > 0.1) else 1.2
+			GameManager.player_stats.oxygen = max(0.0, GameManager.player_stats.oxygen - o2_drain * delta)
+
+		var temp = planet.get("temperature", 20.0)
+		if temp > 90.0:
+			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - (temp - 90.0) * 0.03 * delta)
+		elif temp < -40.0:
+			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - abs(temp + 40.0) * 0.02 * delta)
+
+	# Incremental suffocation damage when oxygen reaches 0% (NO instant death!)
+	if GameManager.player_stats.oxygen <= 0.0:
+		GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 8.0 * delta)
+
+	if GameManager.player_stats.hull <= 0.0:
+		GameManager.game_over.emit("Sistemas vitales agotados.")
+		set_physics_process(false)
+		return
+
+	# Horizontal speed along planet surface (with Sprinting!)
 	var horizontal_vel = Vector3.ZERO
+	var current_walk_speed = walk_speed * (1.85 if is_sprint_active else 1.0)
 	if move_tangent.length() > 0.1:
-		horizontal_vel = move_tangent * (walk_speed * min(1.0, input_str))
+		horizontal_vel = move_tangent * (current_walk_speed * min(1.0, input_str))
 		
 		# Rotate visuals smoothly to face movement direction accurately forward (-Z)
 		var local_move = to_local(global_position + move_tangent).normalized()
-		var target_heading = atan2(local_move.x, -local_move.z)
+		var target_heading = atan2(-local_move.x, -local_move.z)
 		var angle_delta = wrapf(target_heading - visuals.rotation.y, -PI, PI)
 		visuals.rotation.y += clamp(angle_delta, -18.0 * delta, 18.0 * delta)
 		
@@ -187,7 +204,8 @@ func _physics_process(delta: float) -> void:
 		visuals.rotation.z = lerp(visuals.rotation.z, -angle_delta * 0.18, delta * 12.0)
 		
 		# Natural gait animation
-		walk_time += delta * 10.5
+		var anim_freq = 15.0 if is_sprint_active else 10.5
+		walk_time += delta * anim_freq
 		var stride = sin(walk_time)
 		var double_bounce = abs(sin(walk_time * 2.0))
 		

@@ -4,19 +4,17 @@ signal hyperdrive_launched()
 signal hull_integrity_changed(health_dict: Dictionary, is_breached: bool)
 
 @onready var interior_area: Area3D = $CabinInterior/InteriorArea
-@onready var airlock_outer_door: Node3D = $HullStructure/AirlockChamber/OuterDoor
-@onready var airlock_inner_door: Node3D = $HullStructure/AirlockChamber/InnerDoor
-@onready var airlock_light: OmniLight3D = $HullStructure/AirlockChamber/AirlockLight
-@onready var airlock_trigger: Area3D = $HullStructure/AirlockChamber/AirlockTrigger
+@onready var airlock_door: Node3D = $HullStructure/AirlockDoor
+@onready var airlock_door_col: CollisionShape3D = $HullStructure/AirlockDoor/CollisionShape3D
+@onready var airlock_light: OmniLight3D = $HullStructure/AirlockLight
+@onready var airlock_trigger: Area3D = $HullStructure/AirlockTrigger
 @onready var hyperdrive_light: OmniLight3D = $CabinInterior/HyperdriveCore/OmniLight3D
 @onready var hyperdrive_core_mesh: MeshInstance3D = $CabinInterior/HyperdriveCore/CoreCylinder
 
 var is_player_in_cabin: bool = false
 var is_player_in_airlock: bool = false
+var is_airlock_open: bool = false
 var player_ref: CharacterBody3D = null
-
-enum AirlockState { CLOSED, OPENING_OUTER, OPEN_OUTER, PRESSURIZING, OPENING_INNER, OPEN_INNER }
-var airlock_state: AirlockState = AirlockState.CLOSED
 
 # Modular Hull System: Parts that degrade in hostile environments
 var module_health: Dictionary = {
@@ -37,7 +35,14 @@ func _ready() -> void:
 	
 	GameManager.crafting.hyperdrive_repaired.connect(func(p): _update_hyperdrive_lights())
 	_update_hyperdrive_lights()
-	_update_airlock_visuals(0.0, 0.0, Color(0.2, 0.8, 1.0))
+	
+	# Initial airlock closed state
+	if airlock_door:
+		airlock_door.position.y = 1.3
+	if airlock_door_col:
+		airlock_door_col.set_deferred("disabled", false)
+	if airlock_light:
+		airlock_light.light_color = Color(0.2, 0.8, 1.0)
 
 	# Calibrate environmental hazards
 	var planet = GameManager.current_planet
@@ -77,9 +82,10 @@ func _process(delta: float) -> void:
 	# 3. Hyperdrive core rotation
 	var prog = GameManager.crafting.get_hyperdrive_progress()
 	var t = Time.get_ticks_msec() / 1000.0
-	hyperdrive_light.light_energy = 1.2 + (prog * 3.5) + sin(t * (4.0 + prog * 6.0)) * 0.4
+	if hyperdrive_light:
+		hyperdrive_light.light_energy = 1.0 + (prog * 2.5) + sin(t * (3.0 + prog * 4.0)) * 0.3
 	if hyperdrive_core_mesh:
-		hyperdrive_core_mesh.rotation.y += delta * (1.0 + prog * 4.0)
+		hyperdrive_core_mesh.rotation.y += delta * (1.0 + prog * 3.0)
 
 func get_lowest_module_health() -> float:
 	return module_health.values().min()
@@ -99,57 +105,48 @@ func repair_hull_modules() -> bool:
 		for k in module_health.keys():
 			module_health[k] = 100.0
 		is_hull_breached = false
-		_update_airlock_visuals(0.0, 0.0, Color(0.2, 1.0, 0.4))
+		if airlock_light:
+			airlock_light.light_color = Color(0.2, 1.0, 0.4)
 		hull_integrity_changed.emit(module_health, is_hull_breached)
 		AudioManager.play("crafting", 1.0)
 		return true
 	return false
 
+# Clean, robust proximity airlock
 func _on_airlock_entered(body: Node3D) -> void:
 	if body.is_in_group("player"):
 		is_player_in_airlock = true
 		player_ref = body as CharacterBody3D
-		_cycle_airlock_inbound()
+		open_airlock()
 
 func _on_airlock_exited(body: Node3D) -> void:
 	if body.is_in_group("player"):
 		is_player_in_airlock = false
-		_cycle_airlock_close()
+		close_airlock()
 
-func _cycle_airlock_inbound() -> void:
-	AudioManager.play("airlock", 1.1)
-	var tween = create_tween().set_parallel(false)
-	# Outer door slide open
-	tween.tween_property(airlock_outer_door, "position:y", 2.2, 0.4)
-	tween.tween_interval(0.5)
-	# Close outer door & pressurize
-	tween.tween_property(airlock_outer_door, "position:y", 0.0, 0.3)
-	tween.tween_callback(func():
-		AudioManager.play("airlock", 0.95)
-		if not is_hull_breached:
-			airlock_light.light_color = Color(1.0, 0.8, 0.2)
-	)
-	tween.tween_interval(0.4)
-	# Open inner door
-	tween.tween_property(airlock_inner_door, "position:y", 2.2, 0.35)
-	tween.tween_callback(func():
-		if not is_hull_breached:
-			airlock_light.light_color = Color(0.2, 1.0, 0.4)
-	)
+func open_airlock() -> void:
+	is_airlock_open = true
+	AudioManager.play("airlock", 1.05)
+	if airlock_door_col:
+		airlock_door_col.set_deferred("disabled", true)
+	if airlock_light and not is_hull_breached:
+		airlock_light.light_color = Color(0.2, 1.0, 0.4) # Green open
+	if airlock_door:
+		var tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(airlock_door, "position:y", 3.2, 0.35)
 
-func _cycle_airlock_close() -> void:
-	var tween = create_tween()
-	tween.tween_property(airlock_outer_door, "position:y", 0.0, 0.4)
-	tween.tween_property(airlock_inner_door, "position:y", 0.0, 0.4)
-	tween.tween_callback(func():
-		if not is_hull_breached:
-			airlock_light.light_color = Color(0.2, 0.8, 1.0)
-	)
-
-func _update_airlock_visuals(outer_y: float, inner_y: float, col: Color) -> void:
-	if airlock_outer_door: airlock_outer_door.position.y = outer_y
-	if airlock_inner_door: airlock_inner_door.position.y = inner_y
-	if airlock_light and not is_hull_breached: airlock_light.light_color = col
+func close_airlock() -> void:
+	is_airlock_open = false
+	AudioManager.play("airlock", 0.95)
+	if airlock_door:
+		var tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tween.tween_property(airlock_door, "position:y", 1.3, 0.35)
+		tween.tween_callback(func():
+			if not is_airlock_open and airlock_door_col:
+				airlock_door_col.set_deferred("disabled", false)
+			if airlock_light and not is_hull_breached:
+				airlock_light.light_color = Color(0.2, 0.8, 1.0)
+		)
 
 func _on_cabin_entered(body: Node3D) -> void:
 	if body.is_in_group("player"):
@@ -166,6 +163,7 @@ func _on_cabin_exited(body: Node3D) -> void:
 
 func _update_hyperdrive_lights() -> void:
 	var prog = GameManager.crafting.get_hyperdrive_progress()
+	if not hyperdrive_light: return
 	if prog >= 1.0:
 		hyperdrive_light.light_color = Color(0.2, 1.0, 0.4)
 	elif prog > 0.3:

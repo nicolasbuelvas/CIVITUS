@@ -42,24 +42,24 @@ var is_main_burn: bool = false
 var target_scene_path: String = "res://scenes/world/world.tscn"
 var is_loading_complete: bool = false
 var loaded_resource: PackedScene = null
+var has_launched: bool = false
 
 var elapsed_time: float = 0.0
-# International UX standard: 4.5 to 5.0 seconds threshold before showing interactive minigame
-const MINIGAME_DISPLAY_THRESHOLD: float = 4.5
+const MIN_LOADING_TIME: float = 5.0 # Exact 5-second mandatory world preparation period
 var minigame_activated: bool = false
 
 func _ready() -> void:
 	# Localization
 	status_label.text = GameManager.loc("loading")
-	stage_label.text = GameManager.loc("stage_1")
-	action_btn.text = GameManager.loc("loading_dots") + "..."
+	stage_label.text = "1/4 " + GameManager.loc("stage_1")
+	action_btn.text = GameManager.loc("background_loading")
 	action_btn.disabled = true
 	spinner_action_btn.visible = false
 	
 	minigame_title.text = GameManager.loc("minigame_title")
 	minigame_sub.text = GameManager.loc("minigame_sub")
 	
-	# Initial visibility: Show clean spinner first, minigame hidden
+	# Initial visibility: Spinner active, minigame and buttons hidden
 	spinner_container.visible = true
 	minigame_container.visible = false
 	bottom_bar.visible = false
@@ -87,11 +87,19 @@ func _process(delta: float) -> void:
 	elapsed_time += delta
 	_poll_loading_progress()
 	
-	# Transition to minigame if loading exceeds international threshold (4.5s)
-	if not minigame_activated and not is_loading_complete and elapsed_time >= MINIGAME_DISPLAY_THRESHOLD:
-		_activate_minigame()
-		
-	if minigame_activated:
+	if not minigame_activated:
+		# Mandatory 5.0-second loading threshold
+		if elapsed_time >= MIN_LOADING_TIME:
+			if is_loading_complete and loaded_resource != null:
+				# Map is effectively loaded: Enter directly without button prompt!
+				if not has_launched:
+					has_launched = true
+					_launch_gameplay()
+			else:
+				# Map is still generating in background (e.g. on weaker mobile CPU):
+				# Activate minigame for player to play until map is ready!
+				_activate_minigame()
+	else:
 		_update_minigame_physics(delta)
 		_update_minigame_ui()
 
@@ -102,24 +110,33 @@ func _activate_minigame() -> void:
 	bottom_bar.visible = true
 	minigame_title.visible = true
 	minigame_sub.visible = true
+	
+	if is_loading_complete:
+		action_btn.text = GameManager.loc("spawn_now")
+		action_btn.disabled = false
+		action_btn.modulate = Color(0.25, 0.95, 0.45)
+	else:
+		action_btn.text = GameManager.loc("background_loading")
+		action_btn.disabled = true
+		action_btn.modulate = Color(0.70, 0.82, 0.95)
 
 func _poll_loading_progress() -> void:
 	var progress: Array = []
 	var status = ResourceLoader.load_threaded_get_status(target_scene_path, progress)
-	var p_val: float = progress[0] * 100.0 if progress.size() > 0 else 25.0
 	
-	# Dynamic simulated phases for smooth feedback
-	var simulated_p = min(100.0, max(p_val, (elapsed_time / 3.0) * 85.0))
-	if is_loading_complete:
+	# Smooth 0% -> 100% progress across the mandatory 5.0 seconds
+	var time_ratio = clamp(elapsed_time / MIN_LOADING_TIME, 0.0, 1.0)
+	var simulated_p = time_ratio * 100.0
+	if is_loading_complete and elapsed_time >= MIN_LOADING_TIME:
 		simulated_p = 100.0
 		
 	progress_bar.value = simulated_p
 	
 	if simulated_p < 25.0:
 		stage_label.text = "1/4 " + GameManager.loc("stage_1")
-	elif simulated_p < 55.0:
+	elif simulated_p < 50.0:
 		stage_label.text = "2/4 " + GameManager.loc("stage_2")
-	elif simulated_p < 85.0:
+	elif simulated_p < 75.0:
 		stage_label.text = "3/4 " + GameManager.loc("stage_3")
 	else:
 		stage_label.text = "4/4 " + GameManager.loc("stage_4")
@@ -128,18 +145,14 @@ func _poll_loading_progress() -> void:
 		is_loading_complete = true
 		loaded_resource = ResourceLoader.load_threaded_get(target_scene_path)
 		
-		# If completed before minigame threshold, present sleek continue affordance
-		if not minigame_activated:
-			stage_label.text = "4/4 " + GameManager.loc("continue_btn")
-			progress_bar.value = 100.0
-			spinner_action_btn.text = GameManager.loc("continue_btn")
-			spinner_action_btn.visible = true
-		else:
-			action_btn.text = GameManager.loc("continue_btn")
+		# If the minigame is active, activate the spawn button now that map is ready
+		if minigame_activated:
+			action_btn.text = GameManager.loc("spawn_now")
 			action_btn.disabled = false
+			action_btn.modulate = Color(0.25, 0.95, 0.45)
 
 func _update_minigame_physics(delta: float) -> void:
-	# User controls (Keyboard or touch)
+	# Controls (Keyboard or touch)
 	var left = is_left_rcs or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT)
 	var right = is_right_rcs or Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)
 	var burn = is_main_burn or Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_SPACE)
@@ -186,7 +199,12 @@ func _update_minigame_physics(delta: float) -> void:
 			landings_count += 1
 			AudioManager.play("docking", 1.0)
 			
-			# Pick another random planet in the solar system to switch landscape
+			# If map is already loaded, successful landing takes player straight into game!
+			if is_loading_complete and not has_launched:
+				has_launched = true
+				_launch_gameplay()
+				return
+				
 			_switch_to_next_random_planet()
 			_reset_lander()
 		else:
@@ -228,12 +246,16 @@ func _on_main_burn_down() -> void: is_main_burn = true
 func _on_main_burn_up() -> void: is_main_burn = false
 
 func _on_action_btn_pressed() -> void:
-	AudioManager.play("click")
-	_launch_gameplay()
+	if is_loading_complete and not has_launched:
+		has_launched = true
+		AudioManager.play("click")
+		_launch_gameplay()
 
 func _on_spinner_action_btn_pressed() -> void:
-	AudioManager.play("click")
-	_launch_gameplay()
+	if is_loading_complete and not has_launched:
+		has_launched = true
+		AudioManager.play("click")
+		_launch_gameplay()
 
 func _launch_gameplay() -> void:
 	if loaded_resource:

@@ -87,7 +87,18 @@ const LOCALIZATION: Dictionary = {
 		"radiation": "Radiación",
 		"orbit": "Órbita",
 		"primary_ore": "Recurso Clave",
-		"level": "NIVEL"
+		"level": "NIVEL",
+		"settings_title": "CONFIGURACIÓN // AJUSTES",
+		"lang_label": "Idioma de Interfaz:",
+		"save_btn": "GUARDAR",
+		"discard_btn": "CERRAR",
+		"system_info_tab": "SISTEMA SOLAR",
+		"planet_info_tab": "PLANETA SELECCIONADO",
+		"habitable_zone": "Zona Habitable",
+		"water": "Agua / Hidrosfera",
+		"hazard": "Nivel de Peligro",
+		"star_type": "Estrella Central",
+		"planets_count": "Cuerpos Orbitales"
 	},
 	"en": {
 		"play": "PLAY",
@@ -131,7 +142,18 @@ const LOCALIZATION: Dictionary = {
 		"radiation": "Radiation",
 		"orbit": "Orbit",
 		"primary_ore": "Primary Ore",
-		"level": "LEVEL"
+		"level": "LEVEL",
+		"settings_title": "SETTINGS // SYSTEM",
+		"lang_label": "Interface Language:",
+		"save_btn": "SAVE",
+		"discard_btn": "CLOSE",
+		"system_info_tab": "SOLAR SYSTEM",
+		"planet_info_tab": "SELECTED PLANET",
+		"habitable_zone": "Habitable Zone",
+		"water": "Hydrosphere / Water",
+		"hazard": "Hazard Rating",
+		"star_type": "Host Star",
+		"planets_count": "Orbital Bodies"
 	}
 }
 

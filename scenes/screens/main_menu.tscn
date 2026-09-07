@@ -1,9 +1,10 @@
-[gd_scene load_steps=18 format=3 uid="uid://cmainmenu01"]
+[gd_scene load_steps=22 format=3 uid="uid://cmainmenu01"]
 
 [ext_resource type="Script" path="res://scripts/screens/main_menu.gd" id="1_menu"]
 [ext_resource type="Shader" path="res://assets/shaders/planet_sphere.gdshader" id="2_planet_shader"]
 [ext_resource type="Shader" path="res://assets/shaders/planet_rings.gdshader" id="3_rings_shader"]
 [ext_resource type="Shader" path="res://assets/shaders/space_sky.gdshader" id="4_space_sky"]
+[ext_resource type="Script" path="res://scripts/world/solar_system_orbits_3d.gd" id="5_orbits"]
 
 [sub_resource type="ShaderMaterial" id="SkyMat_Space"]
 shader = ExtResource("4_space_sky")
@@ -28,6 +29,14 @@ glow_enabled = true
 glow_intensity = 0.6
 glow_bloom = 0.2
 
+[sub_resource type="SphereMesh" id="SphereMesh_Star"]
+radius = 7.0
+height = 14.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_Star"]
+shading_mode = 0
+albedo_color = Color(1, 0.88, 0.35, 1)
+
 [sub_resource type="SphereMesh" id="SphereMesh_Planet"]
 radius = 3.5
 height = 7.0
@@ -51,7 +60,7 @@ content_margin_left = 16.0
 content_margin_top = 10.0
 content_margin_right = 16.0
 content_margin_bottom = 10.0
-bg_color = Color(0.04, 0.08, 0.15, 0.85)
+bg_color = Color(0.04, 0.08, 0.15, 0.88)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -85,6 +94,36 @@ corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_TabActive"]
+bg_color = Color(0.12, 0.35, 0.65, 0.9)
+border_width_bottom = 2
+border_color = Color(0.35, 0.90, 1.0, 1.0)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_TabInactive"]
+bg_color = Color(0.05, 0.10, 0.18, 0.65)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_MeterBg"]
+bg_color = Color(0.06, 0.10, 0.16, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_MeterFill"]
+bg_color = Color(0.20, 0.82, 0.95, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Modal"]
 content_margin_left = 24.0
@@ -138,6 +177,18 @@ fov = 45.0
 transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 12, 15, 12)
 light_energy = 1.5
 shadow_enabled = true
+
+[node name="StarPivot" type="Node3D" parent="SubViewportContainer/SubViewport/World3D"]
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -42.0, 14.0, -68.0)
+
+[node name="StarMesh" type="MeshInstance3D" parent="SubViewportContainer/SubViewport/World3D/StarPivot"]
+mesh = SubResource("SphereMesh_Star")
+surface_material_override/0 = SubResource("Mat_Star")
+
+[node name="OrbitsView" type="Node3D" parent="SubViewportContainer/SubViewport/World3D"]
+visible = false
+script = ExtResource("5_orbits")
 
 [node name="PlanetPivot" type="Node3D" parent="SubViewportContainer/SubViewport/World3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
@@ -284,54 +335,218 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 32.0
-offset_top = -225.0
+offset_top = -250.0
 offset_right = -32.0
-offset_bottom = -20.0
+offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 0
+theme_override_constants/separation = 6
+
+[node name="CarouselRow" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="PlanetScroll" type="ScrollContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock"]
-custom_minimum_size = Vector2(0, 56)
+[node name="PrevBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
+custom_minimum_size = Vector2(46, 46)
 layout_mode = 2
-vertical_scroll_mode = 0
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "◄"
 
-[node name="PlanetHBox" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/PlanetScroll"]
+[node name="PlanetScroll" type="ScrollContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 10
+vertical_scroll_mode = 0
+
+[node name="PlanetHBox" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/PlanetScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="NextBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
+custom_minimum_size = Vector2(46, 46)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "►"
+
+[node name="TabBar" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PlanetTabBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBoxFlat_TabActive")
+text = "INFORMACIÓN DEL PLANETA"
+
+[node name="SystemTabBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleBoxFlat_TabInactive")
+text = "INFORMACIÓN DEL SISTEMA"
 
 [node name="TelemetryCard" type="PanelContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock"]
-custom_minimum_size = Vector2(0, 85)
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_Card")
 
-[node name="VBox" type="VBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard"]
+[node name="PlanetInfoBox" type="VBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard"]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="TopRow" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/VBox"]
+[node name="HeaderRow" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox"]
 layout_mode = 2
 
-[node name="PlanetName" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/VBox/TopRow"]
+[node name="PlanetName" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.25, 0.95, 0.55, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 14
 text = "Kepler-452 I [NIVEL 0]"
 
-[node name="PlanetType" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/VBox/TopRow"]
+[node name="PlanetType" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.70, 0.80, 0.92, 1)
+theme_override_colors/font_color = Color(0.70, 0.82, 0.95, 1)
 theme_override_font_sizes/font_size = 12
 text = "Rocoso Templado (Clase H)"
 
-[node name="StatsGrid" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/VBox"]
+[node name="MetersGrid" type="GridContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 2
+columns = 2
+
+[node name="HabBox" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Label" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/HabBox"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Habitabilidad:"
+
+[node name="Bar" type="ProgressBar" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/HabBox"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_styles/background = SubResource("StyleBoxFlat_MeterBg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_MeterFill")
+value = 95.0
+show_percentage = false
+
+[node name="Val" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/HabBox"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "95%"
+
+[node name="AtmoBox" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Label" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/AtmoBox"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Atmósfera:"
+
+[node name="Bar" type="ProgressBar" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/AtmoBox"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_styles/background = SubResource("StyleBoxFlat_MeterBg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_MeterFill")
+value = 50.0
+show_percentage = false
+
+[node name="Val" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/AtmoBox"]
+custom_minimum_size = Vector2(65, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "1.00 atm"
+
+[node name="TempBox" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Label" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/TempBox"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Temperatura:"
+
+[node name="Bar" type="ProgressBar" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/TempBox"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_styles/background = SubResource("StyleBoxFlat_MeterBg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_MeterFill")
+value = 45.0
+show_percentage = false
+
+[node name="Val" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/TempBox"]
+custom_minimum_size = Vector2(45, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "21 °C"
+
+[node name="GravBox" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Label" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/GravBox"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Gravedad:"
+
+[node name="Bar" type="ProgressBar" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/GravBox"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_styles/background = SubResource("StyleBoxFlat_MeterBg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_MeterFill")
+value = 35.0
+show_percentage = false
+
+[node name="Val" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid/GravBox"]
+custom_minimum_size = Vector2(65, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "1.00 G"
+
+[node name="SystemInfoBox" type="VBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="StarLine" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/SystemInfoBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1.0, 0.85, 0.35, 1)
+theme_override_font_sizes/font_size = 13
+text = "Estrella Central: Kepler-452 (Clase G2V • Temp: 5,750 K)"
+
+[node name="HabZoneLine" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/SystemInfoBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.90, 0.60, 1)
+theme_override_font_sizes/font_size = 12
+text = "Zona Habitable (Goldilocks): 0.85 AU ─── 1.65 AU"
+
+[node name="PlanetsCountLine" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/SystemInfoBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.88, 0.94, 1)
 theme_override_font_sizes/font_size = 11
-text = "Gravedad: 9.8 m/s² (1.00 G) | Temp: 21 °C | Atmósfera: 1.00 atm
-Radiación: 0.01 rad/s | Órbita: 0.42 AU | Recurso Clave: Hierro / Cobre"
+text = "Cuerpos Orbitales: 6 planetas (1 habitable) • Radiación media: 0.04 rad/s"
 
 [node name="NavButtons" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock"]
 layout_mode = 2
@@ -359,10 +574,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -230.0
-offset_top = -180.0
-offset_right = 230.0
-offset_bottom = 180.0
+offset_left = -240.0
+offset_top = -185.0
+offset_right = 240.0
+offset_bottom = 185.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_Modal")
@@ -391,7 +606,7 @@ horizontal_alignment = 1
 layout_mode = 2
 
 [node name="Label" type="Label" parent="MenuLayer/SettingsModal/VBox/LangBox"]
-custom_minimum_size = Vector2(120, 0)
+custom_minimum_size = Vector2(130, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 text = "Idioma:"
@@ -404,7 +619,7 @@ size_flags_horizontal = 3
 layout_mode = 2
 
 [node name="Label" type="Label" parent="MenuLayer/SettingsModal/VBox/MasterBox"]
-custom_minimum_size = Vector2(120, 0)
+custom_minimum_size = Vector2(130, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 text = "Audio Master:"
@@ -416,11 +631,18 @@ max_value = 1.0
 step = 0.05
 value = 0.85
 
+[node name="ValLabel" type="Label" parent="MenuLayer/SettingsModal/VBox/MasterBox"]
+custom_minimum_size = Vector2(45, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "85%"
+horizontal_alignment = 2
+
 [node name="MusicBox" type="HBoxContainer" parent="MenuLayer/SettingsModal/VBox"]
 layout_mode = 2
 
 [node name="Label" type="Label" parent="MenuLayer/SettingsModal/VBox/MusicBox"]
-custom_minimum_size = Vector2(120, 0)
+custom_minimum_size = Vector2(130, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 text = "Música:"
@@ -432,11 +654,18 @@ max_value = 1.0
 step = 0.05
 value = 0.7
 
+[node name="ValLabel" type="Label" parent="MenuLayer/SettingsModal/VBox/MusicBox"]
+custom_minimum_size = Vector2(45, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "70%"
+horizontal_alignment = 2
+
 [node name="SfxBox" type="HBoxContainer" parent="MenuLayer/SettingsModal/VBox"]
 layout_mode = 2
 
 [node name="Label" type="Label" parent="MenuLayer/SettingsModal/VBox/SfxBox"]
-custom_minimum_size = Vector2(120, 0)
+custom_minimum_size = Vector2(130, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 text = "Efectos SFX:"
@@ -448,11 +677,30 @@ max_value = 1.0
 step = 0.05
 value = 0.9
 
-[node name="CloseSettingsBtn" type="Button" parent="MenuLayer/SettingsModal/VBox"]
+[node name="ValLabel" type="Label" parent="MenuLayer/SettingsModal/VBox/SfxBox"]
+custom_minimum_size = Vector2(45, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "90%"
+horizontal_alignment = 2
+
+[node name="ButtonRow" type="HBoxContainer" parent="MenuLayer/SettingsModal/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SaveSettingsBtn" type="Button" parent="MenuLayer/SettingsModal/VBox/ButtonRow"]
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_PlayBtn")
+text = "GUARDAR"
+
+[node name="CloseSettingsBtn" type="Button" parent="MenuLayer/SettingsModal/VBox/ButtonRow"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "GUARDAR Y CERRAR"
+text = "CERRAR"
 
 [node name="StoreModal" type="Panel" parent="MenuLayer"]
 visible = false
@@ -518,7 +766,8 @@ layout_mode = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
 text = "CERRAR"
 
-[connection signal="pressed" from="MenuLayer/SettingsModal/VBox/CloseSettingsBtn" to="." method="_on_close_settings_pressed"]
+[connection signal="pressed" from="MenuLayer/SettingsModal/VBox/ButtonRow/SaveSettingsBtn" to="." method="_on_save_settings_pressed"]
+[connection signal="pressed" from="MenuLayer/SettingsModal/VBox/ButtonRow/CloseSettingsBtn" to="." method="_on_close_settings_pressed"]
 [connection signal="pressed" from="MenuLayer/StoreModal/VBox/BuyMonthlyBtn" to="." method="_on_buy_monthly_pressed"]
 [connection signal="pressed" from="MenuLayer/StoreModal/VBox/BuyLifetimeBtn" to="." method="_on_buy_lifetime_pressed"]
 [connection signal="pressed" from="MenuLayer/StoreModal/VBox/CloseStoreBtn" to="." method="_on_close_store_pressed"]

@@ -1,17 +1,21 @@
 ; Engine configuration file.
 ; It's best edited using the editor UI and not directly,
-; but it can also be edited by text.
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
 [application]
 
-config/name="CIVITUS: Paper Odyssey"
-config/description="CIVITUS: 2.5D Procedural Space Survival game inspired by Paper Mario, Blocktales and Waste of Space."
+config/name="CIVITUS: Procedural Exploration"
+config/description="CIVITUS: Procedural Space Survival and Exploration."
 run/main_scene="res://scenes/screens/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
-config/icon="res://icon.png"
 boot_splash/bg_color=Color(0.04, 0.04, 0.08, 1)
+config/icon="res://icon.png"
 
 [autoload]
 
@@ -25,7 +29,6 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
-window/handheld/orientation=6
 
 [input]
 
@@ -69,7 +72,7 @@ jump_thrust={
 
 [rendering]
 
+textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="mobile"
 textures/vram_compression/import_etc2_astc=true
-textures/canvas_textures/default_texture_filter=0
 environment/defaults/default_clear_color=Color(0.04, 0.04, 0.07, 1)

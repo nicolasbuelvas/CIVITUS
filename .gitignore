@@ -13,3 +13,11 @@ Thumbs.db
 .DS_Store
 *.tmp
 *.log
+
+# Agent & BMad metadata
+.agents/
+.specify/
+_bmad/
+android/version.txt
+screenshot_*.png
+screenshot_*.png.import

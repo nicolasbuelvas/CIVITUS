@@ -1,8 +1,9 @@
-[gd_scene load_steps=11 format=3 uid="uid://chud01"]
+[gd_scene load_steps=19 format=3 uid="uid://chud01"]
 
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1_hud"]
 [ext_resource type="PackedScene" uid="uid://cjoystick01" path="res://scenes/ui/virtual_joystick.tscn" id="2_joy"]
 [ext_resource type="Texture2D" path="res://assets/sprites/icon_thrust.png" id="3_thrust"]
+[ext_resource type="Script" path="res://scripts/ui/helmet_visor.gd" id="4_visor"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ContextBtn"]
 bg_color = Color(0.12, 0.15, 0.22, 0.9)
@@ -15,6 +16,18 @@ corner_radius_top_left = 18
 corner_radius_top_right = 18
 corner_radius_bottom_right = 18
 corner_radius_bottom_left = 18
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ZoomBtn"]
+bg_color = Color(0.12, 0.18, 0.28, 0.8)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.3, 0.7, 1, 0.7)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_BarBg"]
 bg_color = Color(0.1, 0.12, 0.16, 0.8)
@@ -44,6 +57,42 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_JarvisReticle"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.2, 0.9, 1, 0.8)
+corner_radius_top_left = 30
+corner_radius_top_right = 30
+corner_radius_bottom_right = 30
+corner_radius_bottom_left = 30
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_JarvisBracket"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.8, 0.2, 0.9)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_JarvisCard"]
+bg_color = Color(0.04, 0.08, 0.14, 0.7)
+border_width_left = 2
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.8, 1, 0.7)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
 [node name="HUD" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -65,23 +114,23 @@ mouse_filter = 2
 
 [node name="VirtualJoystick" parent="MobileLayer" instance=ExtResource("2_joy")]
 layout_mode = 1
-anchors_preset = 2
-anchor_top = 1.0
+anchors_preset = 9
+anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = 30.0
-offset_top = -230.0
-offset_right = 230.0
-offset_bottom = -30.0
-grow_vertical = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="TouchCameraZone" type="Control" parent="MobileLayer"]
 layout_mode = 1
 anchors_preset = 11
-anchor_left = 1.0
+anchor_left = 0.5
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -640.0
-grow_horizontal = 0
+grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
 
@@ -92,8 +141,8 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -280.0
-offset_top = -230.0
+offset_left = -320.0
+offset_top = -250.0
 offset_right = -20.0
 offset_bottom = -20.0
 grow_horizontal = 0
@@ -101,15 +150,15 @@ grow_vertical = 0
 mouse_filter = 2
 
 [node name="JumpBtn" type="TextureButton" parent="MobileLayer/ActionCluster"]
-custom_minimum_size = Vector2(85, 85)
+custom_minimum_size = Vector2(90, 90)
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -95.0
-offset_top = -95.0
+offset_left = -100.0
+offset_top = -100.0
 offset_right = -10.0
 offset_bottom = -10.0
 grow_horizontal = 0
@@ -126,15 +175,66 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -260.0
+offset_left = -280.0
 offset_top = -80.0
-offset_right = -90.0
+offset_right = -110.0
 offset_bottom = -20.0
 grow_horizontal = 0
 grow_vertical = 0
 theme_override_font_sizes/font_size = 16
 theme_override_styles/normal = SubResource("StyleBoxFlat_ContextBtn")
-text = "⛏️ MINAR"
+text = "MINAR"
+
+[node name="ViewToggleBtn" type="Button" parent="MobileLayer/ActionCluster"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -250.0
+offset_top = -170.0
+offset_right = -140.0
+offset_bottom = -120.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
+text = "1P CASCO"
+
+[node name="ZoomInBtn" type="Button" parent="MobileLayer/ActionCluster"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -60.0
+offset_top = -170.0
+offset_right = -10.0
+offset_bottom = -120.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
+text = "ZOOM +"
+
+[node name="ZoomOutBtn" type="Button" parent="MobileLayer/ActionCluster"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -130.0
+offset_top = -170.0
+offset_right = -70.0
+offset_bottom = -120.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
+text = "ZOOM -"
 
 [node name="TopLayer" type="Control" parent="."]
 layout_mode = 1
@@ -213,7 +313,18 @@ offset_right = -20.0
 offset_bottom = 56.0
 grow_horizontal = 0
 theme_override_font_sizes/font_size = 13
-text = "⚡ HYPERDRIVE: 0%"
+text = "HYPERDRIVE: 0%"
+
+[node name="JarvisVisorOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_visor")
 
 [node name="Modals" type="Control" parent="."]
 layout_mode = 1
@@ -481,6 +592,12 @@ theme_override_font_sizes/font_size = 20
 text = "SISTEMAS APAGADOS"
 horizontal_alignment = 1
 
+[node name="ReasonLabel" type="Label" parent="Modals/GameOverModal/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Sistemas vitales agotados."
+horizontal_alignment = 1
+
 [node name="RetryBtn" type="Button" parent="Modals/GameOverModal/VBox"]
 layout_mode = 2
 text = "Reintentar"
@@ -525,7 +642,7 @@ theme_override_font_sizes/font_size = 22
 text = "¡SALTO HIPERESPACIAL EXITOSO!"
 horizontal_alignment = 1
 
-[node name="Desc" type="Label" parent="Modals/VictoryModal/VBox"]
+[node name="SummaryLabel" type="Label" parent="Modals/VictoryModal/VBox"]
 layout_mode = 2
 text = "Hyperdrive reparado. Sistema estelar asegurado."
 horizontal_alignment = 1
@@ -539,15 +656,18 @@ text = "Siguiente Sector"
 [connection signal="button_up" from="MobileLayer/ActionCluster/JumpBtn" to="." method="_on_jump_up"]
 [connection signal="button_down" from="MobileLayer/ActionCluster/ContextActionBtn" to="." method="_on_context_btn_down"]
 [connection signal="button_up" from="MobileLayer/ActionCluster/ContextActionBtn" to="." method="_on_context_btn_up"]
+[connection signal="pressed" from="MobileLayer/ActionCluster/ViewToggleBtn" to="." method="_on_view_toggle_pressed"]
+[connection signal="pressed" from="MobileLayer/ActionCluster/ZoomInBtn" to="." method="_on_zoom_in_pressed"]
+[connection signal="pressed" from="MobileLayer/ActionCluster/ZoomOutBtn" to="." method="_on_zoom_out_pressed"]
 [connection signal="pressed" from="TopLayer/HyperdriveBadge" to="." method="_on_hyperdrive_badge_pressed"]
 [connection signal="pressed" from="Modals/CraftingModal/VBox/Recipes/WrenchRow/Btn" to="." method="_on_craft_item_pressed" binds= ["wrench"]]
 [connection signal="pressed" from="Modals/CraftingModal/VBox/Recipes/WireRow/Btn" to="." method="_on_craft_item_pressed" binds= ["wire"]]
 [connection signal="pressed" from="Modals/CraftingModal/VBox/Recipes/ChipRow/Btn" to="." method="_on_craft_item_pressed" binds= ["microchip"]]
 [connection signal="pressed" from="Modals/CraftingModal/VBox/Recipes/CellRow/Btn" to="." method="_on_craft_item_pressed" binds= ["reactor_cell"]]
-[connection signal="pressed" from="Modals/CraftingModal/VBox/CloseCraftBtn" to="Modals/CraftingModal" method="hide"]
+[connection signal="pressed" from="Modals/CraftingModal/VBox/CloseCraftBtn" to="." method="_on_close_crafting_pressed"]
 [connection signal="pressed" from="Modals/HyperdriveModal/VBox/LaunchBtn" to="." method="_on_launch_hyperdrive_pressed"]
-[connection signal="pressed" from="Modals/HyperdriveModal/VBox/CloseHyperBtn" to="Modals/HyperdriveModal" method="hide"]
-[connection signal="pressed" from="Modals/StarmapModal/VBox/CloseStarBtn" to="Modals/StarmapModal" method="hide"]
+[connection signal="pressed" from="Modals/HyperdriveModal/VBox/CloseHyperBtn" to="." method="_on_close_hyperdrive_pressed"]
+[connection signal="pressed" from="Modals/StarmapModal/VBox/CloseStarBtn" to="." method="_on_close_starmap_pressed"]
 [connection signal="pressed" from="Modals/GameOverModal/VBox/RetryBtn" to="." method="_on_retry_pressed"]
-[connection signal="pressed" from="Modals/GameOverModal/VBox/MenuBtn" to="." method="_on_menu_pressed"]
-[connection signal="pressed" from="Modals/VictoryModal/VBox/NextBtn" to="." method="_on_menu_pressed"]
+[connection signal="pressed" from="Modals/GameOverModal/VBox/MenuBtn" to="." method="_on_return_menu_pressed"]
+[connection signal="pressed" from="Modals/VictoryModal/VBox/NextBtn" to="." method="_on_return_menu_pressed"]

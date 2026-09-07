@@ -129,6 +129,7 @@ var cam_pitch_velocity: float = 0.0
 
 var is_dragging: bool = false
 var last_drag_pos: Vector2 = Vector2.ZERO
+var drag_travel: float = 0.0
 
 var camera_dist: float = 11.5
 var target_camera_dist: float = 11.5
@@ -190,6 +191,10 @@ func _ready() -> void:
 	
 	planet_tab_btn.pressed.connect(_on_planet_tab_pressed)
 	system_tab_btn.pressed.connect(_on_system_tab_pressed)
+	
+	# Connect Solar System Planet Selection
+	if orbits_view and orbits_view.has_signal("planet_clicked"):
+		orbits_view.planet_clicked.connect(_on_solar_system_planet_clicked)
 	
 	# Setup Settings UI
 	_setup_settings_ui()
@@ -324,14 +329,17 @@ func _process(delta: float) -> void:
 		camera_3d.look_at(current_focal_point, quat * Vector3.UP)
 
 func _gui_input(event: InputEvent) -> void:
-	# Free 360° omnidirectional orbit drag
+	# Free 360° omnidirectional orbit drag & mobile tap detection
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
 				is_dragging = true
 				last_drag_pos = event.position
+				drag_travel = 0.0
 			else:
 				is_dragging = false
+				if drag_travel < 10.0 and active_info_tab == "system":
+					_check_screen_tap_planet(event.position)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			if active_info_tab == "planet":
 				target_camera_dist = clamp(target_camera_dist - 0.6, 5.5, 20.0)
@@ -346,17 +354,61 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and is_dragging:
 		var delta_pos = event.position - last_drag_pos
 		last_drag_pos = event.position
+		drag_travel += delta_pos.length()
 		_apply_free_drag(delta_pos)
 		
 	elif event is InputEventScreenTouch:
 		if event.pressed:
 			is_dragging = true
 			last_drag_pos = event.position
+			drag_travel = 0.0
 		else:
 			is_dragging = false
+			if drag_travel < 14.0 and active_info_tab == "system":
+				_check_screen_tap_planet(event.position)
 			
 	elif event is InputEventScreenDrag and is_dragging:
+		drag_travel += event.relative.length()
 		_apply_free_drag(event.relative)
+
+func _check_screen_tap_planet(tap_pos: Vector2) -> void:
+	if not camera_3d or not orbits_view:
+		return
+	var planets = GameManager.current_solar_system.get("planets", [])
+	var closest_idx = -1
+	var closest_dist = 48.0 # Generous 48px touch hitbox for mobile
+	
+	for i in range(planets.size()):
+		var p_3d = orbits_view.get_planet_position(i)
+		if camera_3d.is_position_behind(p_3d):
+			continue
+		var p_2d = camera_3d.unproject_position(p_3d)
+		var d = tap_pos.distance_to(p_2d)
+		if d < closest_dist:
+			closest_dist = d
+			closest_idx = i
+			
+	if closest_idx >= 0:
+		_on_solar_system_planet_clicked(closest_idx)
+
+func _on_solar_system_planet_clicked(idx: int) -> void:
+	if is_transitioning:
+		return
+	AudioManager.play("click")
+	_select_planet(idx)
+	
+	# ZOOM IN EFFECT:
+	# Swoop camera from high solar system view directly down to selected planet & switch tab!
+	is_transitioning = true
+	var tween = create_tween()
+	tween.tween_property(self, "target_camera_dist", 24.0, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tween.tween_callback(func():
+		_on_planet_tab_pressed()
+	)
+	tween.tween_property(self, "target_camera_dist", 11.5, 0.4).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_callback(func():
+		is_transitioning = false
+	)
 
 func _apply_free_drag(delta_pos: Vector2) -> void:
 	var sens = 0.005
@@ -520,21 +572,35 @@ func _select_planet(idx: int) -> void:
 	var star_data = sys.get("star", {})
 	var r_au = max(0.2, p.get("orbit_au", 1.0))
 	var s_lum = star_data.get("luminosity", 1.0)
+	var s_col: Color = star_data.get("color", Color(1.0, 0.92, 0.70))
 	
 	if star_pivot:
 		var p_coords: Vector3 = p.get("coords", Vector3(r_au * 1000.0, 0.0, 0.0))
 		var star_dir = -p_coords.normalized()
 		if star_dir.length_squared() < 0.001:
 			star_dir = Vector3(-0.85, 0.25, -0.45).normalized()
-		var star_dist = 42.0 + r_au * 8.0
+		var star_dist = 85.0 # Fixed celestial background distance
 		star_pivot.position = star_dir * star_dist
 		
-		# Apparent size: closer = huge radiant sun, far = small brilliant starlight point
-		var apparent_r = clamp((3.2 * sqrt(s_lum)) / sqrt(r_au), 0.6, 4.5)
+		# Apparent size: closer = huge radiant sun, far = small brilliant diamond starlight
+		var apparent_r = clamp((2.2 * sqrt(s_lum)) / sqrt(r_au), 0.45, 5.5)
 		star_pivot.scale = Vector3.ONE * apparent_r
 		
+		# Coherent physical lighting intensity & color
+		var light_energy = clamp(1.6 * (s_lum / (r_au * r_au)), 0.35, 3.8)
 		if sun_light:
-			sun_light.look_at_from_position(star_pivot.position, planet_pivot.position, Vector3.UP)
+			sun_light.light_energy = light_energy
+			sun_light.light_color = s_col
+			sun_light.look_at_from_position(star_pivot.position, Vector3.ZERO, Vector3.UP)
+			
+		# Update star surface material shader
+		if star_mesh:
+			var s_mat = star_mesh.get_surface_override_material(0) as ShaderMaterial
+			if not s_mat:
+				s_mat = star_mesh.material_override as ShaderMaterial
+			if s_mat:
+				s_mat.set_shader_parameter("star_color", s_col)
+				s_mat.set_shader_parameter("corona_color", s_col.lerp(Color(1.0, 0.35, 0.1), 0.55))
 	
 	# Update 3D planet appearance via shader uniforms
 	_apply_planet_to_3d_mesh(p)

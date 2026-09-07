@@ -5,6 +5,7 @@
 [ext_resource type="Shader" path="res://assets/shaders/planet_rings.gdshader" id="3_rings_shader"]
 [ext_resource type="Shader" path="res://assets/shaders/space_sky.gdshader" id="4_space_sky"]
 [ext_resource type="Script" path="res://scripts/world/solar_system_orbits_3d.gd" id="5_orbits"]
+[ext_resource type="Shader" path="res://assets/shaders/star_sun.gdshader" id="6_star_shader"]
 
 [sub_resource type="ShaderMaterial" id="SkyMat_Space"]
 shader = ExtResource("4_space_sky")
@@ -33,9 +34,15 @@ glow_bloom = 0.2
 radius = 3.5
 height = 7.0
 
-[sub_resource type="StandardMaterial3D" id="Mat_Star"]
-shading_mode = 0
-albedo_color = Color(1, 0.88, 0.35, 1)
+[sub_resource type="ShaderMaterial" id="Mat_Star"]
+shader = ExtResource("6_star_shader")
+shader_parameter/star_color = Color(1, 0.85, 0.35, 1)
+shader_parameter/core_color = Color(1, 0.98, 0.92, 1)
+shader_parameter/corona_color = Color(1, 0.4, 0.12, 1)
+shader_parameter/flare_speed = 0.08
+shader_parameter/turbulent_scale = 4.5
+shader_parameter/corona_intensity = 2.2
+shader_parameter/pulse_rate = 0.4
 
 [sub_resource type="SphereMesh" id="SphereMesh_Planet"]
 radius = 3.5

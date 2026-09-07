@@ -121,16 +121,33 @@ static func generate_system(seed_val: int = -1) -> Dictionary:
 	# 2. Variable number of planets: 4 to 8 procedural
 	var num_planets = rng.randi_range(4, 8)
 	
-	# Generate strictly ordered orbits in [0.2, 6.5] AU
-	var orbits = _generate_planet_orbits(num_planets, hz_inner_au, hz_outer_au, rng)
+	# Determine target number of planets in the Habitable Zone:
+	# Realistic astrobiological variance:
+	# ~20% of systems: 0 planets in HZ (harsh barren systems)
+	# ~50% of systems: 1 planet in HZ (standard single Earth-like system)
+	# ~22% of systems: 2 planets in HZ (dual Goldilocks worlds, e.g. Earth & Mars analogues)
+	# ~8% of systems:  3 planets in HZ (super-habitable resonance system like TRAPPIST-1)
+	var hz_roll = rng.randf()
+	var target_hz_planets: int = 1
+	if hz_roll < 0.20:
+		target_hz_planets = 0
+	elif hz_roll < 0.70:
+		target_hz_planets = 1
+	elif hz_roll < 0.92:
+		target_hz_planets = 2
+	else:
+		target_hz_planets = 3
+	target_hz_planets = clampi(target_hz_planets, 0, num_planets - 1)
 	
-	# Find which planet index will be the primary habitable candidate in HZ
-	var hz_candidate_index = -1
+	# Generate strictly ordered orbits in [0.2, 6.5] AU
+	var orbits = _generate_planet_orbits_variable_hz(num_planets, hz_inner_au, hz_outer_au, target_hz_planets, rng)
+	
+	# Find which planet indices reside in the HZ
+	var hz_indices: Array[int] = []
 	for idx in range(orbits.size()):
 		var orb = orbits[idx]
 		if orb >= hz_inner_au and orb <= hz_outer_au:
-			hz_candidate_index = idx
-			break
+			hz_indices.append(idx)
 			
 	var planets: Array = []
 	var roman_numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"]
@@ -144,7 +161,7 @@ static func generate_system(seed_val: int = -1) -> Dictionary:
 		var planet_name = "%s %s" % [system_name, roman_numerals[i]]
 		var orbit_au = orbits[i]
 		var is_hz = (orbit_au >= hz_inner_au and orbit_au <= hz_outer_au)
-		var is_primary_hz = (i == hz_candidate_index)
+		var is_primary_hz = (hz_indices.size() > 0 and i == hz_indices[0])
 		
 		# Cartesian coordinates for starmap
 		var angle = p_rng.randf() * TAU
@@ -181,6 +198,94 @@ static func generate_system(seed_val: int = -1) -> Dictionary:
 		"system_graph": system_graph,
 		"planets": planets
 	}
+
+static func _generate_planet_orbits_variable_hz(
+	count: int, hz_inner: float, hz_outer: float, target_hz_count: int, rng: RandomNumberGenerator
+) -> Array[float]:
+	var orbits: Array[float] = []
+	var min_orbit = 0.22
+	var max_orbit = 6.45
+	
+	if target_hz_count == 0:
+		# No planets in HZ: all planets placed either before hz_inner or after hz_outer
+		var before_room = maxf(0.0, hz_inner - 0.08 - min_orbit)
+		var after_room = maxf(0.0, max_orbit - (hz_outer + 0.12))
+		
+		var count_before = 0
+		if before_room > 0.3 and after_room > 0.5:
+			count_before = clampi(int(round(float(count) * (before_room / (before_room + after_room)))), 1, count - 1)
+		elif before_room > 0.3:
+			count_before = count
+		else:
+			count_before = 0
+		var count_after = count - count_before
+		
+		# Generate orbits before HZ
+		if count_before > 0:
+			var step_b = before_room / float(count_before + 1)
+			var cur_b = min_orbit
+			for i in range(count_before):
+				cur_b += rng.randf_range(step_b * 0.7, step_b * 1.3)
+				orbits.append(clampf(cur_b, min_orbit, hz_inner - 0.05))
+				
+		# Generate orbits after HZ
+		if count_after > 0:
+			var step_a = after_room / float(count_after + 1)
+			var cur_a = hz_outer + 0.12
+			for i in range(count_after):
+				cur_a += rng.randf_range(step_a * 0.7, step_a * 1.3)
+				orbits.append(clampf(cur_a, hz_outer + 0.06, max_orbit))
+	else:
+		# target_hz_count is 1, 2, or 3
+		target_hz_count = clampi(target_hz_count, 1, min(count - 1, 3))
+		var hz_step = (hz_outer - hz_inner) / float(target_hz_count + 1)
+		var hz_orbits: Array[float] = []
+		for h in range(target_hz_count):
+			var h_dist = hz_inner + hz_step * float(h + 1) + rng.randf_range(-hz_step * 0.2, hz_step * 0.2)
+			hz_orbits.append(clampf(h_dist, hz_inner + 0.03, hz_outer - 0.03))
+			
+		# Remaining planets outside HZ
+		var remaining = count - target_hz_count
+		var before_room = maxf(0.0, hz_inner - 0.08 - min_orbit)
+		var after_room = maxf(0.0, max_orbit - (hz_outer + 0.12))
+		
+		var rem_before = 0
+		if before_room > 0.35 and after_room > 0.5:
+			rem_before = clampi(int(round(float(remaining) * (before_room / (before_room + after_room)))), 1, remaining - 1)
+		elif before_room > 0.35:
+			rem_before = remaining
+		else:
+			rem_before = 0
+		var rem_after = remaining - rem_before
+		
+		# Inner planets
+		if rem_before > 0:
+			var step_b = before_room / float(rem_before + 1)
+			var cur_b = min_orbit
+			for i in range(rem_before):
+				cur_b += rng.randf_range(step_b * 0.7, step_b * 1.3)
+				orbits.append(clampf(cur_b, min_orbit, hz_inner - 0.05))
+				
+		# Habitable planets
+		for h_orb in hz_orbits:
+			orbits.append(h_orb)
+			
+		# Outer planets
+		if rem_after > 0:
+			var step_a = after_room / float(rem_after + 1)
+			var cur_a = hz_outer + 0.10
+			for i in range(rem_after):
+				cur_a += rng.randf_range(step_a * 0.7, step_a * 1.3)
+				orbits.append(clampf(cur_a, hz_outer + 0.05, max_orbit))
+
+	orbits.sort()
+	# Monotonic safety enforcement with minimum 0.18 AU separation
+	for i in range(orbits.size()):
+		orbits[i] = clampf(orbits[i], 0.20, 6.50)
+		if i > 0 and orbits[i] <= orbits[i - 1]:
+			orbits[i] = clampf(orbits[i - 1] + 0.18, 0.20, 6.50)
+			
+	return orbits
 
 static func _generate_planet_orbits(count: int, hz_inner: float, hz_outer: float, rng: RandomNumberGenerator) -> Array[float]:
 	var orbits: Array[float] = []

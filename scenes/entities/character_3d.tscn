@@ -11,28 +11,52 @@ albedo_color = Color(0.92, 0.94, 0.97, 1)
 roughness = 0.4
 metallic = 0.1
 
-[sub_resource type="BoxMesh" id="BoxMesh_Torso"]
-material = SubResource("Mat_SpaceSuitWhite")
-size = Vector3(0.74, 0.84, 0.48)
-
 [sub_resource type="StandardMaterial3D" id="Mat_ChestPack"]
-albedo_color = Color(0.2, 0.25, 0.35, 1)
+albedo_color = Color(0.18, 0.24, 0.32, 1)
 metallic = 0.8
-
-[sub_resource type="BoxMesh" id="BoxMesh_ChestPack"]
-material = SubResource("Mat_ChestPack")
-size = Vector3(0.45, 0.35, 0.12)
+roughness = 0.3
 
 [sub_resource type="StandardMaterial3D" id="Mat_Backpack"]
 albedo_color = Color(0.85, 0.88, 0.92, 1)
 roughness = 0.5
 
+[sub_resource type="StandardMaterial3D" id="Mat_O2Tank"]
+albedo_color = Color(0.15, 0.75, 0.95, 1)
+emission_enabled = true
+emission = Color(0.1, 0.5, 0.8, 1)
+emission_energy_multiplier = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_GoldVisor"]
+albedo_color = Color(1.0, 0.78, 0.15, 1)
+metallic = 0.98
+roughness = 0.05
+emission_enabled = true
+emission = Color(0.4, 0.28, 0.05, 1)
+emission_energy_multiplier = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_Joints"]
+albedo_color = Color(0.15, 0.18, 0.25, 1)
+roughness = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Mat_HeadSkin"]
+albedo_color = Color(0.86, 0.72, 0.62, 1)
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Mat_SnoopyCap"]
+albedo_color = Color(0.18, 0.22, 0.28, 1)
+roughness = 0.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_Torso"]
+material = SubResource("Mat_SpaceSuitWhite")
+size = Vector3(0.74, 0.84, 0.48)
+
+[sub_resource type="BoxMesh" id="BoxMesh_ChestPack"]
+material = SubResource("Mat_ChestPack")
+size = Vector3(0.45, 0.35, 0.12)
+
 [sub_resource type="BoxMesh" id="BoxMesh_Backpack"]
 material = SubResource("Mat_Backpack")
-size = Vector3(0.6, 0.75, 0.35)
-
-[sub_resource type="StandardMaterial3D" id="Mat_O2Tank"]
-albedo_color = Color(0.85, 0.2, 0.2, 1)
+size = Vector3(0.62, 0.76, 0.32)
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_O2Tank"]
 material = SubResource("Mat_O2Tank")
@@ -40,70 +64,41 @@ top_radius = 0.1
 bottom_radius = 0.1
 height = 0.65
 
-[sub_resource type="StandardMaterial3D" id="Mat_Skin"]
-albedo_color = Color(0.88, 0.60, 0.48, 1)
-roughness = 0.8
+[sub_resource type="SphereMesh" id="SphereMesh_InnerHead"]
+material = SubResource("Mat_HeadSkin")
+radius = 0.36
+height = 0.72
+radial_segments = 32
+rings = 16
 
-[sub_resource type="BoxMesh" id="BoxMesh_Head"]
-material = SubResource("Mat_Skin")
-size = Vector3(0.68, 0.68, 0.62)
-
-[sub_resource type="StandardMaterial3D" id="Mat_Hair"]
-albedo_color = Color(0.32, 0.16, 0.08, 1)
-roughness = 0.9
-
-[sub_resource type="BoxMesh" id="BoxMesh_Hair"]
-material = SubResource("Mat_Hair")
-size = Vector3(0.72, 0.22, 0.66)
+[sub_resource type="SphereMesh" id="SphereMesh_SnoopyCap"]
+material = SubResource("Mat_SnoopyCap")
+radius = 0.38
+height = 0.65
+radial_segments = 32
+rings = 16
 
 [sub_resource type="SphereMesh" id="SphereMesh_Helmet"]
 material = SubResource("Mat_SpaceSuitWhite")
-radius = 0.48
-height = 0.95
+radius = 0.46
+height = 0.92
+radial_segments = 32
+rings = 16
 
-[sub_resource type="StandardMaterial3D" id="Mat_GoldVisor"]
-albedo_color = Color(0.95, 0.72, 0.12, 1)
-metallic = 0.95
-roughness = 0.08
-emission_enabled = true
-emission = Color(0.3, 0.2, 0.05, 1)
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_Visor"]
+[sub_resource type="SphereMesh" id="SphereMesh_Visor"]
 material = SubResource("Mat_GoldVisor")
-top_radius = 0.32
-bottom_radius = 0.32
-height = 0.35
-
-[sub_resource type="StandardMaterial3D" id="Mat_EyeWhite"]
-albedo_color = Color(1, 1, 1, 1)
-roughness = 0.1
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_Eye"]
-material = SubResource("Mat_EyeWhite")
-top_radius = 0.11
-bottom_radius = 0.11
-height = 0.04
-
-[sub_resource type="StandardMaterial3D" id="Mat_Pupil"]
-albedo_color = Color(0.04, 0.04, 0.06, 1)
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_Pupil"]
-material = SubResource("Mat_Pupil")
-top_radius = 0.05
-bottom_radius = 0.05
-height = 0.05
-
-[sub_resource type="StandardMaterial3D" id="Mat_Mustache"]
-albedo_color = Color(0.30, 0.14, 0.06, 1)
-roughness = 0.9
-
-[sub_resource type="BoxMesh" id="BoxMesh_Mustache"]
-material = SubResource("Mat_Mustache")
-size = Vector3(0.46, 0.12, 0.1)
+radius = 0.36
+height = 0.52
+radial_segments = 32
+rings = 16
 
 [sub_resource type="BoxMesh" id="BoxMesh_Limb"]
 material = SubResource("Mat_SpaceSuitWhite")
 size = Vector3(0.24, 0.65, 0.24)
+
+[sub_resource type="BoxMesh" id="BoxMesh_Boot"]
+material = SubResource("Mat_Joints")
+size = Vector3(0.26, 0.18, 0.36)
 
 [node name="Character3D" type="CharacterBody3D" groups=["player"]]
 collision_layer = 1
@@ -115,78 +110,55 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_1")
 
 [node name="Visuals" type="Node3D" parent="."]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
 [node name="Torso" type="MeshInstance3D" parent="Visuals"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.92, 0)
 mesh = SubResource("BoxMesh_Torso")
 
 [node name="ChestPack" type="MeshInstance3D" parent="Visuals/Torso"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0.28)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, -0.28)
 mesh = SubResource("BoxMesh_ChestPack")
 
 [node name="BackpackPLSS" type="MeshInstance3D" parent="Visuals/Torso"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, -0.38)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0.38)
 mesh = SubResource("BoxMesh_Backpack")
 
 [node name="O2TankLeft" type="MeshInstance3D" parent="Visuals/Torso/BackpackPLSS"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.18, 0, -0.12)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.18, 0, 0.12)
 mesh = SubResource("CylinderMesh_O2Tank")
 
 [node name="O2TankRight" type="MeshInstance3D" parent="Visuals/Torso/BackpackPLSS"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.18, 0, -0.12)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.18, 0, 0.12)
 mesh = SubResource("CylinderMesh_O2Tank")
 
-[node name="Head" type="MeshInstance3D" parent="Visuals"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
-mesh = SubResource("BoxMesh_Head")
+[node name="Head" type="Node3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.48, 0)
 
-[node name="Hair" type="MeshInstance3D" parent="Visuals/Head"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.28, 0)
-mesh = SubResource("BoxMesh_Hair")
+[node name="InnerHead" type="MeshInstance3D" parent="Visuals/Head"]
+mesh = SubResource("SphereMesh_InnerHead")
+
+[node name="SnoopyCap" type="MeshInstance3D" parent="Visuals/Head"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
+mesh = SubResource("SphereMesh_SnoopyCap")
 
 [node name="Helmet" type="Node3D" parent="Visuals/Head"]
 
 [node name="HelmetSphere" type="MeshInstance3D" parent="Visuals/Head/Helmet"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
 mesh = SubResource("SphereMesh_Helmet")
 
 [node name="GoldVisor" type="MeshInstance3D" parent="Visuals/Head/Helmet"]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0.02, 0.24)
-mesh = SubResource("CylinderMesh_Visor")
-
-[node name="Eyes" type="Node3D" parent="Visuals/Head"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0.32)
-
-[node name="LeftEye" type="MeshInstance3D" parent="Visuals/Head/Eyes"]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, -0.15, 0, 0)
-mesh = SubResource("CylinderMesh_Eye")
-
-[node name="Pupil" type="MeshInstance3D" parent="Visuals/Head/Eyes/LeftEye"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.03, 0.015, 0)
-mesh = SubResource("CylinderMesh_Pupil")
-
-[node name="RightEye" type="MeshInstance3D" parent="Visuals/Head/Eyes"]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0.15, 0, 0)
-mesh = SubResource("CylinderMesh_Eye")
-
-[node name="Pupil" type="MeshInstance3D" parent="Visuals/Head/Eyes/RightEye"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.03, 0.015, 0)
-mesh = SubResource("CylinderMesh_Pupil")
-
-[node name="Mustache" type="MeshInstance3D" parent="Visuals/Head"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.12, 0.33)
-mesh = SubResource("BoxMesh_Mustache")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, -0.22)
+mesh = SubResource("SphereMesh_Visor")
 
 [node name="LeftArm" type="Node3D" parent="Visuals"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 1.15, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.48, 1.15, 0)
 
 [node name="Mesh" type="MeshInstance3D" parent="Visuals/LeftArm"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.28, 0)
 mesh = SubResource("BoxMesh_Limb")
 
 [node name="RightArm" type="Node3D" parent="Visuals"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 1.15, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.48, 1.15, 0)
 
 [node name="Mesh" type="MeshInstance3D" parent="Visuals/RightArm"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.28, 0)
@@ -196,22 +168,36 @@ mesh = SubResource("BoxMesh_Limb")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.2, 0.5, 0)
 
 [node name="Mesh" type="MeshInstance3D" parent="Visuals/LeftLeg"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.28, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.26, 0)
 mesh = SubResource("BoxMesh_Limb")
+
+[node name="Boot" type="MeshInstance3D" parent="Visuals/LeftLeg"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.52, -0.05)
+mesh = SubResource("BoxMesh_Boot")
 
 [node name="RightLeg" type="Node3D" parent="Visuals"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0.5, 0)
 
 [node name="Mesh" type="MeshInstance3D" parent="Visuals/RightLeg"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.28, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.26, 0)
 mesh = SubResource("BoxMesh_Limb")
+
+[node name="Boot" type="MeshInstance3D" parent="Visuals/RightLeg"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.52, -0.05)
+mesh = SubResource("BoxMesh_Boot")
 
 [node name="LaserMesh" type="MeshInstance3D" parent="Visuals"]
 
 [node name="CameraPivot" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, 0)
 
-[node name="Camera3D" type="Camera3D" parent="CameraPivot"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 6.5)
+[node name="SpringArm3D" type="SpringArm3D" parent="CameraPivot"]
+transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0.4, 0)
+collision_mask = 1
+spring_length = 4.5
+margin = 0.25
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot/SpringArm3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 fov = 55.0
-far = 500.0
+far = 600.0

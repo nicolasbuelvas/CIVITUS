@@ -11,17 +11,18 @@ signal first_person_toggled(is_fps: bool)
 @export var planet_radius: float = 160.0
 
 # Node references
-@onready var visuals: Node3D = $Visuals
-@onready var head: MeshInstance3D = $Visuals/Head
-@onready var helmet: Node3D = $Visuals/Head/Helmet
-@onready var hair: MeshInstance3D = $Visuals/Head/Hair
-@onready var left_arm: Node3D = $Visuals/LeftArm
-@onready var right_arm: Node3D = $Visuals/RightArm
-@onready var left_leg: Node3D = $Visuals/LeftLeg
-@onready var right_leg: Node3D = $Visuals/RightLeg
-@onready var camera_pivot: Node3D = $CameraPivot
-@onready var camera: Camera3D = $CameraPivot/Camera3D
-@onready var laser_mesh: MeshInstance3D = $Visuals/LaserMesh
+@onready var visuals: Node3D = get_node_or_null("Visuals")
+@onready var head: Node3D = get_node_or_null("Visuals/Head")
+@onready var helmet: Node3D = get_node_or_null("Visuals/Head/Helmet")
+@onready var hair: Node3D = get_node_or_null("Visuals/Head/Hair")
+@onready var left_arm: Node3D = get_node_or_null("Visuals/LeftArm")
+@onready var right_arm: Node3D = get_node_or_null("Visuals/RightArm")
+@onready var left_leg: Node3D = get_node_or_null("Visuals/LeftLeg")
+@onready var right_leg: Node3D = get_node_or_null("Visuals/RightLeg")
+@onready var camera_pivot: Node3D = get_node_or_null("CameraPivot")
+@onready var spring_arm: SpringArm3D = get_node_or_null("CameraPivot/SpringArm3D")
+@onready var camera: Camera3D = get_node_or_null("CameraPivot/SpringArm3D/Camera3D")
+@onready var laser_mesh: MeshInstance3D = get_node_or_null("Visuals/LaserMesh")
 
 var is_in_space_suit: bool = true
 var is_mining: bool = false
@@ -45,20 +46,19 @@ const MAX_ZOOM: float = 20.0 # Orbit overview
 const FPS_THRESHOLD: float = 0.8
 
 func _ready() -> void:
-	laser_mesh.mesh = laser_immediate
-	var mat = StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(0.2, 0.9, 1.0)
-	laser_mesh.material_override = mat
+	if laser_mesh:
+		laser_mesh.mesh = laser_immediate
+		var mat = StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.albedo_color = Color(0.2, 0.9, 1.0)
+		laser_mesh.material_override = mat
 	set_suit_mode(true)
 	_check_fps_mode()
 
 func set_suit_mode(outside: bool) -> void:
 	is_in_space_suit = outside
 	if helmet:
-		helmet.visible = outside and not is_first_person
-	if hair:
-		hair.visible = not outside and not is_first_person
+		helmet.visible = not is_first_person
 
 func rotate_camera_by(drag_offset: Vector2) -> void:
 	var min_pitch = -75.0 if is_first_person else -30.0
@@ -116,19 +116,24 @@ func _physics_process(delta: float) -> void:
 	# Smooth camera damping
 	cam_yaw = lerp_angle(cam_yaw, target_yaw, delta * 24.0)
 	cam_pitch = lerp(cam_pitch, target_pitch, delta * 24.0)
-	camera_pivot.rotation.y = cam_yaw
-	camera_pivot.rotation.x = deg_to_rad(cam_pitch)
+	if camera_pivot:
+		camera_pivot.rotation.y = cam_yaw
+		camera_pivot.rotation.x = deg_to_rad(cam_pitch)
 
-	# Smooth zoom interpolation
+	# Smooth zoom interpolation via SpringArm3D (anti-ground clipping)
 	current_zoom = lerp(current_zoom, target_zoom, delta * 12.0)
 	if is_first_person:
-		camera.position = Vector3(0, 0.15, 0.05)
-		camera.rotation = Vector3.ZERO
-		camera.fov = lerp(camera.fov, 80.0, delta * 12.0)
+		if spring_arm:
+			spring_arm.spring_length = 0.0
+		if camera:
+			camera.position = Vector3(0, 0.15, -0.05)
+			camera.fov = lerp(camera.fov, 80.0, delta * 12.0)
 	else:
-		camera.position = Vector3(0, 0.6, current_zoom)
-		camera.rotation = Vector3(deg_to_rad(15.0), 0, 0)
-		camera.fov = lerp(camera.fov, 55.0, delta * 12.0)
+		if spring_arm:
+			spring_arm.spring_length = current_zoom
+		if camera:
+			camera.position = Vector3.ZERO
+			camera.fov = lerp(camera.fov, 55.0, delta * 12.0)
 
 	# Align character's local Y basis to point radially outwards from planet center
 	var cur_up = global_transform.basis.y
@@ -172,26 +177,50 @@ func _physics_process(delta: float) -> void:
 	if move_tangent.length() > 0.1:
 		horizontal_vel = move_tangent * (walk_speed * min(1.0, input_str))
 		
-		# Rotate visuals locally to face move direction
+		# Rotate visuals smoothly to face movement direction accurately forward (-Z)
 		var local_move = to_local(global_position + move_tangent).normalized()
-		var target_yaw = atan2(-local_move.x, -local_move.z)
-		visuals.rotation.y = lerp_angle(visuals.rotation.y, target_yaw, delta * 14.0)
+		var target_heading = atan2(local_move.x, -local_move.z)
+		var angle_delta = wrapf(target_heading - visuals.rotation.y, -PI, PI)
+		visuals.rotation.y += clamp(angle_delta, -18.0 * delta, 18.0 * delta)
 		
-		# Walk animation
-		walk_time += delta * 11.0
-		left_leg.rotation.x = sin(walk_time) * 0.6
-		right_leg.rotation.x = -sin(walk_time) * 0.6
-		left_arm.rotation.x = -sin(walk_time) * 0.5
-		right_arm.rotation.x = sin(walk_time) * 0.5
-		head.position.y = 1.5 + abs(sin(walk_time)) * 0.08
+		# Procedural bank/lean into turns
+		visuals.rotation.z = lerp(visuals.rotation.z, -angle_delta * 0.18, delta * 12.0)
+		
+		# Natural gait animation
+		walk_time += delta * 10.5
+		var stride = sin(walk_time)
+		var double_bounce = abs(sin(walk_time * 2.0))
+		
+		if left_leg and right_leg:
+			left_leg.rotation.x = stride * 0.65
+			right_leg.rotation.x = -stride * 0.65
+		if left_arm and right_arm:
+			left_arm.rotation.x = -stride * 0.55
+			right_arm.rotation.x = stride * 0.55
+			left_arm.rotation.z = 0.1 + abs(stride) * 0.05
+			right_arm.rotation.z = -0.1 - abs(stride) * 0.05
+		if visuals:
+			visuals.position.y = double_bounce * 0.05
+			visuals.rotation.x = 0.06 # Slight forward lean when running
 	else:
-		if is_first_person:
-			visuals.rotation.y = lerp_angle(visuals.rotation.y, cam_yaw + PI, delta * 14.0)
-		left_leg.rotation.x = move_toward(left_leg.rotation.x, 0.0, delta * 5.0)
-		right_leg.rotation.x = move_toward(right_leg.rotation.x, 0.0, delta * 5.0)
-		left_arm.rotation.x = move_toward(left_arm.rotation.x, 0.0, delta * 5.0)
-		right_arm.rotation.x = move_toward(right_arm.rotation.x, 0.0, delta * 5.0)
-		head.position.y = move_toward(head.position.y, 1.5, delta * 3.0)
+		# Idle: Natural breathing cycle and relaxed standing stance
+		var idle_pulse = sin(Time.get_ticks_msec() * 0.003)
+		if visuals:
+			visuals.position.y = move_toward(visuals.position.y, idle_pulse * 0.015, delta * 2.0)
+			visuals.rotation.z = lerp(visuals.rotation.z, 0.0, delta * 10.0)
+			visuals.rotation.x = lerp(visuals.rotation.x, 0.0, delta * 10.0)
+			if is_first_person:
+				visuals.rotation.y = lerp_angle(visuals.rotation.y, cam_yaw, delta * 14.0)
+		if left_leg: left_leg.rotation.x = move_toward(left_leg.rotation.x, 0.0, delta * 6.0)
+		if right_leg: right_leg.rotation.x = move_toward(right_leg.rotation.x, 0.0, delta * 6.0)
+		if left_arm:
+			left_arm.rotation.x = move_toward(left_arm.rotation.x, 0.0, delta * 6.0)
+			left_arm.rotation.z = move_toward(left_arm.rotation.z, 0.08, delta * 4.0)
+		if right_arm:
+			right_arm.rotation.x = move_toward(right_arm.rotation.x, 0.0, delta * 6.0)
+			right_arm.rotation.z = move_toward(right_arm.rotation.z, -0.08, delta * 4.0)
+		if head:
+			head.position.y = 1.48 + idle_pulse * 0.01
 
 	# 4. Vertical Velocity / Radial Jump & Jetpack
 	var on_ground = is_on_floor()

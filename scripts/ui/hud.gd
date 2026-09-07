@@ -5,27 +5,31 @@ extends Control
 @onready var jump_btn: TextureButton = $MobileLayer/ActionCluster/JumpBtn
 @onready var context_action_btn: Button = $MobileLayer/ActionCluster/ContextActionBtn
 @onready var view_toggle_btn: Button = $MobileLayer/ActionCluster/ViewToggleBtn
-@onready var zoom_in_btn: Button = $MobileLayer/ActionCluster/ZoomInBtn
-@onready var zoom_out_btn: Button = $MobileLayer/ActionCluster/ZoomOutBtn
 
 @onready var o2_bar: ProgressBar = $TopLayer/Vitals/O2Bar
 @onready var fuel_bar: ProgressBar = $TopLayer/Vitals/FuelBar
 @onready var hull_bar: ProgressBar = $TopLayer/Vitals/HullBar
 
 @onready var planet_name_label: Label = $TopLayer/Header/PlanetLabel
-@onready var coords_label: Label = $TopLayer/Header/CoordsLabel
 @onready var hyperdrive_badge: Button = $TopLayer/HyperdriveBadge
+@onready var pause_btn: Button = $TopLayer/PauseBtn
 @onready var top_layer: Control = $TopLayer
 
 # Helmet Visor First-Person Overlay
 @onready var jarvis_overlay: Control = $JarvisVisorOverlay
 
 # Modals
+@onready var pause_modal: Panel = $Modals/PauseModal
 @onready var crafting_modal: Panel = $Modals/CraftingModal
 @onready var hyperdrive_modal: Panel = $Modals/HyperdriveModal
 @onready var starmap_modal: Panel = $Modals/StarmapModal
 @onready var game_over_modal: Panel = $Modals/GameOverModal
 @onready var victory_modal: Panel = $Modals/VictoryModal
+
+# Pause Buttons
+@onready var pause_resume_btn: Button = $Modals/PauseModal/VBox/ResumeBtn
+@onready var pause_reset_btn: Button = $Modals/PauseModal/VBox/ResetSettingsBtn
+@onready var pause_menu_btn: Button = $Modals/PauseModal/VBox/ExitMenuBtn
 
 # Crafting UI labels
 @onready var inv_iron_label: Label = $Modals/CraftingModal/VBox/InvGrid/IronLabel
@@ -49,11 +53,26 @@ var initial_pinch_dist: float = 0.0
 var is_mouse_looking: bool = false
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	close_all_modals()
 	context_action_btn.visible = false
 	if jarvis_overlay:
 		jarvis_overlay.visible = false
 	_update_header()
+	
+	# Signal connections (if not already connected from scene)
+	if not jump_btn.button_down.is_connected(_on_jump_down):
+		jump_btn.button_down.connect(_on_jump_down)
+		jump_btn.button_up.connect(_on_jump_up)
+		context_action_btn.button_down.connect(_on_context_btn_down)
+		context_action_btn.button_up.connect(_on_context_btn_up)
+		view_toggle_btn.pressed.connect(_on_view_toggle_pressed)
+		hyperdrive_badge.pressed.connect(_on_hyperdrive_badge_pressed)
+		touch_camera_zone.gui_input.connect(_on_touch_camera_gui_input)
+		pause_btn.pressed.connect(_on_pause_btn_pressed)
+		pause_resume_btn.pressed.connect(_on_pause_resume_pressed)
+		pause_reset_btn.pressed.connect(_on_pause_reset_settings_pressed)
+		pause_menu_btn.pressed.connect(_on_pause_menu_pressed)
 	
 	GameManager.game_over.connect(_on_game_over)
 	GameManager.expedition_completed.connect(_on_expedition_completed)
@@ -63,20 +82,24 @@ func _ready() -> void:
 	_update_crafting_ui()
 	_update_hyperdrive_ui()
 
-func _process(_delta: float) -> void:
-	pass
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		if pause_modal.visible:
+			_on_pause_resume_pressed()
+		else:
+			_on_pause_btn_pressed()
 
 func close_all_modals() -> void:
+	if pause_modal: pause_modal.visible = false
 	crafting_modal.visible = false
 	hyperdrive_modal.visible = false
 	starmap_modal.visible = false
 	game_over_modal.visible = false
 	victory_modal.visible = false
+	get_tree().paused = false
 
-func init_player(p_node: CharacterBody3D) -> void:
-	player = p_node
-	if jarvis_overlay:
-		jarvis_overlay.player = p_node
+func init_player(p: CharacterBody3D) -> void:
+	player = p
 	player.stats_changed.connect(_on_stats_changed)
 	player.interaction_available.connect(_on_interaction_available)
 	player.interaction_lost.connect(_on_interaction_lost)
@@ -93,19 +116,18 @@ func _on_first_person_toggled(is_fps: bool) -> void:
 			jarvis_overlay.modulate.a = 0.0
 			tween.tween_property(jarvis_overlay, "modulate:a", 1.0, 0.35)
 	if view_toggle_btn:
-		view_toggle_btn.text = "3P ORBIT" if is_fps else "1P CASCO"
+		view_toggle_btn.text = "🚀" if is_fps else "👁"
 
 func _update_header() -> void:
 	var p = GameManager.current_planet
 	planet_name_label.text = str(p.get("name", "Civitus-Alpha"))
-	coords_label.text = str(p.get("coords_str", ""))
 
 func _on_stats_changed(o2: float, fuel: float, hull: float) -> void:
 	o2_bar.value = o2
 	fuel_bar.value = fuel
 	hull_bar.value = hull
 
-# Smooth Touch Camera Orbit & Pinch Zoom (Right side of screen)
+# Smooth Touch Camera Orbit & Pinch Zoom
 func _on_touch_camera_gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
@@ -150,21 +172,37 @@ func _on_view_toggle_pressed() -> void:
 	if player and player.has_method("toggle_first_person"):
 		player.toggle_first_person()
 
-# Zoom Buttons for quick UI controls
-func _on_zoom_in_pressed() -> void:
-	if player and player.has_method("zoom_camera"):
-		player.zoom_camera(-1.5)
-
-func _on_zoom_out_pressed() -> void:
-	if player and player.has_method("zoom_camera"):
-		player.zoom_camera(1.5)
-
-# Jump / Jetpack
 func _on_jump_down() -> void:
 	Input.action_press("jump_thrust")
 
 func _on_jump_up() -> void:
 	Input.action_release("jump_thrust")
+
+# Pause Menu Implementation
+func _on_pause_btn_pressed() -> void:
+	AudioManager.play("click")
+	pause_modal.visible = true
+	get_tree().paused = true
+
+func _on_pause_resume_pressed() -> void:
+	AudioManager.play("click")
+	pause_modal.visible = false
+	get_tree().paused = false
+
+func _on_pause_reset_settings_pressed() -> void:
+	AudioManager.play("click")
+	GameManager.reset_settings_to_default()
+	pause_reset_btn.text = "¡RESTABLECIDO!"
+	var tween = create_tween()
+	tween.tween_interval(1.2)
+	tween.tween_callback(func():
+		if pause_reset_btn: pause_reset_btn.text = "RESTABLECER AJUSTES"
+	)
+
+func _on_pause_menu_pressed() -> void:
+	get_tree().paused = false
+	AudioManager.play("click")
+	get_tree().change_scene_to_file("res://scenes/screens/main_menu.tscn")
 
 # Context-Sensitive Interaction
 func _on_interaction_available(type: String, target: Node3D) -> void:
@@ -186,6 +224,9 @@ func _on_interaction_available(type: String, target: Node3D) -> void:
 		"airlock":
 			context_action_btn.text = "ESCLUSA"
 			context_action_btn.modulate = Color(0.2, 0.8, 1.0)
+		"repair":
+			context_action_btn.text = "REPARAR NAVE"
+			context_action_btn.modulate = Color(1.0, 0.4, 0.2)
 
 func _on_interaction_lost() -> void:
 	current_context_type = ""
@@ -210,6 +251,10 @@ func _on_context_btn_down() -> void:
 			AudioManager.play("click")
 		"airlock":
 			AudioManager.play("airlock", 1.0)
+		"repair":
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			if ship and ship.has_method("repair_hull_modules"):
+				ship.repair_hull_modules()
 
 func _on_context_btn_up() -> void:
 	if current_context_type == "mine" and player:
@@ -224,10 +269,10 @@ func _on_hyperdrive_badge_pressed() -> void:
 # Crafting
 func _update_crafting_ui() -> void:
 	var inv = GameManager.crafting.inventory
-	inv_iron_label.text = "Hierro: %d" % inv.get("iron", 0)
-	inv_copper_label.text = "Cobre: %d" % inv.get("copper", 0)
-	inv_silicon_label.text = "Silicio: %d" % inv.get("silicon", 0)
-	inv_uranium_label.text = "Uranio: %d" % inv.get("uranium", 0)
+	if inv_iron_label: inv_iron_label.text = "Hierro: %d" % inv.get("iron", 0)
+	if inv_copper_label: inv_copper_label.text = "Cobre: %d" % inv.get("copper", 0)
+	if inv_silicon_label: inv_silicon_label.text = "Silicio: %d" % inv.get("silicon", 0)
+	if inv_uranium_label: inv_uranium_label.text = "Uranio: %d" % inv.get("uranium", 0)
 
 func _on_craft_item_pressed(item_name: String) -> void:
 	if GameManager.crafting.craft(item_name):
@@ -238,7 +283,7 @@ func _on_craft_item_pressed(item_name: String) -> void:
 # Hyperdrive
 func _update_hyperdrive_ui() -> void:
 	var prog = GameManager.crafting.get_hyperdrive_progress()
-	hyperdrive_badge.text = "HYPERDRIVE: %d%%" % int(prog * 100)
+	hyperdrive_badge.text = "HYPERDRIVE %d%%" % int(prog * 100)
 	
 	if GameManager.crafting.is_hyperdrive_complete():
 		hyperdrive_status_label.text = "¡HYPERDRIVE 100% OPERATIVO! LISTO PARA SALTO"

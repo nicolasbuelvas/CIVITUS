@@ -1,6 +1,7 @@
 extends Node3D
 
 signal hyperdrive_launched()
+signal hull_integrity_changed(health_dict: Dictionary, is_breached: bool)
 
 @onready var interior_area: Area3D = $CabinInterior/InteriorArea
 @onready var airlock_outer_door: Node3D = $HullStructure/AirlockChamber/OuterDoor
@@ -17,6 +18,17 @@ var player_ref: CharacterBody3D = null
 enum AirlockState { CLOSED, OPENING_OUTER, OPEN_OUTER, PRESSURIZING, OPENING_INNER, OPEN_INNER }
 var airlock_state: AirlockState = AirlockState.CLOSED
 
+# Modular Hull System: Parts that degrade in hostile environments
+var module_health: Dictionary = {
+	"nose": 100.0,
+	"port": 100.0,
+	"starboard": 100.0,
+	"roof": 100.0,
+	"airlock": 100.0
+}
+var is_hull_breached: bool = false
+var hazard_degradation_rate: float = 0.0
+
 func _ready() -> void:
 	interior_area.body_entered.connect(_on_cabin_entered)
 	interior_area.body_exited.connect(_on_cabin_exited)
@@ -27,19 +39,71 @@ func _ready() -> void:
 	_update_hyperdrive_lights()
 	_update_airlock_visuals(0.0, 0.0, Color(0.2, 0.8, 1.0))
 
+	# Calibrate environmental hazards
+	var planet = GameManager.current_planet
+	var lvl = planet.get("level", 0)
+	if lvl >= 2:
+		hazard_degradation_rate = 0.45 * float(lvl)
+
 func _process(delta: float) -> void:
+	# 1. Environmental degradation on external modules
+	if hazard_degradation_rate > 0.0:
+		for k in module_health.keys():
+			module_health[k] = max(0.0, module_health[k] - hazard_degradation_rate * delta)
+		
+		var min_hp = module_health.values().min()
+		var breached_now = (min_hp <= 0.0)
+		if breached_now != is_hull_breached:
+			is_hull_breached = breached_now
+			hull_integrity_changed.emit(module_health, is_hull_breached)
+
+	# 2. Cabin survival & life support
 	if is_player_in_cabin:
-		# Recharge vitals safely inside the pressurized cabin
-		GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 50.0 * delta)
-		GameManager.player_stats.hull = min(100.0, GameManager.player_stats.hull + 20.0 * delta)
-		GameManager.player_stats.fuel = min(100.0, GameManager.player_stats.fuel + 35.0 * delta)
-	
-	# Hyperdrive pulse animation
+		if not is_hull_breached:
+			# Pressurized habitat: 100% vital regeneration
+			GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 50.0 * delta)
+			GameManager.player_stats.hull = min(100.0, GameManager.player_stats.hull + 20.0 * delta)
+			GameManager.player_stats.fuel = min(100.0, GameManager.player_stats.fuel + 35.0 * delta)
+		else:
+			# Hull breached: Life support offline! Cabin exposed to hostile atmosphere
+			GameManager.player_stats.oxygen = max(0.0, GameManager.player_stats.oxygen - 2.5 * delta)
+			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 3.0 * delta)
+			
+			# Alarm light pulsation
+			var pulse = sin(Time.get_ticks_msec() * 0.008) * 0.5 + 0.5
+			if airlock_light:
+				airlock_light.light_color = Color(1.0, 0.1, 0.1) * (0.4 + pulse * 0.6)
+
+	# 3. Hyperdrive core rotation
 	var prog = GameManager.crafting.get_hyperdrive_progress()
 	var t = Time.get_ticks_msec() / 1000.0
 	hyperdrive_light.light_energy = 1.2 + (prog * 3.5) + sin(t * (4.0 + prog * 6.0)) * 0.4
 	if hyperdrive_core_mesh:
 		hyperdrive_core_mesh.rotation.y += delta * (1.0 + prog * 4.0)
+
+func get_lowest_module_health() -> float:
+	return module_health.values().min()
+
+func can_repair_hull() -> bool:
+	return get_lowest_module_health() < 95.0
+
+func repair_hull_modules() -> bool:
+	var inv = GameManager.crafting.inventory
+	var iron = inv.get("iron", 0)
+	var copper = inv.get("copper", 0)
+	if iron >= 2 or copper >= 2:
+		if iron >= 2:
+			GameManager.crafting.remove_resource("iron", 2)
+		else:
+			GameManager.crafting.remove_resource("copper", 2)
+		for k in module_health.keys():
+			module_health[k] = 100.0
+		is_hull_breached = false
+		_update_airlock_visuals(0.0, 0.0, Color(0.2, 1.0, 0.4))
+		hull_integrity_changed.emit(module_health, is_hull_breached)
+		AudioManager.play("crafting", 1.0)
+		return true
+	return false
 
 func _on_airlock_entered(body: Node3D) -> void:
 	if body.is_in_group("player"):
@@ -54,7 +118,6 @@ func _on_airlock_exited(body: Node3D) -> void:
 
 func _cycle_airlock_inbound() -> void:
 	AudioManager.play("airlock", 1.1)
-	# Smoothly open outer door, then pressurize
 	var tween = create_tween().set_parallel(false)
 	# Outer door slide open
 	tween.tween_property(airlock_outer_door, "position:y", 2.2, 0.4)
@@ -63,13 +126,15 @@ func _cycle_airlock_inbound() -> void:
 	tween.tween_property(airlock_outer_door, "position:y", 0.0, 0.3)
 	tween.tween_callback(func():
 		AudioManager.play("airlock", 0.95)
-		airlock_light.light_color = Color(1.0, 0.8, 0.2) # Yellow pressurizing
+		if not is_hull_breached:
+			airlock_light.light_color = Color(1.0, 0.8, 0.2)
 	)
 	tween.tween_interval(0.4)
-	# Open inner door & turn green
+	# Open inner door
 	tween.tween_property(airlock_inner_door, "position:y", 2.2, 0.35)
 	tween.tween_callback(func():
-		airlock_light.light_color = Color(0.2, 1.0, 0.4) # Green pressurized
+		if not is_hull_breached:
+			airlock_light.light_color = Color(0.2, 1.0, 0.4)
 	)
 
 func _cycle_airlock_close() -> void:
@@ -77,35 +142,36 @@ func _cycle_airlock_close() -> void:
 	tween.tween_property(airlock_outer_door, "position:y", 0.0, 0.4)
 	tween.tween_property(airlock_inner_door, "position:y", 0.0, 0.4)
 	tween.tween_callback(func():
-		airlock_light.light_color = Color(0.2, 0.8, 1.0)
+		if not is_hull_breached:
+			airlock_light.light_color = Color(0.2, 0.8, 1.0)
 	)
 
 func _update_airlock_visuals(outer_y: float, inner_y: float, col: Color) -> void:
 	if airlock_outer_door: airlock_outer_door.position.y = outer_y
 	if airlock_inner_door: airlock_inner_door.position.y = inner_y
-	if airlock_light: airlock_light.light_color = col
+	if airlock_light and not is_hull_breached: airlock_light.light_color = col
 
 func _on_cabin_entered(body: Node3D) -> void:
 	if body.is_in_group("player"):
 		is_player_in_cabin = true
 		player_ref = body as CharacterBody3D
 		if player_ref and player_ref.has_method("set_suit_mode"):
-			player_ref.set_suit_mode(false) # Remove helmet inside pressurized cabin!
+			player_ref.set_suit_mode(false)
 
 func _on_cabin_exited(body: Node3D) -> void:
 	if body.is_in_group("player"):
 		is_player_in_cabin = false
 		if player_ref and player_ref.has_method("set_suit_mode"):
-			player_ref.set_suit_mode(true) # Put helmet back on outside!
+			player_ref.set_suit_mode(true)
 
 func _update_hyperdrive_lights() -> void:
 	var prog = GameManager.crafting.get_hyperdrive_progress()
 	if prog >= 1.0:
-		hyperdrive_light.light_color = Color(0.2, 1.0, 0.4) # Green ready
+		hyperdrive_light.light_color = Color(0.2, 1.0, 0.4)
 	elif prog > 0.3:
-		hyperdrive_light.light_color = Color(0.2, 0.8, 1.0) # Cyan charging
+		hyperdrive_light.light_color = Color(0.2, 0.8, 1.0)
 	else:
-		hyperdrive_light.light_color = Color(1.0, 0.35, 0.15) # Orange offline
+		hyperdrive_light.light_color = Color(1.0, 0.35, 0.15)
 
 func trigger_hyperjump() -> void:
 	AudioManager.play("hyperdrive", 1.0)

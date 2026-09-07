@@ -344,12 +344,12 @@ func _gui_input(event: InputEvent) -> void:
 			if active_info_tab == "planet":
 				target_camera_dist = clamp(target_camera_dist - 0.6, 5.5, 20.0)
 			else:
-				target_camera_dist = clamp(target_camera_dist - 2.5, 25.0, 95.0)
+				target_camera_dist = clamp(target_camera_dist - 3.5, 18.0, 95.0)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if active_info_tab == "planet":
 				target_camera_dist = clamp(target_camera_dist + 0.6, 5.5, 20.0)
 			else:
-				target_camera_dist = clamp(target_camera_dist + 2.5, 25.0, 95.0)
+				target_camera_dist = clamp(target_camera_dist + 3.5, 18.0, 95.0)
 			
 	elif event is InputEventMouseMotion and is_dragging:
 		var delta_pos = event.position - last_drag_pos
@@ -575,19 +575,20 @@ func _select_planet(idx: int) -> void:
 	var s_col: Color = star_data.get("color", Color(1.0, 0.92, 0.70))
 	
 	if star_pivot:
-		var p_coords: Vector3 = p.get("coords", Vector3(r_au * 1000.0, 0.0, 0.0))
-		var star_dir = -p_coords.normalized()
-		if star_dir.length_squared() < 0.001:
-			star_dir = Vector3(-0.85, 0.25, -0.45).normalized()
+		var orb_angle = p.get("orbit_angle", float(idx) * 0.8)
+		var star_horiz = Vector2(cos(orb_angle + PI), sin(orb_angle + PI)).normalized()
+		var star_dir = Vector3(star_horiz.x, 0.32, star_horiz.y).normalized()
 		var star_dist = 85.0 # Fixed celestial background distance
 		star_pivot.position = star_dir * star_dist
 		
 		# Apparent size: closer = huge radiant sun, far = small brilliant diamond starlight
-		var apparent_r = clamp((2.2 * sqrt(s_lum)) / sqrt(r_au), 0.45, 5.5)
+		var apparent_r = clamp((2.2 * sqrt(s_lum)) / sqrt(r_au), 0.55, 5.2)
 		star_pivot.scale = Vector3.ONE * apparent_r
 		
 		# Coherent physical lighting intensity & color
-		var light_energy = clamp(1.6 * (s_lum / (r_au * r_au)), 0.35, 3.8)
+		# Logarithmic exposure curve ensures illuminated side is always crisp and visible
+		var flux = s_lum / (r_au * r_au)
+		var light_energy = clamp(1.4 + 0.65 * log(max(0.05, flux) + 1.0), 1.15, 2.8)
 		if sun_light:
 			sun_light.light_energy = light_energy
 			sun_light.light_color = s_col

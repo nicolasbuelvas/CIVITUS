@@ -163,11 +163,11 @@ static func generate_system(seed_val: int = -1) -> Dictionary:
 		var is_hz = (orbit_au >= hz_inner_au and orbit_au <= hz_outer_au)
 		var is_primary_hz = (hz_indices.size() > 0 and i == hz_indices[0])
 		
-		# Cartesian coordinates for starmap
+		# Cartesian coordinates for starmap (XZ orbital plane, Y inclination)
 		var angle = p_rng.randf() * TAU
-		var x_km = cos(angle) * orbit_au * 149597.87
-		var y_km = sin(angle) * orbit_au * 149597.87
-		var z_km = (p_rng.randf() - 0.5) * 18000.0
+		var x_km = cos(angle) * orbit_au * 149597870.7
+		var z_km = sin(angle) * orbit_au * 149597870.7
+		var y_km = (p_rng.randf() - 0.5) * 800000.0
 		var p_coords_str = "[X: %.0f km, Y: %.0f km, Z: %.0f km]" % [x_km, y_km, z_km]
 		
 		var planet_data = _build_planet(
@@ -175,6 +175,7 @@ static func generate_system(seed_val: int = -1) -> Dictionary:
 			star_lum, hz_inner_au, hz_outer_au,
 			Vector3(x_km, y_km, z_km), p_coords_str, p_seed, p_rng
 		)
+		planet_data["orbit_angle"] = angle
 		
 		if planet_data["level"] == 0:
 			habitable_count += 1

@@ -17,9 +17,9 @@ const AU_SCALE: float = 12.0 # 1 AU = 12 meters in 3D solar system view
 var system_data: Dictionary = {}
 var selected_index: int = 0
 var orbit_angles: Array[float] = []
+var planet_markers: Array[Node3D] = []
 
 func _ready() -> void:
-	# Initialize containers if not created via scene
 	if not orbits_mesh_instance:
 		orbits_mesh_instance = MeshInstance3D.new()
 		add_child(orbits_mesh_instance)
@@ -35,26 +35,26 @@ func _ready() -> void:
 		s_mesh.radius = 2.8
 		s_mesh.height = 5.6
 		star_mesh_instance.mesh = s_mesh
+		star_mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(star_mesh_instance)
 
 func _process(delta: float) -> void:
-	# Animate planets slowly revolving along their orbits (Keplerian: closer = faster)
+	# Continuous, uninterrupted Keplerian orbital revolution
 	if system_data.is_empty():
 		return
 	var planets = system_data.get("planets", [])
 	for i in range(planets.size()):
-		if i < orbit_angles.size():
+		if i < orbit_angles.size() and i < planet_markers.size():
 			var r = max(0.2, planets[i].get("orbit_au", 1.0))
-			var speed = 0.28 / sqrt(r) # Kepler's 3rd law approximation
+			var speed = 0.28 / sqrt(r)
 			orbit_angles[i] += speed * delta
-			var p_node = planets_container.get_node_or_null("PlanetMarker_%d" % i)
-			if p_node:
+			var p_node = planet_markers[i]
+			if is_instance_valid(p_node):
 				var dist = r * AU_SCALE
 				p_node.position = Vector3(cos(orbit_angles[i]) * dist, 0.0, sin(orbit_angles[i]) * dist)
-				# Axial rotation of miniature planet
 				var sphere_node = p_node.get_node_or_null("PlanetSphere")
 				if sphere_node:
-					sphere_node.rotation.y += delta * 0.2
+					sphere_node.rotation.y += delta * 0.25
 
 func setup_system(sys: Dictionary, sel_idx: int = 0) -> void:
 	system_data = sys
@@ -69,7 +69,15 @@ func set_selected_planet(sel_idx: int) -> void:
 	selected_index = sel_idx
 	if not system_data.is_empty():
 		_build_orbit_lines(system_data.get("planets", []), sel_idx)
-		_build_planet_markers(system_data.get("planets", []), sel_idx)
+		_update_selection_halo(sel_idx)
+
+func _update_selection_halo(sel_idx: int) -> void:
+	for i in range(planet_markers.size()):
+		var marker = planet_markers[i]
+		if is_instance_valid(marker):
+			var halo = marker.get_node_or_null("SelectionRing")
+			if halo:
+				halo.visible = (i == sel_idx)
 
 func _build_star_visuals(star_data: Dictionary) -> void:
 	var s_col: Color = star_data.get("color", Color(1.0, 0.88, 0.35))
@@ -93,6 +101,7 @@ func _build_star_visuals(star_data: Dictionary) -> void:
 	s_mesh.rings = 24
 	star_mesh_instance.mesh = s_mesh
 	star_mesh_instance.material_override = mat
+	star_mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 func _build_habitable_zone(star_data: Dictionary) -> void:
 	var hz_in = star_data.get("hz_inner_au", 0.85) * AU_SCALE
@@ -152,9 +161,10 @@ func _build_orbit_lines(planets: Array, sel_idx: int) -> void:
 	orbits_mesh_instance.material_override = mat
 
 func _build_planet_markers(planets: Array, sel_idx: int) -> void:
-	# Clear old markers
 	for child in planets_container.get_children():
+		planets_container.remove_child(child)
 		child.queue_free()
+	planet_markers.clear()
 		
 	var preserve_angles = (orbit_angles.size() == planets.size())
 	if not preserve_angles:
@@ -167,14 +177,15 @@ func _build_planet_markers(planets: Array, sel_idx: int) -> void:
 		if preserve_angles:
 			cur_angle = orbit_angles[i]
 		else:
-			cur_angle = float(i) * (TAU / max(1.0, float(planets.size()))) + 0.5
+			cur_angle = p.get("orbit_angle", float(i) * (TAU / max(1.0, float(planets.size()))) + 0.5)
 			orbit_angles.append(cur_angle)
 		
 		var marker_root = Node3D.new()
 		marker_root.name = "PlanetMarker_%d" % i
 		
 		var is_sel = (i == sel_idx)
-		var p_size = 0.72 if is_sel else 0.55
+		# Scaled up for crystal-clear mobile visibility
+		var p_size = 1.25 if not is_sel else 1.55
 		
 		# 1. Procedural 3D Miniature Planet Sphere
 		var sphere_inst = MeshInstance3D.new()
@@ -207,7 +218,7 @@ func _build_planet_markers(planets: Array, sel_idx: int) -> void:
 		if p.get("has_rings", false):
 			var ring_inst = MeshInstance3D.new()
 			var q_mesh = QuadMesh.new()
-			var r_span = p_size * 4.2
+			var r_span = p_size * 4.4
 			q_mesh.size = Vector2(r_span, r_span)
 			q_mesh.orientation = PlaneMesh.FACE_Y
 			ring_inst.mesh = q_mesh
@@ -218,28 +229,29 @@ func _build_planet_markers(planets: Array, sel_idx: int) -> void:
 			ring_inst.material_override = ring_mat
 			marker_root.add_child(ring_inst)
 			
-		# 3. Selected Target Beacon Halo
-		if is_sel:
-			var sel_ring = MeshInstance3D.new()
-			var t_mesh = TorusMesh.new()
-			t_mesh.inner_radius = p_size * 1.35
-			t_mesh.outer_radius = p_size * 1.55
-			t_mesh.rings = 32
-			t_mesh.ring_segments = 16
-			sel_ring.mesh = t_mesh
-			
-			var r_mat = StandardMaterial3D.new()
-			r_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			r_mat.albedo_color = Color(0.35, 1.0, 0.75, 0.95)
-			sel_ring.material_override = r_mat
-			marker_root.add_child(sel_ring)
-			
+		# 3. Selected Target Beacon Halo (Persistent toggle)
+		var sel_ring = MeshInstance3D.new()
+		sel_ring.name = "SelectionRing"
+		var t_mesh = TorusMesh.new()
+		t_mesh.inner_radius = p_size * 1.35
+		t_mesh.outer_radius = p_size * 1.65
+		t_mesh.rings = 32
+		t_mesh.ring_segments = 16
+		sel_ring.mesh = t_mesh
+		
+		var r_mat = StandardMaterial3D.new()
+		r_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		r_mat.albedo_color = Color(0.35, 1.0, 0.75, 0.95)
+		sel_ring.material_override = r_mat
+		sel_ring.visible = is_sel
+		marker_root.add_child(sel_ring)
+		
 		# 4. Large Mobile Touch & Click Hitbox (Area3D)
 		var area = Area3D.new()
 		area.name = "TouchArea"
 		var col = CollisionShape3D.new()
 		var shape = SphereShape3D.new()
-		shape.radius = 3.5 # Generous touch area for mobile taps
+		shape.radius = 4.5 # Extra generous touch area for mobile taps
 		col.shape = shape
 		area.add_child(col)
 		area.input_event.connect(_on_area_input_event.bind(i))
@@ -247,6 +259,7 @@ func _build_planet_markers(planets: Array, sel_idx: int) -> void:
 		
 		marker_root.position = Vector3(cos(cur_angle) * r, 0.0, sin(cur_angle) * r)
 		planets_container.add_child(marker_root)
+		planet_markers.append(marker_root)
 
 func _on_area_input_event(_camera: Camera3D, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int, planet_idx: int) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -255,7 +268,8 @@ func _on_area_input_event(_camera: Camera3D, event: InputEvent, _position: Vecto
 		planet_clicked.emit(planet_idx)
 
 func get_planet_position(idx: int) -> Vector3:
-	var p_node = planets_container.get_node_or_null("PlanetMarker_%d" % idx)
-	if p_node:
-		return p_node.global_position
+	if idx >= 0 and idx < planet_markers.size():
+		var p_node = planet_markers[idx]
+		if is_instance_valid(p_node):
+			return p_node.global_position
 	return Vector3.ZERO

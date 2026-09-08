@@ -203,26 +203,28 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.6, 3.4)
 mesh = SubResource("BoxMesh_ArchLintel")
 
 [node name="ApolloHatch" type="AnimatableBody3D" parent="HullStructure"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.35, 3.32)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 1.35, 3.35)
 collision_layer = 1
 collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/ApolloHatch"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0, 0)
 shape = SubResource("BoxShape3D_HatchDoor")
 
 [node name="HatchPanel" type="MeshInstance3D" parent="HullStructure/ApolloHatch"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0, 0)
 mesh = SubResource("BoxMesh_HatchPanel")
 
 [node name="PortholeRim" type="MeshInstance3D" parent="HullStructure/ApolloHatch"]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0.25, 0)
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0.95, 0.25, 0)
 mesh = SubResource("CylinderMesh_PortholeRim")
 
 [node name="PortholeGlass" type="MeshInstance3D" parent="HullStructure/ApolloHatch"]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0.25, 0)
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0.95, 0.25, 0)
 mesh = SubResource("CylinderMesh_PortholeGlass")
 
 [node name="LatchHandle" type="MeshInstance3D" parent="HullStructure/ApolloHatch"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, -0.15, 0.08)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.55, -0.15, 0.08)
 mesh = SubResource("BoxMesh_HatchHandle")
 
 [node name="BoardingRamp" type="StaticBody3D" parent="HullStructure"]

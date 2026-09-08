@@ -32,7 +32,8 @@ func _ready() -> void:
 	is_operating_hatch = false
 	is_equalizing_pressure = false
 	if hatch_node:
-		hatch_node.position.y = 1.35
+		hatch_node.position = Vector3(-0.95, 1.35, 3.35)
+		hatch_node.rotation.y = 0.0
 	if hatch_col:
 		hatch_col.set_deferred("disabled", false)
 	
@@ -81,17 +82,19 @@ func get_hatch_interaction_state(p: CharacterBody3D) -> String:
 			return "close_hatch"
 		return ""
 
-# Hatch Opening Sequence: Atmospheric balancing + helmet donning + smooth slide open
+# Hatch Opening Sequence: Atmospheric balancing + helmet donning + smooth swing open
 func open_hatch() -> void:
 	if is_operating_hatch or is_hatch_open:
 		return
 	is_operating_hatch = true
 	is_equalizing_pressure = true
+	if player_ref:
+		player_ref.is_action_locked = true
 	
 	# Atmospheric decompression / hiss sound
 	AudioManager.play("airlock", 0.9, -2.0)
 	
-	# Character animation: putting on helmet before depressurization
+	# Character animation: putting on helmet using their hands
 	if player_ref and player_ref.has_method("animate_put_on_helmet"):
 		player_ref.animate_put_on_helmet()
 	elif player_ref and player_ref.has_method("set_suit_mode"):
@@ -107,43 +110,63 @@ func open_hatch() -> void:
 
 func _open_hatch_direct() -> void:
 	AudioManager.play("click", 1.1)
-	if hatch_col:
-		hatch_col.set_deferred("disabled", true)
 	if hatch_node:
 		var tw = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(hatch_node, "position:y", 3.65, 0.45)
+		# Swing open on the left hinge! Height stays at 1.35m, never pokes through roof!
+		tw.tween_property(hatch_node, "rotation:y", -deg_to_rad(105.0), 0.5)
 		tw.tween_callback(func():
+			if hatch_col:
+				hatch_col.set_deferred("disabled", true)
 			is_hatch_open = true
 			is_operating_hatch = false
+			if player_ref:
+				player_ref.is_action_locked = false
 		)
 	else:
+		if hatch_col:
+			hatch_col.set_deferred("disabled", true)
 		is_hatch_open = true
 		is_operating_hatch = false
+		if player_ref:
+			player_ref.is_action_locked = false
 
 # Hatch Closing Sequence: Fast and smooth seal (0.35s)
 func close_hatch() -> void:
 	if is_operating_hatch or not is_hatch_open:
 		return
 	is_operating_hatch = true
+	if player_ref:
+		player_ref.is_action_locked = true
 	AudioManager.play("airlock", 1.2, -4.0)
 	
 	if hatch_col:
 		hatch_col.set_deferred("disabled", false)
 	if hatch_node:
 		var tw = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.tween_property(hatch_node, "position:y", 1.35, 0.35)
+		# Swing shut flush into frame
+		tw.tween_property(hatch_node, "rotation:y", 0.0, 0.35)
 		tw.tween_callback(func():
 			is_hatch_open = false
 			is_operating_hatch = false
-			# Cabin is now sealed: take off helmet and reveal face
+			# Cabin is now sealed: take off helmet with hands and reveal face
 			if player_ref and player_ref.has_method("animate_take_off_helmet"):
 				player_ref.animate_take_off_helmet()
+				var tw_unlock = create_tween()
+				tw_unlock.tween_interval(1.1)
+				tw_unlock.tween_callback(func():
+					if player_ref:
+						player_ref.is_action_locked = false
+				)
 			elif player_ref and player_ref.has_method("set_suit_mode"):
 				player_ref.set_suit_mode(false)
+				if player_ref:
+					player_ref.is_action_locked = false
 		)
 	else:
 		is_hatch_open = false
 		is_operating_hatch = false
+		if player_ref:
+			player_ref.is_action_locked = false
 
 func _update_hazard_oxidation_visuals(planet: Dictionary, temp: float) -> void:
 	if not active_hull_material:

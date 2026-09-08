@@ -33,6 +33,7 @@ var current_interactable_type: String = ""
 var walk_time: float = 0.0
 var vertical_speed: float = 0.0
 var laser_immediate: ImmediateMesh = ImmediateMesh.new()
+var is_action_locked: bool = false
 
 # Orbit camera & zoom state
 var cam_yaw: float = 0.0
@@ -107,27 +108,62 @@ func set_suit_mode(outside: bool) -> void:
 
 func animate_put_on_helmet() -> void:
 	is_in_space_suit = true
-	if not is_first_person and helmet:
+	if helmet and left_arm and right_arm:
 		helmet.visible = true
-		helmet.position.y = 0.4
-		var tw = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(helmet, "position:y", 0.0, 0.45)
-		tw.tween_callback(func():
+		helmet.position.y = 0.35
+		
+		var tw = create_tween().set_parallel(true)
+		# 1. Arms reach up to head/ears
+		tw.tween_property(left_arm, "rotation:x", -2.1, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(left_arm, "rotation:z", 0.35, 0.4)
+		tw.tween_property(right_arm, "rotation:x", -2.1, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(right_arm, "rotation:z", -0.35, 0.4)
+		# Helmet lowers onto head
+		tw.tween_property(helmet, "position:y", 0.0, 0.55).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		
+		# 2. At 0.5s: face hidden, twist/lock collar ring
+		var tw2 = create_tween().set_parallel(true)
+		tw2.tween_interval(0.45)
+		tw2.chain().tween_callback(func():
 			if face: face.visible = false
+			AudioManager.play("click", 0.95)
 		)
+		tw2.chain().tween_property(left_arm, "rotation:x", -1.6, 0.25)
+		tw2.chain().tween_property(right_arm, "rotation:x", -1.6, 0.25)
+		# 3. Return arms to sides
+		tw2.chain().tween_property(left_arm, "rotation", Vector3.ZERO, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw2.chain().tween_property(right_arm, "rotation", Vector3.ZERO, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	else:
 		set_suit_mode(true)
 
 func animate_take_off_helmet() -> void:
 	is_in_space_suit = false
-	if not is_first_person and helmet:
-		if face: face.visible = true
-		var tw = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw.tween_property(helmet, "position:y", 0.4, 0.35)
-		tw.tween_callback(func():
+	if helmet and left_arm and right_arm:
+		var tw = create_tween().set_parallel(true)
+		# 1. Arms reach up to collar ring
+		tw.tween_property(left_arm, "rotation:x", -1.7, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(left_arm, "rotation:z", 0.35, 0.35)
+		tw.tween_property(right_arm, "rotation:x", -1.7, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(right_arm, "rotation:z", -0.35, 0.35)
+		
+		# 2. Lift helmet up & reveal face
+		var tw2 = create_tween().set_parallel(true)
+		tw2.tween_interval(0.35)
+		tw2.chain().tween_callback(func():
+			if face: face.visible = true
+			AudioManager.play("click", 1.1)
+		)
+		tw2.chain().tween_property(helmet, "position:y", 0.35, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw2.chain().tween_property(left_arm, "rotation:x", -2.2, 0.35)
+		tw2.chain().tween_property(right_arm, "rotation:x", -2.2, 0.35)
+		
+		# 3. Hide helmet, arms return to sides
+		tw2.chain().tween_callback(func():
 			helmet.visible = false
 			helmet.position.y = 0.0
 		)
+		tw2.chain().tween_property(left_arm, "rotation", Vector3.ZERO, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw2.chain().tween_property(right_arm, "rotation", Vector3.ZERO, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	else:
 		set_suit_mode(false)
 
@@ -254,9 +290,13 @@ func _physics_process(delta: float) -> void:
 			head.visible = (effective_dist >= 1.1)
 
 	# 3. Camera-Dependent Movement Input Projected onto Spherical Tangent Plane
-	var input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
-	var input_fwd = -input_vec.y # W/stick up gives forward (+1.0)
-	var input_str = input_vec.length()
+	var input_vec = Vector2.ZERO
+	var input_fwd = 0.0
+	var input_str = 0.0
+	if not is_action_locked:
+		input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
+		input_fwd = -input_vec.y # W/stick up gives forward (+1.0)
+		input_str = input_vec.length()
 
 	var move_tangent = Vector3.ZERO
 	if input_str > 0.05:
@@ -296,7 +336,7 @@ func _physics_process(delta: float) -> void:
 	var current_speed = walk_speed * (1.85 if is_sprint_active else 1.0)
 	var horizontal_vel = move_tangent * (input_str * current_speed)
 
-	if input_str > 0.05 and visuals:
+	if input_str > 0.05 and visuals and not is_action_locked:
 		walk_time += delta * (14.0 if is_sprint_active else 8.5)
 		var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
 		if left_leg: left_leg.rotation.x = swing
@@ -308,7 +348,7 @@ func _physics_process(delta: float) -> void:
 		visuals.rotation.z = -input_vec.x * 0.08
 		var double_bounce = abs(sin(walk_time))
 		visuals.position.y = double_bounce * 0.05
-	elif visuals:
+	elif visuals and not is_action_locked:
 		walk_time += delta * 1.5
 		var idle_breath = sin(walk_time) * 0.015
 		visuals.position.y = idle_breath
@@ -322,11 +362,11 @@ func _physics_process(delta: float) -> void:
 	# 7. Vertical Velocity / Jetpack / Jump
 	if is_on_floor():
 		vertical_speed = 0.0
-		if Input.is_action_just_pressed("jump_thrust"):
+		if not is_action_locked and Input.is_action_just_pressed("jump_thrust"):
 			vertical_speed = jump_velocity
 			AudioManager.play("jump", 1.0)
 	else:
-		if Input.is_action_pressed("jump_thrust") and GameManager.player_stats.fuel > 0.0:
+		if not is_action_locked and Input.is_action_pressed("jump_thrust") and GameManager.player_stats.fuel > 0.0:
 			vertical_speed += jetpack_accel * delta
 			vertical_speed = min(vertical_speed, 12.0)
 			GameManager.player_stats.fuel = max(0.0, GameManager.player_stats.fuel - 18.0 * delta)

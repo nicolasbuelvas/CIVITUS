@@ -21,6 +21,7 @@ extends Control
 
 # Helmet Visor First-Person Overlay
 @onready var jarvis_overlay: Control = $JarvisVisorOverlay
+@onready var door_action_btn: Button = get_node_or_null("MobileLayer/ActionCluster/DoorActionBtn")
 
 # Modals
 @onready var pause_modal: Panel = $Modals/PauseModal
@@ -94,8 +95,21 @@ func _ready() -> void:
 	
 	_update_crafting_ui()
 	_update_hyperdrive_ui()
+	
+	if door_action_btn:
+		door_action_btn.pressed.connect(_on_door_action_btn_pressed)
+
+func _on_door_action_btn_pressed() -> void:
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if ship and ship.has_method("toggle_airlock"):
+		ship.toggle_airlock()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F:
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			if ship and ship.has_method("toggle_airlock"):
+				ship.toggle_airlock()
 	if event.is_action_pressed("ui_cancel"):
 		if settings_modal.visible:
 			_on_close_settings_pressed()

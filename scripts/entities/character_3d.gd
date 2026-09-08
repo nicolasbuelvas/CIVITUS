@@ -15,14 +15,12 @@ signal first_person_toggled(is_fps: bool)
 @onready var head: Node3D = get_node_or_null("Visuals/Head")
 @onready var helmet: Node3D = get_node_or_null("Visuals/Head/Helmet")
 @onready var face: Node3D = get_node_or_null("Visuals/Head/Face")
-@onready var hair: Node3D = get_node_or_null("Visuals/Head/Face/Hair")
 @onready var left_arm: Node3D = get_node_or_null("Visuals/LeftArm")
 @onready var right_arm: Node3D = get_node_or_null("Visuals/RightArm")
 @onready var left_leg: Node3D = get_node_or_null("Visuals/LeftLeg")
 @onready var right_leg: Node3D = get_node_or_null("Visuals/RightLeg")
 @onready var camera_pivot: Node3D = get_node_or_null("CameraPivot")
-@onready var spring_arm: SpringArm3D = get_node_or_null("CameraPivot/SpringArm3D")
-@onready var camera: Camera3D = get_node_or_null("CameraPivot/SpringArm3D/Camera3D")
+@onready var camera: Camera3D = get_node_or_null("CameraPivot/Camera3D")
 @onready var laser_mesh: MeshInstance3D = get_node_or_null("Visuals/LaserMesh")
 
 var is_in_space_suit: bool = true
@@ -36,15 +34,15 @@ var walk_time: float = 0.0
 var vertical_speed: float = 0.0
 var laser_immediate: ImmediateMesh = ImmediateMesh.new()
 
-# Touch & Mouse camera rotation & zoom state
+# Orbit camera & zoom state
 var cam_yaw: float = 0.0
 var cam_pitch: float = 0.0
 var target_yaw: float = 0.0
 var target_pitch: float = 0.0
-var target_zoom: float = 4.0
-var current_zoom: float = 4.0
-const MIN_ZOOM: float = 0.0 # 0.0 is true First-Person Jarvis mode
-const MAX_ZOOM: float = 20.0 # Orbit overview
+var target_zoom: float = 4.5
+var current_zoom: float = 4.5
+const MIN_ZOOM: float = 0.0
+const MAX_ZOOM: float = 18.0
 const FPS_THRESHOLD: float = 0.8
 
 func _ready() -> void:
@@ -64,11 +62,9 @@ func set_suit_mode(outside: bool) -> void:
 	if face:
 		face.visible = not outside and not is_first_person
 	if not outside:
-		# Keep camera inside the capsule cabin without wall clipping
 		target_zoom = min(target_zoom, 2.5)
 
 func rotate_camera_by(drag_offset: Vector2) -> void:
-	# Stable full pitch range (-75 to +75 deg) both in 1P and 3P
 	var min_pitch = -75.0
 	var max_pitch = 75.0
 	target_yaw -= drag_offset.x * 0.005
@@ -76,7 +72,7 @@ func rotate_camera_by(drag_offset: Vector2) -> void:
 
 func toggle_first_person() -> void:
 	if is_first_person:
-		target_zoom = 4.0
+		target_zoom = 4.5
 	else:
 		target_zoom = 0.0
 	_check_fps_mode()
@@ -122,25 +118,34 @@ func _physics_process(delta: float) -> void:
 		target_yaw -= 2.5 * delta
 
 	# Smooth camera damping
-	cam_yaw = lerp_angle(cam_yaw, target_yaw, delta * 24.0)
-	cam_pitch = lerp(cam_pitch, target_pitch, delta * 24.0)
+	cam_yaw = lerp_angle(cam_yaw, target_yaw, delta * 20.0)
+	cam_pitch = lerp(cam_pitch, target_pitch, delta * 20.0)
 	if camera_pivot:
 		camera_pivot.rotation.y = cam_yaw
 		camera_pivot.rotation.x = deg_to_rad(cam_pitch)
 
-	# Smooth zoom interpolation via SpringArm3D (anti-ground clipping)
+	# Pure Spherical Orbit Camera with Raycast Ground Avoidance (Zero Clipping!)
 	current_zoom = lerp(current_zoom, target_zoom, delta * 12.0)
 	if is_first_person:
-		if spring_arm:
-			spring_arm.spring_length = 0.0
 		if camera:
 			camera.position = Vector3(0, 0.15, -0.05)
 			camera.fov = lerp(camera.fov, 80.0, delta * 12.0)
 	else:
-		if spring_arm:
-			spring_arm.spring_length = current_zoom
+		var effective_dist = current_zoom
+		if camera_pivot:
+			var space = get_world_3d().direct_space_state
+			var pivot_pos = camera_pivot.global_position
+			var cam_back = camera_pivot.global_transform.basis.z.normalized()
+			var ray_query = PhysicsRayQueryParameters3D.create(pivot_pos, pivot_pos + cam_back * (current_zoom + 0.3), 1)
+			ray_query.exclude = [self.get_rid()]
+			var hit = space.intersect_ray(ray_query)
+			if not hit.is_empty():
+				var hit_dist = pivot_pos.distance_to(hit.position)
+				effective_dist = max(0.5, hit_dist - 0.25)
 		if camera:
-			camera.position = Vector3.ZERO
+			camera.position.x = 0.0
+			camera.position.y = 0.0
+			camera.position.z = lerp(camera.position.z, effective_dist, delta * 18.0)
 			camera.fov = lerp(camera.fov, 55.0, delta * 12.0)
 
 	# Deterministic spherical surface alignment (zero roll drift, zero gimbal lock!)
@@ -155,12 +160,11 @@ func _physics_process(delta: float) -> void:
 
 	# 2. Movement input projected onto the spherical tangent plane
 	var input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
-	var input_fwd = -input_vec.y # W/stick up gives +1.0 forward
+	var input_fwd = -input_vec.y
 	var input_str = input_vec.length()
 
 	var cam_basis = camera_pivot.global_transform.basis if camera_pivot else global_transform.basis
 	var cam_fwd = -cam_basis.z
-	# Project forward onto spherical tangent plane
 	cam_fwd = (cam_fwd - up_dir * cam_fwd.dot(up_dir)).normalized()
 	var cam_rt = cam_fwd.cross(up_dir).normalized()
 
@@ -172,101 +176,55 @@ func _physics_process(delta: float) -> void:
 	var is_sprint_active = is_sprinting or Input.is_key_pressed(KEY_SHIFT) or Input.is_action_pressed("sprint")
 	if is_in_space_suit:
 		if planet.get("has_oxygen", false):
-			# Breathable world: Oxygen regenerates to 100%!
 			GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 45.0 * delta)
 		else:
-			# Unbreathable world: Deplete oxygen (sprinting consumes 3.2x more!)
 			var o2_drain = 3.8 if (is_sprint_active and input_str > 0.1) else 1.2
 			GameManager.player_stats.oxygen = max(0.0, GameManager.player_stats.oxygen - o2_drain * delta)
-
-		var temp = planet.get("temperature", 20.0)
-		if temp > 90.0:
-			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - (temp - 90.0) * 0.03 * delta)
-		elif temp < -40.0:
-			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - abs(temp + 40.0) * 0.02 * delta)
-
-	# Incremental suffocation damage when oxygen reaches 0% (NO instant death!)
+	
 	if GameManager.player_stats.oxygen <= 0.0:
 		GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 8.0 * delta)
 
-	if GameManager.player_stats.hull <= 0.0:
-		GameManager.game_over.emit("Sistemas vitales agotados.")
-		set_physics_process(false)
-		return
+	# 4. Movement velocity
+	var current_speed = walk_speed * (1.85 if is_sprint_active else 1.0)
+	var horizontal_vel = move_tangent * (input_str * current_speed)
 
-	# Horizontal speed along planet surface (with Sprinting!)
-	var horizontal_vel = Vector3.ZERO
-	var current_walk_speed = walk_speed * (1.85 if is_sprint_active else 1.0)
-	if move_tangent.length() > 0.1:
-		horizontal_vel = move_tangent * (current_walk_speed * min(1.0, input_str))
-		
-		# Rotate visuals smoothly to face movement direction accurately forward (-Z)
-		var local_move = to_local(global_position + move_tangent).normalized()
-		var target_heading = atan2(-local_move.x, -local_move.z)
-		var angle_delta = wrapf(target_heading - visuals.rotation.y, -PI, PI)
-		visuals.rotation.y += clamp(angle_delta, -18.0 * delta, 18.0 * delta)
-		
-		# Procedural bank/lean into turns
-		visuals.rotation.z = lerp(visuals.rotation.z, -angle_delta * 0.18, delta * 12.0)
-		
-		# Natural gait animation
-		var anim_freq = 15.0 if is_sprint_active else 10.5
-		walk_time += delta * anim_freq
-		var stride = sin(walk_time)
-		var double_bounce = abs(sin(walk_time * 2.0))
-		
-		if left_leg and right_leg:
-			left_leg.rotation.x = stride * 0.65
-			right_leg.rotation.x = -stride * 0.65
-		if left_arm and right_arm:
-			left_arm.rotation.x = -stride * 0.55
-			right_arm.rotation.x = stride * 0.55
-			left_arm.rotation.z = 0.1 + abs(stride) * 0.05
-			right_arm.rotation.z = -0.1 - abs(stride) * 0.05
-		if visuals:
-			visuals.position.y = double_bounce * 0.05
-			visuals.rotation.x = 0.06 # Slight forward lean when running
-	else:
-		# Idle: Natural breathing cycle and relaxed standing stance
-		var idle_pulse = sin(Time.get_ticks_msec() * 0.003)
-		if visuals:
-			visuals.position.y = move_toward(visuals.position.y, idle_pulse * 0.015, delta * 2.0)
-			visuals.rotation.z = lerp(visuals.rotation.z, 0.0, delta * 10.0)
-			visuals.rotation.x = lerp(visuals.rotation.x, 0.0, delta * 10.0)
-			if is_first_person:
-				visuals.rotation.y = lerp_angle(visuals.rotation.y, cam_yaw, delta * 14.0)
-		if left_leg: left_leg.rotation.x = move_toward(left_leg.rotation.x, 0.0, delta * 6.0)
-		if right_leg: right_leg.rotation.x = move_toward(right_leg.rotation.x, 0.0, delta * 6.0)
-		if left_arm:
-			left_arm.rotation.x = move_toward(left_arm.rotation.x, 0.0, delta * 6.0)
-			left_arm.rotation.z = move_toward(left_arm.rotation.z, 0.08, delta * 4.0)
-		if right_arm:
-			right_arm.rotation.x = move_toward(right_arm.rotation.x, 0.0, delta * 6.0)
-			right_arm.rotation.z = move_toward(right_arm.rotation.z, -0.08, delta * 4.0)
-		if head:
-			head.position.y = 1.48 + idle_pulse * 0.01
+	# Procedural Character Orientation & Animation
+	if input_str > 0.05 and visuals:
+		walk_time += delta * (14.0 if is_sprint_active else 8.5)
+		var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
+		if left_leg: left_leg.rotation.x = swing
+		if right_leg: right_leg.rotation.x = -swing
+		if left_arm: left_arm.rotation.x = -swing * 0.8
+		if right_arm and not is_mining: right_arm.rotation.x = swing * 0.8
 
-	# 4. Vertical Velocity / Radial Jump & Jetpack
-	var on_ground = is_on_floor()
-	if not on_ground:
-		for i in range(get_slide_collision_count()):
-			var col = get_slide_collision(i)
-			if col.get_normal().dot(up_dir) > 0.35:
-				on_ground = true
-				break
+		var local_move = global_transform.basis.inverse() * move_tangent
+		var target_angle = atan2(-local_move.x, -local_move.z)
+		visuals.rotation.y = lerp_angle(visuals.rotation.y, target_angle, delta * 15.0)
+		visuals.rotation.z = -local_move.x * 0.12
+		var double_bounce = abs(sin(walk_time))
+		visuals.position.y = double_bounce * 0.05
+	elif visuals:
+		walk_time += delta * 1.5
+		var idle_breath = sin(walk_time) * 0.015
+		visuals.position.y = idle_breath
+		visuals.rotation.z = lerp_angle(visuals.rotation.z, 0.0, delta * 10.0)
+		if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, 0.0, delta * 10.0)
+		if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, 0.0, delta * 10.0)
+		if left_arm: left_arm.rotation.x = lerp_angle(left_arm.rotation.x, 0.0, delta * 10.0)
+		if right_arm and not is_mining: right_arm.rotation.x = lerp_angle(right_arm.rotation.x, 0.0, delta * 10.0)
 
-	if on_ground:
-		if vertical_speed < 0.0:
-			vertical_speed = 0.0
+	# Vertical velocity / Jetpack / Jump
+	if is_on_floor():
+		vertical_speed = 0.0
 		if Input.is_action_just_pressed("jump_thrust"):
 			vertical_speed = jump_velocity
-			AudioManager.play("hop", 1.1)
+			AudioManager.play("jump", 1.0)
 	else:
 		if Input.is_action_pressed("jump_thrust") and GameManager.player_stats.fuel > 0.0:
 			vertical_speed += jetpack_accel * delta
-			vertical_speed = min(vertical_speed, 9.5)
-			GameManager.player_stats.fuel = max(0.0, GameManager.player_stats.fuel - 20.0 * delta)
-			if fmod(Time.get_ticks_msec(), 220) < 40:
+			vertical_speed = min(vertical_speed, 12.0)
+			GameManager.player_stats.fuel = max(0.0, GameManager.player_stats.fuel - 18.0 * delta)
+			if fmod(walk_time, 0.25) < delta:
 				AudioManager.play("thruster", 1.0, -8.0)
 		else:
 			vertical_speed -= gravity_val * delta
@@ -282,12 +240,12 @@ func _physics_process(delta: float) -> void:
 			vertical_speed = 0.0
 	for i in range(get_slide_collision_count()):
 		var col = get_slide_collision(i)
-		if col.get_normal().dot(up_dir) < -0.35: # Upward obstacle / ceiling
+		if col.get_normal().dot(up_dir) < -0.3:
 			if vertical_speed > 0.0:
 				vertical_speed = 0.0
 				break
 
-	# 5. Nearby Interactables Scan (Context UX)
+	# 5. Nearby Interactables Scan
 	check_nearby_interactables()
 
 	# 6. Mining
@@ -308,7 +266,7 @@ func check_nearby_interactables() -> void:
 	sphere.radius = 4.0
 	q.shape = sphere
 	q.transform = global_transform
-	q.collision_mask = 2 | 4 # Minerals & Ship interactables
+	q.collision_mask = 2 | 4
 	
 	var hits = space.intersect_shape(q, 1)
 	if hits.size() > 0:
@@ -318,24 +276,6 @@ func check_nearby_interactables() -> void:
 				nearby_interactable = target
 				current_interactable_type = "mine"
 				interaction_available.emit("mine", target)
-			return
-		elif target and target.is_in_group("interactable_fabricator"):
-			if nearby_interactable != target:
-				nearby_interactable = target
-				current_interactable_type = "fabricator"
-				interaction_available.emit("fabricator", target)
-			return
-		elif target and target.is_in_group("interactable_hyperdrive"):
-			if nearby_interactable != target:
-				nearby_interactable = target
-				current_interactable_type = "hyperdrive"
-				interaction_available.emit("hyperdrive", target)
-			return
-		elif target and target.is_in_group("interactable_starmap"):
-			if nearby_interactable != target:
-				nearby_interactable = target
-				current_interactable_type = "starmap"
-				interaction_available.emit("starmap", target)
 			return
 		elif target and target.is_in_group("interactable_airlock"):
 			if nearby_interactable != target:

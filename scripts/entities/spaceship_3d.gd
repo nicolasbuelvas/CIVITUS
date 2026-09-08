@@ -14,11 +14,11 @@ signal airlock_state_changed(is_open: bool, is_pressurized: bool, is_equalizing:
 var is_player_in_cabin: bool = false
 var is_player_in_airlock: bool = false
 var is_airlock_open: bool = false
-var is_cabin_pressurized: bool = true # Pressurized when door is closed
+var is_cabin_pressurized: bool = true
 var is_equalizing_pressure: bool = false
 var player_ref: CharacterBody3D = null
 
-# Hull Protection & Oxidation System
+# Multi-Hazard Hull Protection & Oxidation System
 var capsule_hull_hp: float = 100.0
 var is_hull_breached: bool = false
 var active_hull_material: StandardMaterial3D = null
@@ -44,19 +44,26 @@ func _ready() -> void:
 	if airlock_light:
 		airlock_light.light_color = Color(0.2, 0.8, 1.0)
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F:
+			# PC shortcut 'F' to operate airlock when near entrance or inside
+			if is_player_in_airlock or is_player_in_cabin:
+				toggle_airlock()
+
 func _process(delta: float) -> void:
 	var planet = GameManager.current_planet
 	var temp = planet.get("temperature", 20.0)
 	var is_hostile_temp = (temp > 65.0 or temp < -35.0)
 	var lvl = planet.get("level", 0)
 
-	# 1. Environmental damage to the Spaceship Hull first (Heat, Cold, Acid, Radiation)
+	# 1. Environmental damage to the Spaceship Hull first (Heat, Cold, Acid, Sulfur, Radiation)
 	if is_hostile_temp or lvl >= 2:
 		var dmg_rate = 0.8
-		if temp > 100.0:
-			dmg_rate += (temp - 100.0) * 0.05
-		elif temp < -60.0:
-			dmg_rate += abs(temp + 60.0) * 0.04
+		if temp > 95.0:
+			dmg_rate += (temp - 95.0) * 0.05
+		elif temp < -55.0:
+			dmg_rate += abs(temp + 55.0) * 0.04
 		if lvl >= 2:
 			dmg_rate += float(lvl) * 0.6
 			
@@ -66,17 +73,17 @@ func _process(delta: float) -> void:
 		if is_hull_breached != was_breached:
 			hull_integrity_changed.emit({"hull": capsule_hull_hp}, is_hull_breached)
 			
-		_update_hull_oxidation_visuals()
+		_update_hazard_oxidation_visuals(planet, temp)
 
-	# 2. Cabin survival & life support: ONLY when closed & pressurized!
+	# 2. Cabin survival & life support: FULL PROTECTION while closed & hull intact!
 	if is_player_in_cabin:
 		if not is_airlock_open and is_cabin_pressurized and not is_hull_breached:
 			# Pressurized habitat: 100% vital regeneration and complete thermal shield!
 			GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 50.0 * delta)
-			GameManager.player_stats.hull = min(100.0, GameManager.player_stats.hull + 20.0 * delta)
+			GameManager.player_stats.hull = min(100.0, GameManager.player_stats.hull + 25.0 * delta)
 			GameManager.player_stats.fuel = min(100.0, GameManager.player_stats.fuel + 35.0 * delta)
 		else:
-			# Door open or hull breached: Cabin exposed to alien atmosphere!
+			# Door open or hull breached: Cabin exposed to planetary atmosphere
 			if not planet.get("has_oxygen", false):
 				GameManager.player_stats.oxygen = max(0.0, GameManager.player_stats.oxygen - 1.2 * delta)
 			if is_hull_breached:
@@ -85,50 +92,71 @@ func _process(delta: float) -> void:
 				elif temp < -40.0:
 					GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - abs(temp + 40.0) * 0.02 * delta)
 
-# Visual Oxidation, Scorching & Thermal Damage
-func _update_hull_oxidation_visuals() -> void:
+# Multi-Hazard Dynamic Procedural Oxidation / Texturing
+func _update_hazard_oxidation_visuals(planet: Dictionary, temp: float) -> void:
 	if not active_hull_material:
 		return
+		
 	var dmg_ratio = clamp(1.0 - (capsule_hull_hp / 100.0), 0.0, 1.0)
-	
-	# Transitions from clean white alloy to oxidized rust-brown, then scorched charred black
 	var clean_col = Color(0.92, 0.94, 0.97)
-	var rust_col = Color(0.48, 0.28, 0.18)
-	var scorched_col = Color(0.12, 0.08, 0.06)
-	
-	if dmg_ratio < 0.5:
-		active_hull_material.albedo_color = clean_col.lerp(rust_col, dmg_ratio * 2.0)
-		active_hull_material.roughness = lerp(0.35, 0.70, dmg_ratio * 2.0)
-		active_hull_material.metallic = lerp(0.3, 0.15, dmg_ratio * 2.0)
+	var p_type = planet.get("type", "")
+	var lvl = planet.get("level", 0)
+
+	if temp < -35.0 or p_type.contains("Cryo") or p_type.contains("Hielo"):
+		# 1. Frío extremo / Glacial: Frost blue with icy crystals
+		var ice_cyan = Color(0.45, 0.72, 0.95)
+		active_hull_material.albedo_color = clean_col.lerp(ice_cyan, dmg_ratio)
+		active_hull_material.roughness = lerp(0.35, 0.88, dmg_ratio)
+		active_hull_material.metallic = lerp(0.3, 0.7, dmg_ratio)
+		if dmg_ratio > 0.4:
+			active_hull_material.emission_enabled = true
+			active_hull_material.emission = Color(0.2, 0.6, 0.9) * (dmg_ratio - 0.4) * 0.8
+	elif temp > 75.0 or p_type.contains("Volcan") or p_type.contains("Lava"):
+		# 2. Calor extremo / Volcánico: Scorched charred black with glowing red magma cracks
+		var magma_black = Color(0.12, 0.08, 0.06)
+		active_hull_material.albedo_color = clean_col.lerp(magma_black, dmg_ratio)
+		active_hull_material.roughness = lerp(0.35, 0.95, dmg_ratio)
+		active_hull_material.metallic = lerp(0.3, 0.05, dmg_ratio)
+		if dmg_ratio > 0.35:
+			active_hull_material.emission_enabled = true
+			active_hull_material.emission = Color(1.0, 0.28, 0.05) * (dmg_ratio - 0.35) * 2.0
+	elif p_type.contains("Toxic") or p_type.contains("Acido") or lvl == 2:
+		# 3. Atmósfera ácida / Corrosión verde-amarilla: Acid verdigris
+		var acid_green = Color(0.48, 0.68, 0.22)
+		active_hull_material.albedo_color = clean_col.lerp(acid_green, dmg_ratio)
+		active_hull_material.roughness = lerp(0.35, 0.85, dmg_ratio)
+		active_hull_material.metallic = lerp(0.3, 0.1, dmg_ratio)
+	elif p_type.contains("Azufre") or p_type.contains("Desert") or lvl == 1:
+		# 4. Azufre y óxido desértico: Deep sulfur yellow-orange rust
+		var sulfur_orange = Color(0.72, 0.48, 0.15)
+		active_hull_material.albedo_color = clean_col.lerp(sulfur_orange, dmg_ratio)
+		active_hull_material.roughness = lerp(0.35, 0.78, dmg_ratio)
+		active_hull_material.metallic = lerp(0.3, 0.12, dmg_ratio)
 	else:
-		var severe_ratio = (dmg_ratio - 0.5) * 2.0
-		active_hull_material.albedo_color = rust_col.lerp(scorched_col, severe_ratio)
-		active_hull_material.roughness = lerp(0.70, 0.95, severe_ratio)
-		active_hull_material.metallic = lerp(0.15, 0.05, severe_ratio)
-		active_hull_material.emission_enabled = true
-		active_hull_material.emission = Color(0.9, 0.25, 0.05) * severe_ratio * 1.5
+		# 5. Radiación cósmica / Singularidad: Ionized violet / plasma
+		var plasma_violet = Color(0.52, 0.22, 0.75)
+		active_hull_material.albedo_color = clean_col.lerp(plasma_violet, dmg_ratio)
+		active_hull_material.roughness = lerp(0.35, 0.82, dmg_ratio)
+		active_hull_material.metallic = lerp(0.3, 0.45, dmg_ratio)
 
 # Manual & Interactive Airlock Control
 func toggle_airlock() -> void:
 	if is_equalizing_pressure:
 		return
 	if is_airlock_open:
-		# Close airlock
 		_close_airlock_sequence()
 	else:
-		# Open airlock
 		_open_airlock_sequence()
 
 func _open_airlock_sequence() -> void:
 	if is_player_in_cabin and is_cabin_pressurized:
-		# Inside cabin: Equalize pressure first!
+		# Inside cabin: Equalize pressure first (1.8s) before door opens
 		is_equalizing_pressure = true
 		AudioManager.play("airlock", 0.9)
 		if airlock_light:
 			airlock_light.light_color = Color(1.0, 0.75, 0.15) # Amber equalizing
-		# Put helmet ON before depressurization
 		if player_ref and player_ref.has_method("set_suit_mode"):
-			player_ref.set_suit_mode(true)
+			player_ref.set_suit_mode(true) # Put helmet on before depressurization
 		airlock_state_changed.emit(is_airlock_open, is_cabin_pressurized, is_equalizing_pressure)
 		
 		var tween = create_tween()
@@ -225,7 +253,8 @@ func repair_hull_modules() -> bool:
 			GameManager.crafting.remove_resource("copper", 2)
 		capsule_hull_hp = 100.0
 		is_hull_breached = false
-		_update_hull_oxidation_visuals()
+		var planet = GameManager.current_planet
+		_update_hazard_oxidation_visuals(planet, planet.get("temperature", 20.0))
 		if airlock_light:
 			airlock_light.light_color = Color(0.2, 1.0, 0.4)
 		hull_integrity_changed.emit({"hull": capsule_hull_hp}, is_hull_breached)

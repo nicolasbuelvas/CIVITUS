@@ -36,13 +36,13 @@ var laser_immediate: ImmediateMesh = ImmediateMesh.new()
 
 # Orbit camera & zoom state
 var cam_yaw: float = 0.0
-var cam_pitch: float = 0.0
+var cam_pitch: float = 20.0
 var target_yaw: float = 0.0
-var target_pitch: float = 0.0
-var target_zoom: float = 4.5
-var current_zoom: float = 4.5
+var target_pitch: float = 20.0
+var target_zoom: float = 5.2
+var current_zoom: float = 5.2
 const MIN_ZOOM: float = 0.0
-const MAX_ZOOM: float = 18.0
+const MAX_ZOOM: float = 16.0
 const FPS_THRESHOLD: float = 0.8
 
 func _ready() -> void:
@@ -65,7 +65,8 @@ func set_suit_mode(outside: bool) -> void:
 		target_zoom = min(target_zoom, 2.5)
 
 func rotate_camera_by(drag_offset: Vector2) -> void:
-	var min_pitch = -75.0
+	# In 3P, clamp min pitch to -15 deg so camera never dips below horizon / terrain
+	var min_pitch = -15.0 if not is_first_person else -75.0
 	var max_pitch = 75.0
 	target_yaw -= drag_offset.x * 0.005
 	target_pitch = clamp(target_pitch + drag_offset.y * 0.005, min_pitch, max_pitch)
@@ -73,8 +74,10 @@ func rotate_camera_by(drag_offset: Vector2) -> void:
 func toggle_first_person() -> void:
 	if is_first_person:
 		target_zoom = 4.5
+		target_pitch = 15.0
 	else:
 		target_zoom = 0.0
+		target_pitch = 0.0
 	_check_fps_mode()
 
 func zoom_camera(delta_zoom: float) -> void:
@@ -117,14 +120,14 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_pressed("rotate_cam_right"):
 		target_yaw -= 2.5 * delta
 
-	# Smooth camera damping
+	# 1. Spherical Orbit Camera Rotation
 	cam_yaw = lerp_angle(cam_yaw, target_yaw, delta * 20.0)
 	cam_pitch = lerp(cam_pitch, target_pitch, delta * 20.0)
 	if camera_pivot:
 		camera_pivot.rotation.y = cam_yaw
 		camera_pivot.rotation.x = deg_to_rad(cam_pitch)
 
-	# Pure Spherical Orbit Camera with Raycast Ground Avoidance (Zero Clipping!)
+	# 2. Camera Distance & Absolute Anti-Clipping (Raycast + Spherical Horizon Floor)
 	current_zoom = lerp(current_zoom, target_zoom, delta * 12.0)
 	if is_first_person:
 		if camera:
@@ -136,35 +139,54 @@ func _physics_process(delta: float) -> void:
 			var space = get_world_3d().direct_space_state
 			var pivot_pos = camera_pivot.global_position
 			var cam_back = camera_pivot.global_transform.basis.z.normalized()
+			
+			# Physical Raycast check
 			var ray_query = PhysicsRayQueryParameters3D.create(pivot_pos, pivot_pos + cam_back * (current_zoom + 0.3), 1)
 			ray_query.exclude = [self.get_rid()]
 			var hit = space.intersect_ray(ray_query)
 			if not hit.is_empty():
 				var hit_dist = pivot_pos.distance_to(hit.position)
-				effective_dist = max(0.5, hit_dist - 0.25)
+				effective_dist = max(0.6, hit_dist - 0.25)
+				
 		if camera:
 			camera.position.x = 0.0
 			camera.position.y = 0.0
 			camera.position.z = lerp(camera.position.z, effective_dist, delta * 18.0)
 			camera.fov = lerp(camera.fov, 55.0, delta * 12.0)
+			
+		# Mathematical Spherical Ground Floor: Camera can NEVER penetrate below planet surface
+		if camera:
+			var cam_pos = camera.global_position
+			var player_r = global_position.length()
+			var cam_r = cam_pos.length()
+			var min_surface_r = player_r + 0.35
+			if cam_r < min_surface_r:
+				var cam_up = cam_pos.normalized()
+				camera.global_position = cam_pos + cam_up * (min_surface_r - cam_r)
 
-	# Deterministic spherical surface alignment (zero roll drift, zero gimbal lock!)
+	# 3. Deterministic Surface Orientation (Right-Handed Basis: Right = Fwd x Up)
 	var cur_fwd = -global_transform.basis.z
 	var tangent_fwd = (cur_fwd - up_dir * cur_fwd.dot(up_dir)).normalized()
 	if tangent_fwd.length_squared() < 0.001:
-		tangent_fwd = Vector3.FORWARD.cross(up_dir).normalized()
+		tangent_fwd = Vector3.FORWARD - up_dir * Vector3.FORWARD.dot(up_dir)
 		if tangent_fwd.length_squared() < 0.001:
-			tangent_fwd = Vector3.RIGHT.cross(up_dir).normalized()
-	var tangent_rt = up_dir.cross(tangent_fwd).normalized()
-	global_transform.basis = Basis(tangent_rt, up_dir, -tangent_fwd).orthonormalized()
+			tangent_fwd = Vector3.RIGHT - up_dir * Vector3.RIGHT.dot(up_dir)
+		tangent_fwd = tangent_fwd.normalized()
+		
+	# Right vector = Forward x Up (gives +X in standard Godot coordinates)
+	var tangent_rt = tangent_fwd.cross(up_dir).normalized()
+	# Back vector = Up x Right = -Forward
+	var tangent_back = up_dir.cross(tangent_rt).normalized()
+	global_transform.basis = Basis(tangent_rt, up_dir, tangent_back).orthonormalized()
 
-	# 2. Movement input projected onto the spherical tangent plane
+	# 4. Movement Input Projected onto Spherical Tangent Plane
 	var input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
-	var input_fwd = -input_vec.y
+	var input_fwd = -input_vec.y # W/stick up gives forward (+1.0)
 	var input_str = input_vec.length()
 
-	var cam_basis = camera_pivot.global_transform.basis if camera_pivot else global_transform.basis
-	var cam_fwd = -cam_basis.z
+	# Camera relative direction on the spherical surface
+	var cam_b = camera_pivot.global_transform.basis if camera_pivot else global_transform.basis
+	var cam_fwd = -cam_b.z
 	cam_fwd = (cam_fwd - up_dir * cam_fwd.dot(up_dir)).normalized()
 	var cam_rt = cam_fwd.cross(up_dir).normalized()
 
@@ -172,7 +194,7 @@ func _physics_process(delta: float) -> void:
 	if input_str > 0.05:
 		move_tangent = (cam_rt * input_vec.x + cam_fwd * input_fwd).normalized()
 
-	# 3. Survival vitals & Atmospheric oxygen
+	# 5. Survival Vitals & Oxygen
 	var is_sprint_active = is_sprinting or Input.is_key_pressed(KEY_SHIFT) or Input.is_action_pressed("sprint")
 	if is_in_space_suit:
 		if planet.get("has_oxygen", false):
@@ -184,11 +206,10 @@ func _physics_process(delta: float) -> void:
 	if GameManager.player_stats.oxygen <= 0.0:
 		GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 8.0 * delta)
 
-	# 4. Movement velocity
+	# 6. Horizontal Velocity & Procedural Character Facing
 	var current_speed = walk_speed * (1.85 if is_sprint_active else 1.0)
 	var horizontal_vel = move_tangent * (input_str * current_speed)
 
-	# Procedural Character Orientation & Animation
 	if input_str > 0.05 and visuals:
 		walk_time += delta * (14.0 if is_sprint_active else 8.5)
 		var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
@@ -197,10 +218,11 @@ func _physics_process(delta: float) -> void:
 		if left_arm: left_arm.rotation.x = -swing * 0.8
 		if right_arm and not is_mining: right_arm.rotation.x = swing * 0.8
 
+		# Turn the astronaut body to face move_tangent directly in local coordinates
 		var local_move = global_transform.basis.inverse() * move_tangent
-		var target_angle = atan2(-local_move.x, -local_move.z)
+		var target_angle = atan2(local_move.x, -local_move.z)
 		visuals.rotation.y = lerp_angle(visuals.rotation.y, target_angle, delta * 15.0)
-		visuals.rotation.z = -local_move.x * 0.12
+		visuals.rotation.z = -local_move.x * 0.10
 		var double_bounce = abs(sin(walk_time))
 		visuals.position.y = double_bounce * 0.05
 	elif visuals:
@@ -213,7 +235,7 @@ func _physics_process(delta: float) -> void:
 		if left_arm: left_arm.rotation.x = lerp_angle(left_arm.rotation.x, 0.0, delta * 10.0)
 		if right_arm and not is_mining: right_arm.rotation.x = lerp_angle(right_arm.rotation.x, 0.0, delta * 10.0)
 
-	# Vertical velocity / Jetpack / Jump
+	# 7. Vertical Velocity / Jetpack / Jump
 	if is_on_floor():
 		vertical_speed = 0.0
 		if Input.is_action_just_pressed("jump_thrust"):
@@ -230,25 +252,21 @@ func _physics_process(delta: float) -> void:
 			vertical_speed -= gravity_val * delta
 			vertical_speed = max(vertical_speed, -25.0)
 
-	# Combine spherical tangent velocity + radial vertical velocity
 	velocity = horizontal_vel + up_dir * vertical_speed
 	move_and_slide()
 
-	# Ceiling collision detection: Stop vertical velocity immediately when touching ceiling
-	if is_on_ceiling():
-		if vertical_speed > 0.0:
-			vertical_speed = 0.0
+	# Ceiling Collision Detection: Stop upward speed immediately if ceiling touched
+	if is_on_ceiling() and vertical_speed > 0.0:
+		vertical_speed = 0.0
 	for i in range(get_slide_collision_count()):
 		var col = get_slide_collision(i)
-		if col.get_normal().dot(up_dir) < -0.3:
-			if vertical_speed > 0.0:
-				vertical_speed = 0.0
-				break
+		if col.get_normal().dot(up_dir) < -0.35 and vertical_speed > 0.0:
+			vertical_speed = 0.0
+			break
 
-	# 5. Nearby Interactables Scan
+	# 8. Nearby Interactables Scan & Mining
 	check_nearby_interactables()
 
-	# 6. Mining
 	if is_mining and nearby_interactable and current_interactable_type == "mine":
 		nearby_interactable.mine_tick(delta)
 		_draw_laser(nearby_interactable.global_position)
@@ -276,12 +294,6 @@ func check_nearby_interactables() -> void:
 				nearby_interactable = target
 				current_interactable_type = "mine"
 				interaction_available.emit("mine", target)
-			return
-		elif target and target.is_in_group("interactable_airlock"):
-			if nearby_interactable != target:
-				nearby_interactable = target
-				current_interactable_type = "airlock"
-				interaction_available.emit("airlock", target)
 			return
 
 	if nearby_interactable != null:

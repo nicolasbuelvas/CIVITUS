@@ -7,9 +7,12 @@ extends Control
 @onready var view_toggle_btn: Button = $MobileLayer/ActionCluster/ViewToggleBtn
 @onready var sprint_btn: Button = $MobileLayer/ActionCluster/SprintBtn
 
-@onready var o2_bar: ProgressBar = $TopLayer/Vitals/O2Bar
-@onready var fuel_bar: ProgressBar = $TopLayer/Vitals/FuelBar
-@onready var hull_bar: ProgressBar = $TopLayer/Vitals/HullBar
+@onready var o2_bar: ProgressBar = $TopLayer/VitalsPod/Margin/VBox/O2Row/O2Bar
+@onready var o2_val_label: Label = $TopLayer/VitalsPod/Margin/VBox/O2Row/Val
+@onready var fuel_bar: ProgressBar = $TopLayer/VitalsPod/Margin/VBox/FuelRow/FuelBar
+@onready var fuel_val_label: Label = $TopLayer/VitalsPod/Margin/VBox/FuelRow/Val
+@onready var hull_bar: ProgressBar = $TopLayer/VitalsPod/Margin/VBox/HullRow/HullBar
+@onready var hull_val_label: Label = $TopLayer/VitalsPod/Margin/VBox/HullRow/Val
 
 @onready var planet_name_label: Label = $TopLayer/Header/PlanetLabel
 @onready var hyperdrive_badge: Button = $TopLayer/HyperdriveBadge
@@ -139,9 +142,12 @@ func _update_header() -> void:
 	planet_name_label.text = str(p.get("name", "Civitus-Alpha"))
 
 func _on_stats_changed(o2: float, fuel: float, hull: float) -> void:
-	o2_bar.value = o2
-	fuel_bar.value = fuel
-	hull_bar.value = hull
+	if o2_bar: o2_bar.value = o2
+	if o2_val_label: o2_val_label.text = "%d%%" % int(o2)
+	if fuel_bar: fuel_bar.value = fuel
+	if fuel_val_label: fuel_val_label.text = "%d%%" % int(fuel)
+	if hull_bar: hull_bar.value = hull
+	if hull_val_label: hull_val_label.text = "%d%%" % int(hull)
 
 # Smooth Touch Camera Orbit & Pinch Zoom (Right side of screen)
 func _on_touch_camera_gui_input(event: InputEvent) -> void:
@@ -264,8 +270,12 @@ func _on_interaction_available(type: String, target: Node3D) -> void:
 			context_action_btn.text = "MAPA ESTELAR"
 			context_action_btn.modulate = Color(0.8, 0.5, 1.0)
 		"airlock":
-			context_action_btn.text = "ESCLUSA"
-			context_action_btn.modulate = Color(0.2, 0.8, 1.0)
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			var is_open = false
+			if ship and "is_airlock_open" in ship:
+				is_open = ship.is_airlock_open
+			context_action_btn.text = "CERRAR ESCLUSA" if is_open else "ABRIR ESCLUSA"
+			context_action_btn.modulate = Color(0.2, 0.85, 1.0)
 		"storage":
 			context_action_btn.text = "CAJÓN DE SUMINISTROS"
 			context_action_btn.modulate = Color(1.0, 0.75, 0.2)
@@ -300,8 +310,10 @@ func _on_context_btn_down() -> void:
 			AudioManager.play("click")
 		"airlock":
 			var ship = get_tree().get_first_node_in_group("spaceship")
-			if ship and ship.has_method("open_airlock"):
-				ship.open_airlock()
+			if ship and ship.has_method("toggle_airlock"):
+				ship.toggle_airlock()
+				var is_open = ship.is_airlock_open
+				context_action_btn.text = "CERRAR ESCLUSA" if is_open else "ABRIR ESCLUSA"
 		"repair":
 			var ship = get_tree().get_first_node_in_group("spaceship")
 			if ship and ship.has_method("repair_hull_modules"):

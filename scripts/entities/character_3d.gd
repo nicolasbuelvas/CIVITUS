@@ -14,7 +14,8 @@ signal first_person_toggled(is_fps: bool)
 @onready var visuals: Node3D = get_node_or_null("Visuals")
 @onready var head: Node3D = get_node_or_null("Visuals/Head")
 @onready var helmet: Node3D = get_node_or_null("Visuals/Head/Helmet")
-@onready var hair: Node3D = get_node_or_null("Visuals/Head/Hair")
+@onready var face: Node3D = get_node_or_null("Visuals/Head/Face")
+@onready var hair: Node3D = get_node_or_null("Visuals/Head/Face/Hair")
 @onready var left_arm: Node3D = get_node_or_null("Visuals/LeftArm")
 @onready var right_arm: Node3D = get_node_or_null("Visuals/RightArm")
 @onready var left_leg: Node3D = get_node_or_null("Visuals/LeftLeg")
@@ -59,7 +60,9 @@ func _ready() -> void:
 func set_suit_mode(outside: bool) -> void:
 	is_in_space_suit = outside
 	if helmet:
-		helmet.visible = not is_first_person
+		helmet.visible = outside and not is_first_person
+	if face:
+		face.visible = not outside and not is_first_person
 	if not outside:
 		# Keep camera inside the capsule cabin without wall clipping
 		target_zoom = min(target_zoom, 2.5)
@@ -140,12 +143,15 @@ func _physics_process(delta: float) -> void:
 			camera.position = Vector3.ZERO
 			camera.fov = lerp(camera.fov, 55.0, delta * 12.0)
 
-	# Align character's local Y basis to point radially outwards from planet center
-	var cur_up = global_transform.basis.y
-	if cur_up.cross(up_dir).length() > 0.001:
-		var rot_axis = cur_up.cross(up_dir).normalized()
-		var rot_angle = cur_up.angle_to(up_dir)
-		global_rotate(rot_axis, rot_angle)
+	# Deterministic spherical surface alignment (zero roll drift, zero gimbal lock!)
+	var cur_fwd = -global_transform.basis.z
+	var tangent_fwd = (cur_fwd - up_dir * cur_fwd.dot(up_dir)).normalized()
+	if tangent_fwd.length_squared() < 0.001:
+		tangent_fwd = Vector3.FORWARD.cross(up_dir).normalized()
+		if tangent_fwd.length_squared() < 0.001:
+			tangent_fwd = Vector3.RIGHT.cross(up_dir).normalized()
+	var tangent_rt = up_dir.cross(tangent_fwd).normalized()
+	global_transform.basis = Basis(tangent_rt, up_dir, -tangent_fwd).orthonormalized()
 
 	# 2. Movement input projected onto the spherical tangent plane
 	var input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
@@ -269,6 +275,17 @@ func _physics_process(delta: float) -> void:
 	# Combine spherical tangent velocity + radial vertical velocity
 	velocity = horizontal_vel + up_dir * vertical_speed
 	move_and_slide()
+
+	# Ceiling collision detection: Stop vertical velocity immediately when touching ceiling
+	if is_on_ceiling():
+		if vertical_speed > 0.0:
+			vertical_speed = 0.0
+	for i in range(get_slide_collision_count()):
+		var col = get_slide_collision(i)
+		if col.get_normal().dot(up_dir) < -0.35: # Upward obstacle / ceiling
+			if vertical_speed > 0.0:
+				vertical_speed = 0.0
+				break
 
 	# 5. Nearby Interactables Scan (Context UX)
 	check_nearby_interactables()

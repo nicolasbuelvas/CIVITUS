@@ -13,7 +13,7 @@ signal first_person_toggled(is_fps: bool)
 # Node references
 @onready var visuals: Node3D = get_node_or_null("Visuals")
 @onready var head: Node3D = get_node_or_null("Visuals/Head")
-@onready var helmet: Node3D = get_node_or_null("Visuals/Head/Helmet")
+@onready var helmet: Node3D = get_node_or_null("Visuals/Helmet")
 @onready var face: Node3D = get_node_or_null("Visuals/Head/Face")
 @onready var left_arm: Node3D = get_node_or_null("Visuals/LeftArm")
 @onready var right_arm: Node3D = get_node_or_null("Visuals/RightArm")
@@ -47,6 +47,9 @@ var current_facing: Vector3 = Vector3.FORWARD
 const MIN_ZOOM: float = 0.0
 const MAX_ZOOM: float = 16.0
 const FPS_THRESHOLD: float = 0.8
+const HELMET_HEAD_POS: Vector3 = Vector3(0, 1.6, 0)
+const HELMET_HELD_POS: Vector3 = Vector3(0, 0.95, -0.36)
+const HELMET_HELD_ROT: Vector3 = Vector3(0.35, 0, 0)
 
 func _ready() -> void:
 	if laser_mesh:
@@ -100,70 +103,91 @@ func setup_spawn(spawn_pos: Vector3, up_dir: Vector3, facing_dir: Vector3) -> vo
 
 func set_suit_mode(outside: bool) -> void:
 	is_in_space_suit = outside
-	if helmet:
-		helmet.visible = outside and not is_first_person
-		helmet.position.y = 0.0
-	if face:
-		face.visible = not outside and not is_first_person
+	if is_first_person:
+		if helmet: helmet.visible = false
+		if face: face.visible = false
+	else:
+		if helmet:
+			helmet.visible = true
+			if outside:
+				helmet.position = HELMET_HEAD_POS
+				helmet.rotation = Vector3.ZERO
+			else:
+				helmet.position = HELMET_HELD_POS
+				helmet.rotation = HELMET_HELD_ROT
+		if face:
+			face.visible = not outside
 
 func animate_put_on_helmet() -> void:
 	is_in_space_suit = true
-	if helmet and left_arm and right_arm:
+	if helmet and left_arm and right_arm and not is_first_person:
 		helmet.visible = true
-		helmet.position.y = 0.35
+		helmet.position = HELMET_HELD_POS
+		helmet.rotation = HELMET_HELD_ROT
+		if face: face.visible = true
 		
 		var tw = create_tween().set_parallel(true)
-		# 1. Arms reach up to head/ears
-		tw.tween_property(left_arm, "rotation:x", -2.1, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(left_arm, "rotation:z", 0.35, 0.4)
-		tw.tween_property(right_arm, "rotation:x", -2.1, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(right_arm, "rotation:z", -0.35, 0.4)
-		# Helmet lowers onto head
-		tw.tween_property(helmet, "position:y", 0.0, 0.55).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		# 1. Hands and helmet lift together from chest to above head in a natural upward arc (positive X rotation!)
+		tw.tween_property(helmet, "position", Vector3(0, 1.85, -0.1), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(helmet, "rotation", Vector3.ZERO, 0.6)
+		tw.tween_property(left_arm, "rotation:x", 2.1, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(left_arm, "rotation:z", 0.35, 0.6)
+		tw.tween_property(right_arm, "rotation:x", 2.1, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(right_arm, "rotation:z", -0.35, 0.6)
 		
-		# 2. At 0.5s: face hidden, twist/lock collar ring
-		var tw2 = create_tween().set_parallel(true)
-		tw2.tween_interval(0.45)
-		tw2.chain().tween_callback(func():
+		# 2. Helmet settles onto neck collar
+		var tw2 = create_tween()
+		tw2.tween_interval(0.6)
+		tw2.tween_property(helmet, "position", HELMET_HEAD_POS, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw2.tween_callback(func():
 			if face: face.visible = false
 			AudioManager.play("click", 0.95)
 		)
-		tw2.chain().tween_property(left_arm, "rotation:x", -1.6, 0.25)
-		tw2.chain().tween_property(right_arm, "rotation:x", -1.6, 0.25)
-		# 3. Return arms to sides
-		tw2.chain().tween_property(left_arm, "rotation", Vector3.ZERO, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw2.chain().tween_property(right_arm, "rotation", Vector3.ZERO, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		var tw_lock = create_tween().set_parallel(true)
+		tw_lock.tween_interval(0.6)
+		tw_lock.chain().tween_property(left_arm, "rotation:x", 1.6, 0.25)
+		tw_lock.tween_property(right_arm, "rotation:x", 1.6, 0.25)
+		
+		# 3. Hands release and return to sides
+		var tw3 = create_tween().set_parallel(true)
+		tw3.tween_interval(0.95)
+		tw3.chain().tween_property(left_arm, "rotation", Vector3.ZERO, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw3.tween_property(right_arm, "rotation", Vector3.ZERO, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	else:
 		set_suit_mode(true)
 
 func animate_take_off_helmet() -> void:
 	is_in_space_suit = false
-	if helmet and left_arm and right_arm:
-		var tw = create_tween().set_parallel(true)
-		# 1. Arms reach up to collar ring
-		tw.tween_property(left_arm, "rotation:x", -1.7, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(left_arm, "rotation:z", 0.35, 0.35)
-		tw.tween_property(right_arm, "rotation:x", -1.7, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(right_arm, "rotation:z", -0.35, 0.35)
+	if helmet and left_arm and right_arm and not is_first_person:
+		helmet.visible = true
+		helmet.position = HELMET_HEAD_POS
+		helmet.rotation = Vector3.ZERO
 		
-		# 2. Lift helmet up & reveal face
+		# 1. Hands raise from sides to collar ring
+		var tw1 = create_tween().set_parallel(true)
+		tw1.tween_property(left_arm, "rotation:x", 1.6, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw1.tween_property(left_arm, "rotation:z", 0.35, 0.35)
+		tw1.tween_property(right_arm, "rotation:x", 1.6, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw1.tween_property(right_arm, "rotation:z", -0.35, 0.35)
+		
+		# 2. Hands lift helmet off head & reveal face
 		var tw2 = create_tween().set_parallel(true)
 		tw2.tween_interval(0.35)
 		tw2.chain().tween_callback(func():
 			if face: face.visible = true
 			AudioManager.play("click", 1.1)
 		)
-		tw2.chain().tween_property(helmet, "position:y", 0.35, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw2.chain().tween_property(left_arm, "rotation:x", -2.2, 0.35)
-		tw2.chain().tween_property(right_arm, "rotation:x", -2.2, 0.35)
+		tw2.chain().tween_property(helmet, "position", Vector3(0, 1.85, -0.1), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw2.tween_property(left_arm, "rotation:x", 2.15, 0.35)
+		tw2.tween_property(right_arm, "rotation:x", 2.15, 0.35)
 		
-		# 3. Hide helmet, arms return to sides
-		tw2.chain().tween_callback(func():
-			helmet.visible = false
-			helmet.position.y = 0.0
-		)
-		tw2.chain().tween_property(left_arm, "rotation", Vector3.ZERO, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		tw2.chain().tween_property(right_arm, "rotation", Vector3.ZERO, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		# 3. Lower helmet smoothly down to chest and cradle with both hands
+		var tw3 = create_tween().set_parallel(true)
+		tw3.tween_interval(0.7)
+		tw3.chain().tween_property(helmet, "position", HELMET_HELD_POS, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+		tw3.tween_property(helmet, "rotation", HELMET_HELD_ROT, 0.45)
+		tw3.tween_property(left_arm, "rotation", Vector3(0.72, 0.22, 0.42), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+		tw3.tween_property(right_arm, "rotation", Vector3(0.72, -0.22, -0.42), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	else:
 		set_suit_mode(false)
 
@@ -341,8 +365,6 @@ func _physics_process(delta: float) -> void:
 		var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
 		if left_leg: left_leg.rotation.x = swing
 		if right_leg: right_leg.rotation.x = -swing
-		if left_arm: left_arm.rotation.x = -swing * 0.8
-		if right_arm and not is_mining: right_arm.rotation.x = swing * 0.8
 
 		visuals.rotation.y = 0.0
 		visuals.rotation.z = -input_vec.x * 0.08
@@ -356,8 +378,28 @@ func _physics_process(delta: float) -> void:
 		visuals.rotation.z = lerp_angle(visuals.rotation.z, 0.0, delta * 10.0)
 		if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, 0.0, delta * 10.0)
 		if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, 0.0, delta * 10.0)
-		if left_arm: left_arm.rotation.x = lerp_angle(left_arm.rotation.x, 0.0, delta * 10.0)
-		if right_arm and not is_mining: right_arm.rotation.x = lerp_angle(right_arm.rotation.x, 0.0, delta * 10.0)
+
+	# Upper body arms & helmet holding logic
+	if not is_in_space_suit and not is_action_locked:
+		var breath = sin(walk_time * 1.5) * 0.015
+		var arm_target_l = Vector3(0.72 + breath, 0.22, 0.42)
+		var arm_target_r = Vector3(0.72 + breath, -0.22, -0.42)
+		if left_arm: left_arm.rotation = left_arm.rotation.lerp(arm_target_l, delta * 12.0)
+		if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(arm_target_r, delta * 12.0)
+		if helmet and not is_first_person:
+			helmet.position = Vector3(HELMET_HELD_POS.x, HELMET_HELD_POS.y + breath * 0.4, HELMET_HELD_POS.z)
+			helmet.rotation = HELMET_HELD_ROT
+			helmet.visible = true
+	elif is_in_space_suit and not is_action_locked:
+		if input_str > 0.05:
+			var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
+			if left_arm: left_arm.rotation.x = -swing * 0.8
+			if left_arm: left_arm.rotation.z = lerp_angle(left_arm.rotation.z, 0.0, delta * 10.0)
+			if right_arm and not is_mining: right_arm.rotation.x = swing * 0.8
+			if right_arm: right_arm.rotation.z = lerp_angle(right_arm.rotation.z, 0.0, delta * 10.0)
+		else:
+			if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
+			if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
 
 	# 7. Vertical Velocity / Jetpack / Jump
 	if is_on_floor():

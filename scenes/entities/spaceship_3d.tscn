@@ -49,14 +49,12 @@ height = 0.4
 radial_segments = 24
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_HeatShield"]
-top_radius = 3.7
-bottom_radius = 3.8
+radius = 3.7
 height = 0.4
 
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_RoofHitbox"]
-top_radius = 3.7
-bottom_radius = 3.7
-height = 1.4
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_RoofCap"]
+radius = 3.7
+height = 0.7
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_RoofCap"]
 material = SubResource("Mat_RescueOrange")
@@ -117,14 +115,6 @@ mesh = SubResource("CylinderMesh_HeatShield")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/HeatShield"]
 shape = SubResource("CylinderShape3D_HeatShield")
 
-[node name="CeilingHitbox" type="StaticBody3D" parent="HullStructure"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
-collision_layer = 1
-collision_mask = 0
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/CeilingHitbox"]
-shape = SubResource("CylinderShape3D_RoofHitbox")
-
 [node name="CapsuleHull" type="CSGCombiner3D" parent="HullStructure"]
 use_collision = true
 collision_layer = 1
@@ -156,9 +146,16 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, -3.4)
 operation = 2
 size = Vector3(2.4, 1.2, 1.5)
 
-[node name="RoofCapMesh" type="MeshInstance3D" parent="HullStructure"]
+[node name="RoofCap" type="StaticBody3D" parent="HullStructure"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+collision_layer = 1
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/RoofCap"]
 mesh = SubResource("CylinderMesh_RoofCap")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/RoofCap"]
+shape = SubResource("CylinderShape3D_RoofCap")
 
 [node name="RocketTop" parent="HullStructure" instance=ExtResource("3_rtop")]
 transform = Transform3D(2.5, 0, 0, 0, 2.5, 0, 0, 0, 2.5, -5.0, 3.65, -3.75)

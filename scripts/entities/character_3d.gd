@@ -36,11 +36,13 @@ var laser_immediate: ImmediateMesh = ImmediateMesh.new()
 
 # Orbit camera & zoom state
 var cam_yaw: float = 0.0
-var cam_pitch: float = 20.0
+var cam_pitch: float = 0.0
 var target_yaw: float = 0.0
-var target_pitch: float = 20.0
-var target_zoom: float = 5.2
-var current_zoom: float = 5.2
+var target_pitch: float = 0.0
+var target_zoom: float = 0.0
+var current_zoom: float = 0.0
+var cam_base_fwd: Vector3 = Vector3.FORWARD
+var current_facing: Vector3 = Vector3.FORWARD
 const MIN_ZOOM: float = 0.0
 const MAX_ZOOM: float = 16.0
 const FPS_THRESHOLD: float = 0.8
@@ -52,8 +54,48 @@ func _ready() -> void:
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.albedo_color = Color(0.2, 0.9, 1.0)
 		laser_mesh.material_override = mat
+	if camera_pivot:
+		camera_pivot.top_level = true
 	set_suit_mode(true)
 	_check_fps_mode()
+
+func setup_spawn(spawn_pos: Vector3, up_dir: Vector3, facing_dir: Vector3) -> void:
+	global_position = spawn_pos
+	up_direction = up_dir
+	
+	var tangent_fwd = (facing_dir - up_dir * facing_dir.dot(up_dir)).normalized()
+	if tangent_fwd.length_squared() < 0.001:
+		tangent_fwd = Vector3.FORWARD
+	
+	current_facing = tangent_fwd
+	cam_base_fwd = tangent_fwd
+	
+	var tangent_back = -tangent_fwd
+	var tangent_rt = up_dir.cross(tangent_back).normalized()
+	global_transform.basis = Basis(tangent_rt, up_dir, tangent_back).orthonormalized()
+	
+	target_yaw = 0.0
+	cam_yaw = 0.0
+	target_pitch = 0.0
+	cam_pitch = 0.0
+	target_zoom = 0.0
+	current_zoom = 0.0
+	is_first_person = true
+	
+	if visuals:
+		visuals.visible = true
+		visuals.rotation = Vector3.ZERO
+	if head:
+		head.visible = false
+	if camera_pivot:
+		camera_pivot.top_level = true
+		camera_pivot.global_position = global_position + up_dir * 1.6
+		camera_pivot.rotation = Vector3.ZERO
+	if camera:
+		camera.position = Vector3(0, 0.15, -0.05)
+		camera.fov = 80.0
+	
+	first_person_toggled.emit(true)
 
 func set_suit_mode(outside: bool) -> void:
 	is_in_space_suit = outside
@@ -61,20 +103,18 @@ func set_suit_mode(outside: bool) -> void:
 		helmet.visible = outside and not is_first_person
 	if face:
 		face.visible = not outside and not is_first_person
-	if not outside:
-		target_zoom = min(target_zoom, 2.5)
 
 func rotate_camera_by(drag_offset: Vector2) -> void:
-	# In 3P, clamp min pitch to -15 deg so camera never dips below horizon / terrain
-	var min_pitch = -15.0 if not is_first_person else -75.0
-	var max_pitch = 75.0
+	# In 3P, clamp pitch between -35 and +45 deg to prevent ground/sky clipping
+	var min_pitch = -35.0 if not is_first_person else -75.0
+	var max_pitch = 45.0 if not is_first_person else 75.0
 	target_yaw -= drag_offset.x * 0.005
 	target_pitch = clamp(target_pitch + drag_offset.y * 0.005, min_pitch, max_pitch)
 
 func toggle_first_person() -> void:
 	if is_first_person:
 		target_zoom = 4.5
-		target_pitch = 15.0
+		target_pitch = 0.0
 	else:
 		target_zoom = 0.0
 		target_pitch = 0.0
@@ -123,9 +163,26 @@ func _physics_process(delta: float) -> void:
 	# 1. Spherical Orbit Camera Rotation
 	cam_yaw = lerp_angle(cam_yaw, target_yaw, delta * 20.0)
 	cam_pitch = lerp(cam_pitch, target_pitch, delta * 20.0)
+
+	# Calculate camera orientation decoupled from character body
+	cam_base_fwd = (cam_base_fwd - up_dir * cam_base_fwd.dot(up_dir)).normalized()
+	if cam_base_fwd.length_squared() < 0.001:
+		cam_base_fwd = (Vector3.FORWARD - up_dir * Vector3.FORWARD.dot(up_dir)).normalized()
+	var cam_base_rt = cam_base_fwd.cross(up_dir).normalized()
+
+	# Horizontal camera forward & right on sphere surface
+	var cam_tangent_fwd = (cam_base_fwd * cos(cam_yaw) + cam_base_rt * sin(cam_yaw)).normalized()
+	var cam_tangent_rt = cam_tangent_fwd.cross(up_dir).normalized()
+
+	# Pitch rotation around camera right
+	var pitch_rot = Basis(cam_tangent_rt, deg_to_rad(cam_pitch))
+	var cam_fwd = (pitch_rot * cam_tangent_fwd).normalized()
+	var cam_up = (pitch_rot * up_dir).normalized()
+	var cam_back = -cam_fwd
+
 	if camera_pivot:
-		camera_pivot.rotation.y = cam_yaw
-		camera_pivot.rotation.x = deg_to_rad(cam_pitch)
+		camera_pivot.global_position = global_position + up_dir * 1.6
+		camera_pivot.global_transform.basis = Basis(cam_tangent_rt, cam_up, cam_back).orthonormalized()
 
 	# 2. Camera Distance & Absolute Anti-Clipping (Raycast + Spherical Horizon Floor)
 	current_zoom = lerp(current_zoom, target_zoom, delta * 12.0)
@@ -133,12 +190,13 @@ func _physics_process(delta: float) -> void:
 		if camera:
 			camera.position = Vector3(0, 0.15, -0.05)
 			camera.fov = lerp(camera.fov, 80.0, delta * 12.0)
+		if head:
+			head.visible = false
 	else:
 		var effective_dist = current_zoom
 		if camera_pivot:
 			var space = get_world_3d().direct_space_state
 			var pivot_pos = camera_pivot.global_position
-			var cam_back = camera_pivot.global_transform.basis.z.normalized()
 			
 			# Physical Raycast check
 			var ray_query = PhysicsRayQueryParameters3D.create(pivot_pos, pivot_pos + cam_back * (current_zoom + 0.3), 1)
@@ -146,7 +204,7 @@ func _physics_process(delta: float) -> void:
 			var hit = space.intersect_ray(ray_query)
 			if not hit.is_empty():
 				var hit_dist = pivot_pos.distance_to(hit.position)
-				effective_dist = max(0.6, hit_dist - 0.25)
+				effective_dist = max(0.5, hit_dist - 0.25)
 				
 		if camera:
 			camera.position.x = 0.0
@@ -161,38 +219,39 @@ func _physics_process(delta: float) -> void:
 			var cam_r = cam_pos.length()
 			var min_surface_r = player_r + 0.35
 			if cam_r < min_surface_r:
-				var cam_up = cam_pos.normalized()
-				camera.global_position = cam_pos + cam_up * (min_surface_r - cam_r)
+				var cam_ground_up = cam_pos.normalized()
+				camera.global_position = cam_pos + cam_ground_up * (min_surface_r - cam_r)
+				
+		# Anti-clipping: hide head if 3P camera is pushed closer than 1.1m
+		if head:
+			head.visible = (effective_dist >= 1.1)
 
-	# 3. Deterministic Surface Orientation (Right-Handed Basis: Right = Fwd x Up)
-	var cur_fwd = -global_transform.basis.z
-	var tangent_fwd = (cur_fwd - up_dir * cur_fwd.dot(up_dir)).normalized()
-	if tangent_fwd.length_squared() < 0.001:
-		tangent_fwd = Vector3.FORWARD - up_dir * Vector3.FORWARD.dot(up_dir)
-		if tangent_fwd.length_squared() < 0.001:
-			tangent_fwd = Vector3.RIGHT - up_dir * Vector3.RIGHT.dot(up_dir)
-		tangent_fwd = tangent_fwd.normalized()
-		
-	# Right vector = Forward x Up (gives +X in standard Godot coordinates)
-	var tangent_rt = tangent_fwd.cross(up_dir).normalized()
-	# Back vector = Up x Right = -Forward
-	var tangent_back = up_dir.cross(tangent_rt).normalized()
-	global_transform.basis = Basis(tangent_rt, up_dir, tangent_back).orthonormalized()
-
-	# 4. Movement Input Projected onto Spherical Tangent Plane
+	# 3. Camera-Dependent Movement Input Projected onto Spherical Tangent Plane
 	var input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	var input_fwd = -input_vec.y # W/stick up gives forward (+1.0)
 	var input_str = input_vec.length()
 
-	# Camera relative direction on the spherical surface
-	var cam_b = camera_pivot.global_transform.basis if camera_pivot else global_transform.basis
-	var cam_fwd = -cam_b.z
-	cam_fwd = (cam_fwd - up_dir * cam_fwd.dot(up_dir)).normalized()
-	var cam_rt = cam_fwd.cross(up_dir).normalized()
-
 	var move_tangent = Vector3.ZERO
 	if input_str > 0.05:
-		move_tangent = (cam_rt * input_vec.x + cam_fwd * input_fwd).normalized()
+		move_tangent = (cam_tangent_rt * input_vec.x + cam_tangent_fwd * input_fwd).normalized()
+
+	# 4. Camera-Dependent Character Facing
+	if input_str > 0.05:
+		if input_fwd > 0.4 and abs(input_vec.x) < 0.4:
+			# Moving forward: character looks directly at camera front!
+			current_facing = current_facing.slerp(cam_tangent_fwd, delta * 20.0).normalized()
+		else:
+			current_facing = current_facing.slerp(move_tangent, delta * 15.0).normalized()
+	elif is_first_person:
+		current_facing = cam_tangent_fwd
+
+	current_facing = (current_facing - up_dir * current_facing.dot(up_dir)).normalized()
+	if current_facing.length_squared() < 0.001:
+		current_facing = cam_tangent_fwd
+
+	var char_back = -current_facing
+	var char_rt = up_dir.cross(char_back).normalized()
+	global_transform.basis = Basis(char_rt, up_dir, char_back).orthonormalized()
 
 	# 5. Survival Vitals & Oxygen
 	var is_sprint_active = is_sprinting or Input.is_key_pressed(KEY_SHIFT) or Input.is_action_pressed("sprint")
@@ -218,17 +277,15 @@ func _physics_process(delta: float) -> void:
 		if left_arm: left_arm.rotation.x = -swing * 0.8
 		if right_arm and not is_mining: right_arm.rotation.x = swing * 0.8
 
-		# Turn the astronaut body to face move_tangent directly in local coordinates
-		var local_move = global_transform.basis.inverse() * move_tangent
-		var target_angle = atan2(local_move.x, -local_move.z)
-		visuals.rotation.y = lerp_angle(visuals.rotation.y, target_angle, delta * 15.0)
-		visuals.rotation.z = -local_move.x * 0.10
+		visuals.rotation.y = 0.0
+		visuals.rotation.z = -input_vec.x * 0.08
 		var double_bounce = abs(sin(walk_time))
 		visuals.position.y = double_bounce * 0.05
 	elif visuals:
 		walk_time += delta * 1.5
 		var idle_breath = sin(walk_time) * 0.015
 		visuals.position.y = idle_breath
+		visuals.rotation.y = 0.0
 		visuals.rotation.z = lerp_angle(visuals.rotation.z, 0.0, delta * 10.0)
 		if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, 0.0, delta * 10.0)
 		if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, 0.0, delta * 10.0)

@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://cjoystick01" path="res://scenes/ui/virtual_joystick.tscn" id="2_joy"]
 [ext_resource type="Texture2D" path="res://assets/sprites/icon_thrust.png" id="3_thrust"]
 [ext_resource type="Script" path="res://scripts/ui/helmet_visor.gd" id="4_visor"]
+[ext_resource type="Texture2D" path="res://assets/sprites/icon_run.png" id="5_run"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ContextBtn"]
 bg_color = Color(0.12, 0.15, 0.22, 0.9)
@@ -82,16 +83,16 @@ corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_JarvisCard"]
-bg_color = Color(0.04, 0.08, 0.14, 0.7)
-border_width_left = 2
+bg_color = Color(0.03, 0.06, 0.1, 0.65)
+border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.2, 0.8, 1, 0.7)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
+border_color = Color(0.18, 0.8, 1, 0.35)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [node name="HUD" type="Control"]
 layout_mode = 3
@@ -185,41 +186,23 @@ theme_override_font_sizes/font_size = 16
 theme_override_styles/normal = SubResource("StyleBoxFlat_ContextBtn")
 text = "MINAR"
 
-[node name="ViewToggleBtn" type="Button" parent="MobileLayer/ActionCluster"]
-custom_minimum_size = Vector2(48, 48)
+[node name="SprintBtn" type="TextureButton" parent="MobileLayer/ActionCluster"]
+custom_minimum_size = Vector2(68, 68)
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -170.0
-offset_top = -145.0
-offset_right = -120.0
-offset_bottom = -95.0
+offset_left = -175.0
+offset_top = -88.0
+offset_right = -107.0
+offset_bottom = -20.0
 grow_horizontal = 0
 grow_vertical = 0
-theme_override_font_sizes/font_size = 14
-theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
-text = "👁"
-
-[node name="SprintBtn" type="Button" parent="MobileLayer/ActionCluster"]
-custom_minimum_size = Vector2(48, 48)
-layout_mode = 1
-anchors_preset = 3
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -170.0
-offset_top = -80.0
-offset_right = -120.0
-offset_bottom = -30.0
-grow_horizontal = 0
-grow_vertical = 0
-theme_override_font_sizes/font_size = 16
-theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
-text = "⚡"
+texture_normal = ExtResource("5_run")
+ignore_texture_size = true
+stretch_mode = 5
 
 [node name="TopLayer" type="Control" parent="."]
 layout_mode = 1
@@ -230,11 +213,12 @@ grow_horizontal = 2
 mouse_filter = 2
 
 [node name="VitalsPod" type="PanelContainer" parent="TopLayer"]
+visible = false
 layout_mode = 0
 offset_left = 20.0
 offset_top = 16.0
-offset_right = 230.0
-offset_bottom = 98.0
+offset_right = 220.0
+offset_bottom = 96.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_JarvisCard")
 
 [node name="Margin" type="MarginContainer" parent="TopLayer/VitalsPod"]
@@ -253,10 +237,10 @@ layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="Icon" type="Label" parent="TopLayer/VitalsPod/Margin/VBox/O2Row"]
-custom_minimum_size = Vector2(26, 0)
+custom_minimum_size = Vector2(34, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.2, 0.9, 1, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 10
 text = "O₂"
 
 [node name="O2Bar" type="ProgressBar" parent="TopLayer/VitalsPod/Margin/VBox/O2Row"]
@@ -282,11 +266,11 @@ layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="Icon" type="Label" parent="TopLayer/VitalsPod/Margin/VBox/FuelRow"]
-custom_minimum_size = Vector2(26, 0)
+custom_minimum_size = Vector2(34, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.75, 0.15, 1)
-theme_override_font_sizes/font_size = 11
-text = "⚡"
+theme_override_font_sizes/font_size = 10
+text = "FUEL"
 
 [node name="FuelBar" type="ProgressBar" parent="TopLayer/VitalsPod/Margin/VBox/FuelRow"]
 custom_minimum_size = Vector2(0, 8)
@@ -311,11 +295,11 @@ layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="Icon" type="Label" parent="TopLayer/VitalsPod/Margin/VBox/HullRow"]
-custom_minimum_size = Vector2(26, 0)
+custom_minimum_size = Vector2(34, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.25, 0.95, 0.45, 1)
-theme_override_font_sizes/font_size = 11
-text = "🛡"
+theme_override_font_sizes/font_size = 10
+text = "SUIT"
 
 [node name="HullBar" type="ProgressBar" parent="TopLayer/VitalsPod/Margin/VBox/HullRow"]
 custom_minimum_size = Vector2(0, 8)
@@ -365,9 +349,9 @@ offset_top = 14.0
 offset_right = -16.0
 offset_bottom = 58.0
 grow_horizontal = 0
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 14
 theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
-text = "⏸"
+text = "||"
 
 [node name="HyperdriveBadge" type="Button" parent="TopLayer"]
 custom_minimum_size = Vector2(110, 36)
@@ -922,7 +906,6 @@ text = "Siguiente Sector"
 [connection signal="button_up" from="MobileLayer/ActionCluster/JumpBtn" to="." method="_on_jump_up"]
 [connection signal="button_down" from="MobileLayer/ActionCluster/ContextActionBtn" to="." method="_on_context_btn_down"]
 [connection signal="button_up" from="MobileLayer/ActionCluster/ContextActionBtn" to="." method="_on_context_btn_up"]
-[connection signal="pressed" from="MobileLayer/ActionCluster/ViewToggleBtn" to="." method="_on_view_toggle_pressed"]
 [connection signal="pressed" from="TopLayer/PauseBtn" to="." method="_on_pause_btn_pressed"]
 [connection signal="pressed" from="TopLayer/HyperdriveBadge" to="." method="_on_hyperdrive_badge_pressed"]
 [connection signal="pressed" from="MobileLayer/ActionCluster/SprintBtn" to="." method="_on_sprint_btn_pressed"]

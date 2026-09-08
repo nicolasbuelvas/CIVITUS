@@ -63,17 +63,22 @@ func generate_planet() -> void:
 	# Spawn features across the spherical surface
 	_spawn_spherical_features(planet_params)
 	
-	# Position Player safely INSIDE the Spaceship Cabin
+	# Position Player safely INSIDE the Spaceship Cabin facing the doorway
 	var player = get_parent().get_node_or_null("Character3D")
 	var hud = get_parent().get_node_or_null("HUD")
 	if player and spaceship_instance:
 		player.floor_snap_length = 0.8
 		player.floor_max_angle = deg_to_rad(65.0)
 		player.planet_radius = radius
-		# Spawn astronaut inside the pressurized cabin
-		var spawn_pos = spaceship_instance.global_position + north_dir * 1.2
-		player.global_position = spawn_pos
-		player.up_direction = north_dir
+		# Doorway / exit direction of spaceship (local +Z)
+		var exit_dir = spaceship_instance.global_transform.basis.z.normalized()
+		# Spawn astronaut inside cabin on floor, oriented facing the exit doorway
+		var spawn_pos = spaceship_instance.global_position + north_dir * 1.25 + exit_dir * 0.4
+		if player.has_method("setup_spawn"):
+			player.setup_spawn(spawn_pos, north_dir, exit_dir)
+		else:
+			player.global_position = spawn_pos
+			player.up_direction = north_dir
 		if hud and hud.has_method("init_player"):
 			hud.init_player(player)
 

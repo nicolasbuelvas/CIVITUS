@@ -4,8 +4,7 @@ extends Control
 @onready var touch_camera_zone: Control = $MobileLayer/TouchCameraZone
 @onready var jump_btn: TextureButton = $MobileLayer/ActionCluster/JumpBtn
 @onready var context_action_btn: Button = $MobileLayer/ActionCluster/ContextActionBtn
-@onready var view_toggle_btn: Button = $MobileLayer/ActionCluster/ViewToggleBtn
-@onready var sprint_btn: Button = $MobileLayer/ActionCluster/SprintBtn
+@onready var sprint_btn: TextureButton = $MobileLayer/ActionCluster/SprintBtn
 
 @onready var o2_bar: ProgressBar = $TopLayer/VitalsPod/Margin/VBox/O2Row/O2Bar
 @onready var o2_val_label: Label = $TopLayer/VitalsPod/Margin/VBox/O2Row/Val
@@ -18,6 +17,7 @@ extends Control
 @onready var hyperdrive_badge: Button = $TopLayer/HyperdriveBadge
 @onready var pause_btn: Button = $TopLayer/PauseBtn
 @onready var top_layer: Control = $TopLayer
+@onready var vitals_pod: Control = $TopLayer/VitalsPod
 
 # Helmet Visor First-Person Overlay
 @onready var jarvis_overlay: Control = $JarvisVisorOverlay
@@ -75,9 +75,16 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	close_all_modals()
 	context_action_btn.visible = false
-	if jarvis_overlay:
-		jarvis_overlay.visible = false
+	if top_layer:
+		top_layer.visible = true
 	_update_header()
+	if player:
+		_on_first_person_toggled(player.is_first_person)
+	else:
+		if jarvis_overlay:
+			jarvis_overlay.visible = false
+		if vitals_pod:
+			vitals_pod.visible = false
 	
 	# Sliders initialization
 	if master_slider:
@@ -123,19 +130,21 @@ func init_player(p: CharacterBody3D) -> void:
 	player.interaction_available.connect(_on_interaction_available)
 	player.interaction_lost.connect(_on_interaction_lost)
 	player.first_person_toggled.connect(_on_first_person_toggled)
+	_on_first_person_toggled(player.is_first_person)
 
 func _on_first_person_toggled(is_fps: bool) -> void:
 	if top_layer:
-		top_layer.visible = not is_fps
+		top_layer.visible = true
+	# Indicators placed in First Person; Third Person kept clean!
+	if vitals_pod:
+		vitals_pod.visible = is_fps
 	if jarvis_overlay:
 		jarvis_overlay.visible = is_fps
 		if is_fps:
 			AudioManager.play("jarvis", 1.0)
 			var tween = create_tween()
 			jarvis_overlay.modulate.a = 0.0
-			tween.tween_property(jarvis_overlay, "modulate:a", 1.0, 0.35)
-	if view_toggle_btn:
-		view_toggle_btn.text = "🚀" if is_fps else "👁"
+			tween.tween_property(jarvis_overlay, "modulate:a", 1.0, 0.25)
 
 func _update_header() -> void:
 	var p = GameManager.current_planet
@@ -148,6 +157,10 @@ func _on_stats_changed(o2: float, fuel: float, hull: float) -> void:
 	if fuel_val_label: fuel_val_label.text = "%d%%" % int(fuel)
 	if hull_bar: hull_bar.value = hull
 	if hull_val_label: hull_val_label.text = "%d%%" % int(hull)
+	
+	# In 3P: keep clean unless critical life support emergency
+	if player and not player.is_first_person and vitals_pod:
+		vitals_pod.visible = (o2 < 20.0 or hull < 25.0)
 
 # Smooth Touch Camera Orbit & Pinch Zoom (Right side of screen)
 func _on_touch_camera_gui_input(event: InputEvent) -> void:
@@ -190,15 +203,11 @@ func _on_touch_camera_gui_input(event: InputEvent) -> void:
 			if player and player.has_method("rotate_camera_by"):
 				player.rotate_camera_by(event.relative)
 
-func _on_view_toggle_pressed() -> void:
-	if player and player.has_method("toggle_first_person"):
-		player.toggle_first_person()
-
 func _on_sprint_btn_pressed() -> void:
 	if player:
 		player.is_sprinting = not player.is_sprinting
 		if sprint_btn:
-			sprint_btn.modulate = Color(1.0, 0.8, 0.2) if player.is_sprinting else Color(1.0, 1.0, 1.0, 0.8)
+			sprint_btn.modulate = Color(1.0, 0.85, 0.2) if player.is_sprinting else Color(1.0, 1.0, 1.0, 0.9)
 
 func _on_jump_down() -> void:
 	Input.action_press("jump_thrust")

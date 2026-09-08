@@ -101,8 +101,35 @@ func set_suit_mode(outside: bool) -> void:
 	is_in_space_suit = outside
 	if helmet:
 		helmet.visible = outside and not is_first_person
+		helmet.position.y = 0.0
 	if face:
 		face.visible = not outside and not is_first_person
+
+func animate_put_on_helmet() -> void:
+	is_in_space_suit = true
+	if not is_first_person and helmet:
+		helmet.visible = true
+		helmet.position.y = 0.4
+		var tw = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(helmet, "position:y", 0.0, 0.45)
+		tw.tween_callback(func():
+			if face: face.visible = false
+		)
+	else:
+		set_suit_mode(true)
+
+func animate_take_off_helmet() -> void:
+	is_in_space_suit = false
+	if not is_first_person and helmet:
+		if face: face.visible = true
+		var tw = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_property(helmet, "position:y", 0.4, 0.35)
+		tw.tween_callback(func():
+			helmet.visible = false
+			helmet.position.y = 0.0
+		)
+	else:
+		set_suit_mode(false)
 
 func rotate_camera_by(drag_offset: Vector2) -> void:
 	# In 3P, clamp pitch between -35 and +45 deg to prevent ground/sky clipping
@@ -335,6 +362,18 @@ func _physics_process(delta: float) -> void:
 	stats_changed.emit(GameManager.player_stats.oxygen, GameManager.player_stats.fuel, GameManager.player_stats.hull)
 
 func check_nearby_interactables() -> void:
+	# 1. Spaceship Hatch Interaction (Open / Close)
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if ship and ship.has_method("get_hatch_interaction_state"):
+		var h_state = ship.get_hatch_interaction_state(self)
+		if h_state != "":
+			if nearby_interactable != ship or current_interactable_type != h_state:
+				nearby_interactable = ship
+				current_interactable_type = h_state
+				interaction_available.emit(h_state, ship)
+			return
+
+	# 2. Mineable Resource Chunks
 	var space = get_world_3d().direct_space_state
 	var q = PhysicsShapeQueryParameters3D.new()
 	var sphere = SphereShape3D.new()
@@ -347,7 +386,7 @@ func check_nearby_interactables() -> void:
 	if hits.size() > 0:
 		var target = hits[0]["collider"]
 		if target and target.has_method("mine_tick"):
-			if nearby_interactable != target:
+			if nearby_interactable != target or current_interactable_type != "mine":
 				nearby_interactable = target
 				current_interactable_type = "mine"
 				interaction_available.emit("mine", target)

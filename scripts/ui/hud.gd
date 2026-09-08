@@ -266,6 +266,12 @@ func _on_interaction_available(type: String, target: Node3D) -> void:
 	current_context_type = type
 	context_action_btn.visible = true
 	match type:
+		"open_hatch":
+			context_action_btn.text = "ABRIR ESCOTILLA"
+			context_action_btn.modulate = Color(0.2, 0.85, 1.0)
+		"close_hatch":
+			context_action_btn.text = "CERRAR ESCOTILLA"
+			context_action_btn.modulate = Color(1.0, 0.75, 0.2)
 		"mine":
 			context_action_btn.text = "MINAR"
 			context_action_btn.modulate = Color(0.2, 0.9, 1.0)
@@ -290,6 +296,14 @@ func _on_interaction_lost() -> void:
 
 func _on_context_btn_down() -> void:
 	match current_context_type:
+		"open_hatch":
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			if ship and ship.has_method("open_hatch"):
+				ship.open_hatch()
+		"close_hatch":
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			if ship and ship.has_method("close_hatch"):
+				ship.close_hatch()
 		"mine":
 			if player:
 				player.is_mining = true

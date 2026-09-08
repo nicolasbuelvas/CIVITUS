@@ -73,8 +73,12 @@ func _draw_center_reticle(cx: float, cy: float) -> void:
 
 func _draw_tactical_status(w: float, h: float, o2: float) -> void:
 	var font = ThemeDB.fallback_font
+	var ship = get_tree().get_first_node_in_group("spaceship")
 	
-	if o2 <= 0.0:
+	if ship and ship.get("is_equalizing_pressure"):
+		var amber_pulse = COLOR_AMBER if fmod(pulse_time * 4.0, 1.0) > 0.3 else Color(0.5, 0.35, 0.05, 0.8)
+		draw_string(font, Vector2(w * 0.5 - 130.0, 52.0), "[ ⚙ EQUALIZANDO PRESIÓN ATMOSFÉRICA... ]", HORIZONTAL_ALIGNMENT_CENTER, -1, 12, amber_pulse)
+	elif o2 <= 0.0:
 		var red_flash = COLOR_RED if fmod(pulse_time * 4.0, 1.0) > 0.4 else Color(0.6, 0.1, 0.1, 0.8)
 		draw_string(font, Vector2(w * 0.5 - 110.0, 52.0), "[ ! SUFFOCATION IMMINENT ! ]", HORIZONTAL_ALIGNMENT_CENTER, -1, 13, red_flash)
 	elif o2 < 20.0:

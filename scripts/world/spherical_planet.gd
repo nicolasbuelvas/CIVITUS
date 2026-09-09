@@ -46,6 +46,8 @@ func _init_planet_world() -> void:
 	
 	for normal in face_normals:
 		_generate_cubed_sphere_face(st, normal, planet_params)
+		if is_inside_tree():
+			await get_tree().process_frame
 		
 	st.generate_normals()
 	var planet_mesh = st.commit()
@@ -58,9 +60,15 @@ func _init_planet_world() -> void:
 	mesh_instance.mesh = planet_mesh
 	mesh_instance.material_override = mat
 	
+	if is_inside_tree():
+		await get_tree().process_frame
+	
 	# 2. Exact trimesh collision: mathematically respects exact elevation (astronaut never floats/clips)
 	var trimesh_shape = planet_mesh.create_trimesh_shape()
 	collision_shape.shape = trimesh_shape
+	
+	if is_inside_tree():
+		await get_tree().process_frame
 	
 	# 3. North Pole Landing Plateau & Spaceship (Primary Chunk)
 	var north_dir = Vector3.UP
@@ -70,6 +78,9 @@ func _init_planet_world() -> void:
 		spaceship_instance.position = north_pos
 		_align_node_to_up(spaceship_instance, north_dir)
 		add_child(spaceship_instance)
+		
+	if is_inside_tree():
+		await get_tree().process_frame
 		
 	# 4. Position player safely inside spaceship cabin
 	var parent_node = get_parent()
@@ -87,11 +98,23 @@ func _init_planet_world() -> void:
 		else:
 			player.global_position = spawn_pos
 			player.up_direction = north_dir
+			
+		if get_tree().root.find_child("LoadingScreen", true, false) != null:
+			player.set_physics_process(false)
+			player.set_process(false)
+			
 		if hud and hud.has_method("init_player"):
 			hud.init_player(player)
 			
 	# 5. Stream flora & resource chunks over subsequent frames (no initial freeze)
-	_stream_features_over_frames(planet_params)
+	await _stream_features_over_frames(planet_params)
+	
+	# Warm up GPU shader pipeline for 2 frames while hidden under loader
+	if is_inside_tree():
+		await get_tree().process_frame
+		await get_tree().process_frame
+		
+	planet_ready.emit()
 
 func _get_elevation(norm_dir: Vector3) -> float:
 	if norm_dir.dot(Vector3.UP) > 0.96:

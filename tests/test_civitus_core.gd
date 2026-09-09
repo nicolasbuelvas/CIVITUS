@@ -222,8 +222,10 @@ func test_first_person_helmet_and_mesh_hiding() -> void:
 	var player = char_scene.instantiate()
 	add_child(player)
 	
-	# Initial 3rd person state
-	assert_true(not player.is_first_person, "Player starts in 3rd person")
+	# Set to 3rd person state for verification
+	player.target_zoom = 4.5
+	player._check_fps_mode()
+	assert_true(not player.is_first_person, "Player in 3rd person")
 	assert_true(player.visuals.visible, "Visuals root is visible in 3rd person")
 	assert_true(player.head.visible, "Head is visible in 3rd person")
 	

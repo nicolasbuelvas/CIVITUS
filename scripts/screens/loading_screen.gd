@@ -36,7 +36,9 @@ var elapsed_time: float = 0.0
 
 var target_scene_path: String = "res://scenes/world/world.tscn"
 var is_loading_complete: bool = false
+var is_world_ready: bool = false
 var loaded_resource: PackedScene = null
+var world_instance: Node = null
 var has_launched: bool = false
 
 # Minigame Physics
@@ -118,7 +120,7 @@ func _process(delta: float) -> void:
 		# Spinner 5-second progress bar
 		var time_ratio = clamp(elapsed_time / MIN_LOADING_TIME, 0.0, 1.0)
 		var simulated_p = time_ratio * 100.0
-		if is_loading_complete and elapsed_time >= MIN_LOADING_TIME:
+		if is_world_ready and elapsed_time >= MIN_LOADING_TIME:
 			simulated_p = 100.0
 		spinner_progress_bar.value = simulated_p
 		
@@ -134,8 +136,8 @@ func _process(delta: float) -> void:
 			
 		# At 5.0 seconds threshold:
 		if elapsed_time >= MIN_LOADING_TIME:
-			if is_loading_complete:
-				# Fast load: Skip minigame completely and enter world directly!
+			if is_world_ready:
+				# Seamless 0-freeze launch into pre-warmed world!
 				if not has_launched:
 					has_launched = true
 					_launch_gameplay()
@@ -157,7 +159,7 @@ func _activate_minigame() -> void:
 	spinner_container.visible = false
 	minigame_container.visible = true
 	
-	if is_loading_complete:
+	if is_world_ready:
 		_on_load_finished()
 
 func _poll_loading_progress() -> void:
@@ -174,18 +176,49 @@ func _poll_loading_progress() -> void:
 	if status == ResourceLoader.THREAD_LOAD_LOADED:
 		is_loading_complete = true
 		loaded_resource = ResourceLoader.load_threaded_get(target_scene_path)
-		_on_load_finished()
+		_spawn_world_behind_loader()
 	elif status == ResourceLoader.THREAD_LOAD_FAILED or (elapsed_time >= 7.5 and not sync_fallback_attempted):
 		sync_fallback_attempted = true
 		print("[CIVITUS] Fallback synchronous load for: ", target_scene_path)
 		loaded_resource = load(target_scene_path)
 		if loaded_resource != null:
 			is_loading_complete = true
-			_on_load_finished()
+			_spawn_world_behind_loader()
 			
-	if minigame_activated and not is_loading_complete:
+	if minigame_activated and not is_world_ready:
 		top_progress_bar.value = raw_percent
 		top_progress_label.text = "%s %d%%" % [GameManager.loc("loading_dots"), int(raw_percent)]
+
+func _spawn_world_behind_loader() -> void:
+	if world_instance != null or loaded_resource == null:
+		return
+		
+	world_instance = loaded_resource.instantiate()
+	
+	if is_inside_tree():
+		get_tree().root.add_child(world_instance)
+		if get_parent() == get_tree().root:
+			get_tree().root.move_child(self, get_tree().root.get_child_count() - 1)
+			
+	# Ensure player stays dormant after entering tree until launch
+	var player = world_instance.get_node_or_null("Character3D")
+	if player:
+		player.set_physics_process(false)
+		player.set_process(false)
+		
+	var planet = world_instance.get_node_or_null("SphericalPlanet")
+	if planet and planet.has_signal("planet_ready"):
+		planet.planet_ready.connect(_on_planet_generation_finished)
+	else:
+		_on_planet_generation_finished()
+
+func _on_planet_generation_finished() -> void:
+	is_world_ready = true
+	if minigame_activated:
+		_on_load_finished()
+	elif elapsed_time >= MIN_LOADING_TIME and not has_launched:
+		has_launched = true
+		_launch_gameplay()
 
 func _on_load_finished() -> void:
 	if not minigame_activated:
@@ -258,7 +291,7 @@ func _update_minigame_physics(delta: float) -> void:
 			landings_count += 1
 			AudioManager.play("docking", 1.0)
 			
-			if is_loading_complete and not has_launched:
+			if is_world_ready and not has_launched:
 				has_launched = true
 				_launch_gameplay()
 				return
@@ -319,13 +352,30 @@ func _on_main_burn_down() -> void: is_main_burn = true
 func _on_main_burn_up() -> void: is_main_burn = false
 
 func _on_ready_btn_pressed() -> void:
-	if is_loading_complete and not has_launched:
+	if is_world_ready and not has_launched:
 		has_launched = true
 		AudioManager.play("click")
 		_launch_gameplay()
 
 func _launch_gameplay() -> void:
-	if loaded_resource:
+	if has_launched:
+		return
+	has_launched = true
+	
+	if world_instance and is_instance_valid(world_instance) and world_instance.is_inside_tree():
+		var player = world_instance.get_node_or_null("Character3D")
+		if player:
+			player.set_physics_process(true)
+			player.set_process(true)
+			
+		get_tree().current_scene = world_instance
+		queue_free()
+	elif loaded_resource:
 		get_tree().change_scene_to_packed(loaded_resource)
 	else:
 		get_tree().change_scene_to_file(target_scene_path)
+
+func _exit_tree() -> void:
+	# Clean up world instance if destroyed before launching (e.g., in headless tests or menu cancel)
+	if not has_launched and world_instance and is_instance_valid(world_instance) and world_instance.is_inside_tree():
+		world_instance.queue_free()

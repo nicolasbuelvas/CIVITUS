@@ -1,11 +1,27 @@
-[gd_scene load_steps=12 format=3 uid="uid://cloadingscreen01"]
+[gd_scene load_steps=15 format=3 uid="uid://cloadingscreen01"]
 
 [ext_resource type="Script" path="res://scripts/screens/loading_screen.gd" id="1_load"]
 [ext_resource type="Script" path="res://scripts/ui/loading_spinner.gd" id="2_spin"]
 [ext_resource type="Script" path="res://scripts/ui/procedural_backdrop_2d.gd" id="3_back"]
+[ext_resource type="Script" path="res://scripts/ui/vector_lander_2d.gd" id="4_lander"]
+[ext_resource type="Script" path="res://scripts/ui/vector_touch_button.gd" id="5_btn"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Bg"]
 bg_color = Color(0.02, 0.04, 0.07, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ProgressBg"]
+bg_color = Color(0.08, 0.12, 0.18, 0.85)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ProgressFill"]
+bg_color = Color(0.25, 0.80, 0.95, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Card"]
 bg_color = Color(0.06, 0.10, 0.16, 0.88)
@@ -19,20 +35,6 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_LanderBody"]
-bg_color = Color(0.88, 0.90, 0.95, 1)
-corner_radius_top_left = 12
-corner_radius_top_right = 12
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Flame"]
-bg_color = Color(1, 0.50, 0.08, 1)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
-
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Pad"]
 bg_color = Color(0.18, 0.80, 0.45, 0.95)
 border_width_left = 2
@@ -45,36 +47,31 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_Btn"]
-bg_color = Color(0.15, 0.45, 0.80, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_TopProgressBg"]
+bg_color = Color(0.06, 0.10, 0.16, 0.85)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_CtrlBtn"]
-bg_color = Color(0.08, 0.15, 0.25, 0.75)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.25, 0.65, 0.95, 0.6)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_TopProgressFill"]
+bg_color = Color(0.25, 0.85, 0.95, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_BurnBtn"]
-bg_color = Color(0.82, 0.32, 0.08, 0.85)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(1.0, 0.60, 0.18, 0.8)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ReadyBtn"]
+bg_color = Color(0.14, 0.68, 0.38, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.45, 1.0, 0.70, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
 [node name="LoadingScreen" type="Control"]
 layout_mode = 3
@@ -162,61 +159,13 @@ anchor_bottom = 0.5
 offset_left = -180.0
 offset_top = 95.0
 offset_right = 180.0
-offset_bottom = 104.0
+offset_bottom = 105.0
 grow_horizontal = 2
 grow_vertical = 2
-value = 25.0
+theme_override_styles/background = SubResource("StyleBoxFlat_ProgressBg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_ProgressFill")
+value = 0.0
 show_percentage = false
-
-[node name="SpinnerActionBtn" type="Button" parent="SpinnerContainer"]
-visible = false
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -160.0
-offset_top = 130.0
-offset_right = 160.0
-offset_bottom = 175.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_font_sizes/font_size = 14
-theme_override_styles/normal = SubResource("StyleBoxFlat_Btn")
-text = "Presiona para descender"
-
-[node name="MinigameTitle" type="Label" parent="."]
-visible = false
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -300.0
-offset_top = 18.0
-offset_right = 300.0
-offset_bottom = 44.0
-grow_horizontal = 2
-theme_override_colors/font_color = Color(0.35, 0.80, 1.0, 1)
-theme_override_font_sizes/font_size = 17
-text = "Minijuego de Descenso"
-horizontal_alignment = 1
-
-[node name="MinigameSub" type="Label" parent="."]
-visible = false
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -250.0
-offset_top = 45.0
-offset_right = 250.0
-offset_bottom = 66.0
-grow_horizontal = 2
-theme_override_colors/font_color = Color(0.60, 0.70, 0.82, 0.75)
-theme_override_font_sizes/font_size = 12
-text = "A/D Rotar | W Propulsión"
-horizontal_alignment = 1
 
 [node name="MinigameContainer" type="Control" parent="."]
 visible = false
@@ -237,23 +186,80 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_back")
 
+[node name="TopBar" type="Control" parent="MinigameContainer"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -220.0
+offset_top = 14.0
+offset_right = 220.0
+offset_bottom = 90.0
+grow_horizontal = 2
+
+[node name="TopProgressLabel" type="Label" parent="MinigameContainer/TopBar"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 0.0
+offset_right = 200.0
+offset_bottom = 20.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.85, 0.92, 1, 0.9)
+theme_override_font_sizes/font_size = 13
+text = "Cargando coordenadas planetarias..."
+horizontal_alignment = 1
+
+[node name="TopProgressBar" type="ProgressBar" parent="MinigameContainer/TopBar"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -160.0
+offset_top = 22.0
+offset_right = 160.0
+offset_bottom = 28.0
+grow_horizontal = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_TopProgressBg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_TopProgressFill")
+value = 0.0
+show_percentage = false
+
+[node name="ReadyBtn" type="Button" parent="MinigameContainer/TopBar"]
+visible = false
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -180.0
+offset_top = 20.0
+offset_right = 180.0
+offset_bottom = 66.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_ReadyBtn")
+text = "Presionar aquí para empezar"
+
 [node name="HUD" type="Panel" parent="MinigameContainer"]
 layout_mode = 0
-offset_left = 25.0
-offset_top = 20.0
-offset_right = 300.0
-offset_bottom = 145.0
+offset_left = 24.0
+offset_top = 18.0
+offset_right = 290.0
+offset_bottom = 155.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_Card")
 
 [node name="PlanetNameLabel" type="Label" parent="MinigameContainer/HUD"]
 layout_mode = 0
 offset_left = 12.0
 offset_top = 6.0
-offset_right = 280.0
+offset_right = 270.0
 offset_bottom = 26.0
 theme_override_colors/font_color = Color(0.3, 0.9, 0.6, 1)
 theme_override_font_sizes/font_size = 12
-text = "Terranova I"
+text = "Altair-612 II"
 
 [node name="AltimeterLabel" type="Label" parent="MinigameContainer/HUD"]
 layout_mode = 0
@@ -286,7 +292,7 @@ text = "Combustible:"
 layout_mode = 0
 offset_left = 100.0
 offset_top = 72.0
-offset_right = 260.0
+offset_right = 250.0
 offset_bottom = 84.0
 value = 100.0
 show_percentage = false
@@ -294,12 +300,22 @@ show_percentage = false
 [node name="ScoreLabel" type="Label" parent="MinigameContainer/HUD"]
 layout_mode = 0
 offset_left = 12.0
-offset_top = 95.0
+offset_top = 92.0
 offset_right = 260.0
-offset_bottom = 115.0
+offset_bottom = 112.0
 theme_override_colors/font_color = Color(0.95, 0.85, 0.3, 1)
 theme_override_font_sizes/font_size = 12
 text = "Puntos: 0 | Aterrizajes: 0"
+
+[node name="SkinHintLabel" type="Label" parent="MinigameContainer/HUD"]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 112.0
+offset_right = 260.0
+offset_bottom = 130.0
+theme_override_colors/font_color = Color(0.60, 0.70, 0.80, 0.75)
+theme_override_font_sizes/font_size = 10
+text = "Puntos canjeables por trajes"
 
 [node name="LandingPad" type="Panel" parent="MinigameContainer"]
 layout_mode = 1
@@ -339,136 +355,66 @@ layout_mode = 1
 anchors_preset = 0
 offset_left = 640.0
 offset_top = 100.0
-offset_right = 676.0
-offset_bottom = 136.0
-pivot_offset = Vector2(18, 18)
-
-[node name="Body" type="Panel" parent="MinigameContainer/Lander"]
-layout_mode = 0
-offset_left = 4.0
-offset_top = 4.0
-offset_right = 32.0
-offset_bottom = 32.0
-theme_override_styles/panel = SubResource("StyleBoxFlat_LanderBody")
-
-[node name="CockpitWindow" type="ColorRect" parent="MinigameContainer/Lander/Body"]
-layout_mode = 0
-offset_left = 7.0
-offset_top = 5.0
-offset_right = 21.0
-offset_bottom = 12.0
-color = Color(0.1, 0.45, 0.85, 1)
-
-[node name="MainFlame" type="Panel" parent="MinigameContainer/Lander"]
-visible = false
-layout_mode = 0
-offset_left = 11.0
-offset_top = 32.0
-offset_right = 25.0
-offset_bottom = 52.0
-theme_override_styles/panel = SubResource("StyleBoxFlat_Flame")
-
-[node name="LeftFlame" type="Panel" parent="MinigameContainer/Lander"]
-visible = false
-layout_mode = 0
-offset_left = -3.0
-offset_top = 12.0
-offset_right = 3.0
-offset_bottom = 20.0
-theme_override_styles/panel = SubResource("StyleBoxFlat_Flame")
-
-[node name="RightFlame" type="Panel" parent="MinigameContainer/Lander"]
-visible = false
-layout_mode = 0
-offset_left = 33.0
-offset_top = 12.0
-offset_right = 39.0
-offset_bottom = 20.0
-theme_override_styles/panel = SubResource("StyleBoxFlat_Flame")
+offset_right = 684.0
+offset_bottom = 148.0
+pivot_offset = Vector2(22, 24)
+script = ExtResource("4_lander")
 
 [node name="MobileControls" type="Control" parent="MinigameContainer"]
 layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -180.0
-offset_bottom = -80.0
-grow_horizontal = 2
-grow_vertical = 0
-mouse_filter = 2
-
-[node name="LeftRcsBtn" type="Button" parent="MinigameContainer/MobileControls"]
-layout_mode = 0
-offset_left = 35.0
-offset_top = 15.0
-offset_right = 115.0
-offset_bottom = 85.0
-theme_override_font_sizes/font_size = 20
-theme_override_styles/normal = SubResource("StyleBoxFlat_CtrlBtn")
-text = "◄"
-
-[node name="RightRcsBtn" type="Button" parent="MinigameContainer/MobileControls"]
-layout_mode = 0
-offset_left = 130.0
-offset_top = 15.0
-offset_right = 210.0
-offset_bottom = 85.0
-theme_override_font_sizes/font_size = 20
-theme_override_styles/normal = SubResource("StyleBoxFlat_CtrlBtn")
-text = "►"
-
-[node name="MainBurnBtn" type="Button" parent="MinigameContainer/MobileControls"]
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = 320.0
-offset_top = -35.0
-offset_right = 480.0
-offset_bottom = 35.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_font_sizes/font_size = 15
-theme_override_styles/normal = SubResource("StyleBoxFlat_BurnBtn")
-text = "Propulsión"
+mouse_filter = 2
 
-[node name="BottomBar" type="Control" parent="."]
-visible = false
+[node name="LeftRcsBtn" type="BaseButton" parent="MinigameContainer/MobileControls"]
 layout_mode = 1
-anchors_preset = 12
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = -115.0
+offset_right = 114.0
+offset_bottom = -31.0
+grow_vertical = 0
+script = ExtResource("5_btn")
+button_type = 1
+
+[node name="RightRcsBtn" type="BaseButton" parent="MinigameContainer/MobileControls"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 125.0
+offset_top = -115.0
+offset_right = 209.0
+offset_bottom = -31.0
+grow_vertical = 0
+script = ExtResource("5_btn")
+button_type = 2
+
+[node name="MainBurnBtn" type="BaseButton" parent="MinigameContainer/MobileControls"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -65.0
-grow_horizontal = 2
+offset_left = -135.0
+offset_top = -125.0
+offset_right = -39.0
+offset_bottom = -29.0
+grow_horizontal = 0
 grow_vertical = 0
+script = ExtResource("5_btn")
+button_type = 0
 
-[node name="ActionBtn" type="Button" parent="BottomBar"]
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -160.0
-offset_top = -50.0
-offset_right = 160.0
-offset_bottom = -12.0
-grow_horizontal = 2
-grow_vertical = 0
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 14
-theme_override_styles/normal = SubResource("StyleBoxFlat_Btn")
-text = "Cargando..."
-
-[connection signal="pressed" from="SpinnerContainer/SpinnerActionBtn" to="." method="_on_spinner_action_btn_pressed"]
+[connection signal="pressed" from="MinigameContainer/TopBar/ReadyBtn" to="." method="_on_ready_btn_pressed"]
 [connection signal="button_down" from="MinigameContainer/MobileControls/LeftRcsBtn" to="." method="_on_left_rcs_down"]
 [connection signal="button_up" from="MinigameContainer/MobileControls/LeftRcsBtn" to="." method="_on_left_rcs_up"]
 [connection signal="button_down" from="MinigameContainer/MobileControls/RightRcsBtn" to="." method="_on_right_rcs_down"]
 [connection signal="button_up" from="MinigameContainer/MobileControls/RightRcsBtn" to="." method="_on_right_rcs_up"]
 [connection signal="button_down" from="MinigameContainer/MobileControls/MainBurnBtn" to="." method="_on_main_burn_down"]
 [connection signal="button_up" from="MinigameContainer/MobileControls/MainBurnBtn" to="." method="_on_main_burn_up"]
-[connection signal="pressed" from="BottomBar/ActionBtn" to="." method="_on_action_btn_pressed"]

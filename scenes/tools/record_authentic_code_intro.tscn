@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://recordauthenticcodeintro01"]
+
+[ext_resource type="Script" path="res://scripts/tools/record_authentic_code_intro.gd" id="1_raci"]
+
+[node name="RecordAuthenticCodeIntro" type="Node3D"]
+script = ExtResource("1_raci")

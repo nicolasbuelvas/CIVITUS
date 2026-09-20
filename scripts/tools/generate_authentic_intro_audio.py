@@ -2,18 +2,18 @@ import numpy as np
 import wave
 
 sample_rate = 44100
-duration = 24.0
+duration = 18.0
 total_samples = int(sample_rate * duration)
 
 left_audio = np.zeros(total_samples, dtype=np.float32)
 right_audio = np.zeros(total_samples, dtype=np.float32)
 
 # ==============================================================================
-# 1. PURE TYPING SOUND (0.0s to 8.5s) - EXTENDED CODE TIME (16.0s total terminal)
+# 1. PURE TYPING SOUND (0.0s to 7.0s) - MAJORITY OF INTRO (13.5s code/terminal)
 # ==============================================================================
-num_clicks = 180
+num_clicks = 160
 typing_start = 0.15
-typing_end = 8.35
+typing_end = 6.85
 click_times = np.linspace(typing_start, typing_end, num_clicks)
 
 for i, ct in enumerate(click_times):
@@ -39,34 +39,34 @@ def add_enter_click(t_pos):
 
 def add_error_buzz(t_pos):
     idx = int(sample_rate * t_pos)
-    n = int(sample_rate * 0.35)
-    te = np.linspace(0, 0.35, n)
-    buzz = (np.sin(2 * np.pi * 320.0 * te) + np.sin(2 * np.pi * 360.0 * te)) * np.exp(-te * 6.0) * 0.30
+    n = int(sample_rate * 0.30)
+    te = np.linspace(0, 0.30, n)
+    buzz = (np.sin(2 * np.pi * 320.0 * te) + np.sin(2 * np.pi * 360.0 * te)) * np.exp(-te * 7.0) * 0.32
     left_audio[idx : idx + n] += buzz
     right_audio[idx : idx + n] += buzz
 
-# Part 1 Enter & Error (8.6s to 10.8s)
-add_enter_click(8.6)
-add_error_buzz(9.3)
+# Step 1 Enter & Error (7.1s to 9.0s)
+add_enter_click(7.1)
+add_error_buzz(7.8)
 
-# Part 2 Enter & Error (10.9s to 13.0s)
-add_enter_click(10.9)
-add_error_buzz(11.6)
+# Step 2 Enter & Error (9.1s to 11.0s)
+add_enter_click(9.1)
+add_error_buzz(9.8)
 
-# Part 3 Enter & Stream Calculation Riser (13.1s to 16.0s)
-add_enter_click(13.1)
-idx_inf = int(sample_rate * 13.5)
-n_inf = int(sample_rate * 2.4)
-t_inf = np.linspace(0, 2.4, n_inf)
+# Step 3 Enter & Stream Calculation Riser (11.1s to 13.5s)
+add_enter_click(11.1)
+idx_inf = int(sample_rate * 11.4)
+n_inf = int(sample_rate * 2.1)
+t_inf = np.linspace(0, 2.1, n_inf)
 freq_sweep = 440.0 * (2600.0 / 440.0) ** (t_inf ** 1.6)
 phase_inf = 2 * np.pi * np.cumsum(freq_sweep) / sample_rate
 flutter_inf = 0.5 + 0.5 * np.sin(2 * np.pi * 60.0 * t_inf)
-data_stream = np.sin(phase_inf) * flutter_inf * (t_inf / 2.4) * 0.38
+data_stream = np.sin(phase_inf) * flutter_inf * (t_inf / 2.1) * 0.40
 left_audio[idx_inf : idx_inf + n_inf] += data_stream
 right_audio[idx_inf : idx_inf + n_inf] += data_stream
 
-# Cut/Glitch transient when switching to black hole (16.0s)
-idx_glitch = int(sample_rate * 15.98)
+# Cut transient to Black Hole (13.5s)
+idx_glitch = int(sample_rate * 13.48)
 n_glitch = int(sample_rate * 0.05)
 t_g = np.linspace(0, 0.05, n_glitch)
 g_sound = np.random.uniform(-0.4, 0.4, n_glitch) * np.exp(-t_g * 60.0)
@@ -74,46 +74,34 @@ left_audio[idx_glitch : idx_glitch + n_glitch] += g_sound
 right_audio[idx_glitch : idx_glitch + n_glitch] += g_sound
 
 # ==============================================================================
-# 2. BLACK HOLE VISTA (16.0s to 19.5s) - SHORTENED TO 3.5s
+# 2. BLACK HOLE VISTA (13.5s to 15.3s) - FAST & PUNCHY (1.8s)
 # ==============================================================================
-idx_bh = int(sample_rate * 16.0)
-n_bh = int(sample_rate * 3.5)
-tb = np.linspace(0, 3.5, n_bh)
-bh_env = np.sin(np.pi * np.clip(tb / 3.5, 0, 1)) ** 0.8
+idx_bh = int(sample_rate * 13.5)
+n_bh = int(sample_rate * 1.8)
+tb = np.linspace(0, 1.8, n_bh)
+bh_env = np.sin(np.pi * np.clip(tb / 1.8, 0, 1)) ** 0.6
 bh_drone = (
-    0.50 * np.sin(2 * np.pi * 48.0 * tb) +
-    0.32 * np.sin(2 * np.pi * 96.0 * tb) +
-    0.18 * np.sin(2 * np.pi * 144.0 * tb)
+    0.55 * np.sin(2 * np.pi * 50.0 * tb) +
+    0.35 * np.sin(2 * np.pi * 100.0 * tb) +
+    0.20 * np.sin(2 * np.pi * 150.0 * tb)
 ) * bh_env
-left_audio[idx_bh : idx_bh + n_bh] += bh_drone * 0.75
-right_audio[idx_bh : idx_bh + n_bh] += bh_drone * 0.75
+left_audio[idx_bh : idx_bh + n_bh] += bh_drone * 0.85
+right_audio[idx_bh : idx_bh + n_bh] += bh_drone * 0.85
 
 # ==============================================================================
-# 3. CABIN & WINDOW SUN APPROACH (19.5s to 24.0s) - 4.5s
+# 3. FAST CABIN TO SUN GLIDE & TITLE (15.3s to 18.0s) - FAST & EPIC (2.7s)
 # ==============================================================================
-idx_cbn = int(sample_rate * 19.5)
-n_cbn = int(sample_rate * 2.5)
-tcbn = np.linspace(0, 2.5, n_cbn)
-cbn_chord = (
-    0.35 * np.sin(2 * np.pi * 87.31 * tcbn) +
-    0.30 * np.sin(2 * np.pi * 110.0 * tcbn) +
-    0.25 * np.sin(2 * np.pi * 130.81 * tcbn)
-) * (np.sin(np.pi * np.clip(tcbn / 2.5, 0, 1)) ** 1.1)
-left_audio[idx_cbn : idx_cbn + n_cbn] += cbn_chord * 0.65
-right_audio[idx_cbn : idx_cbn + n_cbn] += cbn_chord * 0.65
-
-# Orchestral Crescendo & Title Resolve (21.0s to 24.0s)
-idx_title = int(sample_rate * 21.0)
+idx_title = int(sample_rate * 15.3)
 n_title = total_samples - idx_title
-tt = np.linspace(0, (duration - 21.0), n_title)
-env_t = np.sin(np.pi * np.clip(tt / 3.0, 0, 1)) ** 1.2
+tt = np.linspace(0, (duration - 15.3), n_title)
+env_t = np.sin(np.pi * np.clip(tt / 2.7, 0, 1)) ** 1.1
 title_chord = (
-    0.50 * np.sin(2 * np.pi * 73.42 * tt) +
-    0.42 * np.sin(2 * np.pi * 110.0 * tt) +
-    0.36 * np.sin(2 * np.pi * 146.83 * tt) +
-    0.30 * np.sin(2 * np.pi * 174.61 * tt) +
-    0.24 * np.sin(2 * np.pi * 220.0 * tt)
-) * env_t * 0.88
+    0.55 * np.sin(2 * np.pi * 73.42 * tt) +
+    0.45 * np.sin(2 * np.pi * 110.0 * tt) +
+    0.38 * np.sin(2 * np.pi * 146.83 * tt) +
+    0.32 * np.sin(2 * np.pi * 174.61 * tt) +
+    0.26 * np.sin(2 * np.pi * 220.0 * tt)
+) * env_t * 0.90
 left_audio[idx_title : idx_title + n_title] += title_chord
 right_audio[idx_title : idx_title + n_title] += title_chord
 

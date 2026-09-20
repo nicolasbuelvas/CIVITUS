@@ -16,69 +16,69 @@ var starfield_node: Node3D
 
 # UI references
 var black_screen: ColorRect
-var terminal_window: Control
 var terminal_rtl: RichTextLabel
 var fade_overlay: ColorRect
 var title_card: Control
 var main_title_lbl: Label
 var subtitle_lbl: Label
 
-# Realistic Linux Prompt
-var prompt_str: String = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] cat << 'EOF' > emergency_routine.gd\n"
+# Authentic Linux Shell Script - NO COMMENTS
+var prompt_str: String = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] cat << 'EOF' > emergency_recovery.sh\n"
 
-# English GDScript code - NO COMMENTS
-var code_text_plain = """extends CockpitTelemetryOS
+var bash_script_plain = """#!/usr/bin/env bash
 
-var galactic_incident: String = "SAGITTARIUS_NEXUS_WARP_CORE_MELTDOWN"
-var current_drift_location: String = "UNKNOWN_DEEP_VOID_OUTSKIRTS"
-var life_support_state: String = "ISOLATED_EMERGENCY_RESERVE"
+set -e
 
-var required_survival_directives: Array[String] = [
-    "SCAN_LOCAL_SYSTEM_FOR_SURVIVABLE_ATMOSPHERE",
-    "INITIATE_TOUCHDOWN_AND_LAND_EXPLORATION_MODULE",
-    "MINE_SURFACE_IRON_COPPER_SILICON_URANIUM",
-    "FABRICATE_WRENCH_CIRCUITRY_REACTOR_CELLS",
-    "RECONSTRUCT_WARP_CORE_AND_RESTORE_THRUST",
-    "CALCULATE_RELATIVISTIC_VECTOR_TO_SUPERMASSIVE_BLACK_HOLE"
-]
+export SHIP_STATUS="CRITICAL_WARP_CORE_MELTDOWN"
+export DRIFT_SECTOR="UNMAPPED_OUTER_VOID"
+export EMERGENCY_OXYGEN_RESERVE=100
 
-func _ready() -> void:
-    assess_hull_structural_integrity()
-    query_sagittarius_quantum_relay()
-    query_hyperspace_propulsion_status()
-    compute_distance_to_supermassive_black_hole()
+declare -a SURVIVAL_DIRECTIVES=(
+    "SCAN_LOCAL_ORBIT_FOR_HABITABLE_ATMOSPHERE"
+    "INITIATE_TOUCHDOWN_ON_TERRESTRIAL_PLANET"
+    "EXTRACT_SURFACE_IRON_COPPER_SILICON_URANIUM"
+    "FABRICATE_CIRCUITS_AND_REACTOR_CELLS"
+    "REBUILD_HYPERDRIVE_PROPULSION_CORE"
+    "SOLVE_RETURN_VECTOR_TO_SUPERMASSIVE_BLACK_HOLE"
+)
+
+verify_hull_and_containment
+ping_sagittarius_quantum_relay
+diagnose_warp_coils
+calculate_trajectory_home
 EOF"""
 
-var code_text_bbcode = """[color=#ff7085]extends[/color] [color=#67d5ff]CockpitTelemetryOS[/color]
+var bash_script_bbcode = """[color=#ff7085]#!/usr/bin/env bash[/color]
 
-[color=#ff7085]var[/color] galactic_incident: [color=#67d5ff]String[/color] = [color=#a5e179]"SAGITTARIUS_NEXUS_WARP_CORE_MELTDOWN"[/color]
-[color=#ff7085]var[/color] current_drift_location: [color=#67d5ff]String[/color] = [color=#a5e179]"UNKNOWN_DEEP_VOID_OUTSKIRTS"[/color]
-[color=#ff7085]var[/color] life_support_state: [color=#67d5ff]String[/color] = [color=#a5e179]"ISOLATED_EMERGENCY_RESERVE"[/color]
+[color=#ff7085]set[/color] -e
 
-[color=#ff7085]var[/color] required_survival_directives: [color=#67d5ff]Array[/color][[color=#67d5ff]String[/color]] = [
-    [color=#a5e179]"SCAN_LOCAL_SYSTEM_FOR_SURVIVABLE_ATMOSPHERE"[/color],
-    [color=#a5e179]"INITIATE_TOUCHDOWN_AND_LAND_EXPLORATION_MODULE"[/color],
-    [color=#a5e179]"MINE_SURFACE_IRON_COPPER_SILICON_URANIUM"[/color],
-    [color=#a5e179]"FABRICATE_WRENCH_CIRCUITRY_REACTOR_CELLS"[/color],
-    [color=#a5e179]"RECONSTRUCT_WARP_CORE_AND_RESTORE_THRUST"[/color],
-    [color=#a5e179]"CALCULATE_RELATIVISTIC_VECTOR_TO_SUPERMASSIVE_BLACK_HOLE"[/color]
-]
+[color=#ff7085]export[/color] SHIP_STATUS=[color=#a5e179]"CRITICAL_WARP_CORE_MELTDOWN"[/color]
+[color=#ff7085]export[/color] DRIFT_SECTOR=[color=#a5e179]"UNMAPPED_OUTER_VOID"[/color]
+[color=#ff7085]export[/color] EMERGENCY_OXYGEN_RESERVE=[color=#67d5ff]100[/color]
 
-[color=#ff7085]func[/color] [color=#f5c66b]_ready[/color]() -> [color=#67d5ff]void[/color]:
-    [color=#f5c66b]assess_hull_structural_integrity[/color]()
-    [color=#f5c66b]query_sagittarius_quantum_relay[/color]()
-    [color=#f5c66b]query_hyperspace_propulsion_status[/color]()
-    [color=#f5c66b]compute_distance_to_supermassive_black_hole[/color]()
+[color=#ff7085]declare[/color] -a SURVIVAL_DIRECTIVES=(
+    [color=#a5e179]"SCAN_LOCAL_ORBIT_FOR_HABITABLE_ATMOSPHERE"[/color]
+    [color=#a5e179]"INITIATE_TOUCHDOWN_ON_TERRESTRIAL_PLANET"[/color]
+    [color=#a5e179]"EXTRACT_SURFACE_IRON_COPPER_SILICON_URANIUM"[/color]
+    [color=#a5e179]"FABRICATE_CIRCUITS_AND_REACTOR_CELLS"[/color]
+    [color=#a5e179]"REBUILD_HYPERDRIVE_PROPULSION_CORE"[/color]
+    [color=#a5e179]"SOLVE_RETURN_VECTOR_TO_SUPERMASSIVE_BLACK_HOLE"[/color]
+)
+
+[color=#f5c66b]verify_hull_and_containment[/color]
+[color=#f5c66b]ping_sagittarius_quantum_relay[/color]
+[color=#f5c66b]diagnose_warp_coils[/color]
+[color=#f5c66b]calculate_trajectory_home[/color]
 [color=#57c7ff]EOF[/color]"""
 
-var total_code_chars: int = 0
+var total_bash_chars: int = 0
 var infinite_digits_pool: String = ""
 
 func _ready() -> void:
-	print("[Realistic Linux Intro] Initializing Linux console intro...")
+	print("[Linux TTY Intro] Initializing fullscreen Linux console intro...")
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(frames_dir))
 	
-	total_code_chars = code_text_plain.length()
+	total_bash_chars = bash_script_plain.length()
 	
 	var digits = ""
 	for i in range(1200):
@@ -176,57 +176,20 @@ func _setup_3d_environment() -> void:
 	cabin_light.visible = false
 
 func _setup_ui() -> void:
+	# 1. FULLSCREEN LINUX TTY CONSOLE (Entire 1280x720 screen)
 	black_screen = ColorRect.new()
 	black_screen.set_anchors_preset(Control.PRESET_FULL_RECT)
-	black_screen.color = Color(0.0, 0.0, 0.0, 1.0)
+	black_screen.color = Color(0.05, 0.06, 0.08, 1.0)
 	add_child(black_screen)
 
-	# 1. REALISTIC LINUX CONSOLE WINDOW
-	terminal_window = Control.new()
-	terminal_window.position = Vector2(60, 45)
-	terminal_window.size = Vector2(1160, 630)
-	black_screen.add_child(terminal_window)
-
-	var term_bg = Panel.new()
-	term_bg.position = Vector2.ZERO
-	term_bg.size = terminal_window.size
-	var term_sb = StyleBoxFlat.new()
-	term_sb.bg_color = Color(0.06, 0.07, 0.09, 0.98)
-	term_sb.border_width_left = 1
-	term_sb.border_width_top = 32
-	term_sb.border_width_right = 1
-	term_sb.border_width_bottom = 1
-	term_sb.border_color = Color(0.2, 0.23, 0.28, 1.0)
-	term_sb.corner_radius_top_left = 8
-	term_sb.corner_radius_top_right = 8
-	term_sb.corner_radius_bottom_left = 8
-	term_sb.corner_radius_bottom_right = 8
-	term_bg.add_theme_stylebox_override("panel", term_sb)
-	terminal_window.add_child(term_bg)
-
-	var dots_lbl = Label.new()
-	dots_lbl.text = "  ●  ●  ●"
-	dots_lbl.position = Vector2(12, 6)
-	dots_lbl.size = Vector2(100, 20)
-	dots_lbl.add_theme_font_size_override("font_size", 14)
-	dots_lbl.add_theme_color_override("font_color", Color(0.85, 0.38, 0.38))
-	terminal_window.add_child(dots_lbl)
-
-	var title_lbl = Label.new()
-	title_lbl.text = "astronaut@civitus-cockpit: ~/systems (bash)"
-	title_lbl.position = Vector2(0, 6)
-	title_lbl.size = Vector2(1160, 20)
-	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_lbl.add_theme_font_size_override("font_size", 13)
-	title_lbl.add_theme_color_override("font_color", Color(0.65, 0.72, 0.82))
-	terminal_window.add_child(title_lbl)
-
+	# Fullscreen Text Area - NO SCROLLBAR, NO SIDEBAR
 	terminal_rtl = RichTextLabel.new()
 	terminal_rtl.bbcode_enabled = true
-	terminal_rtl.position = Vector2(24, 46)
-	terminal_rtl.size = Vector2(1112, 565)
-	terminal_rtl.add_theme_font_size_override("normal_font_size", 16)
-	terminal_window.add_child(terminal_rtl)
+	terminal_rtl.scroll_active = false
+	terminal_rtl.position = Vector2(36, 32)
+	terminal_rtl.size = Vector2(1208, 656)
+	terminal_rtl.add_theme_font_size_override("normal_font_size", 17)
+	black_screen.add_child(terminal_rtl)
 
 	# 2. Fade overlay
 	fade_overlay = ColorRect.new()
@@ -265,73 +228,116 @@ func _process(_delta: float) -> void:
 
 	var img = get_viewport().get_texture().get_image()
 	if img:
+		if img.get_size() != Vector2i(1280, 720):
+			img.resize(1280, 720, Image.INTERPOLATE_BILINEAR)
 		var path = ProjectSettings.globalize_path(frames_dir + ("frame_%04d.png" % frame_count))
 		img.save_png(path)
 
 	frame_count += 1
 	if frame_count >= max_frames:
-		print("[Realistic Linux Intro] All 555 frames captured.")
+		print("[Linux TTY Intro] All 555 frames captured.")
 		get_tree().quit(0)
 
 func _update_sequence(t: float, dt: float) -> void:
-	# BEAT 1: 0.0s to 5.8s -> Typing code inside the Linux console
-	if t < 5.8:
+	# =========================================================================
+	# BEAT 1: 0.0s to 5.4s -> Fullscreen Linux typing: cat << 'EOF' > script.sh
+	# =========================================================================
+	if t < 5.4:
 		black_screen.visible = true
-		terminal_window.visible = true
+		terminal_rtl.visible = true
 		black_hole_quad.visible = false
 		sun_sphere.visible = false
 		ship.visible = false
 
-		var typing_p = clamp(t / 5.5, 0.0, 1.0)
-		var chars_to_show = int(typing_p * total_code_chars)
+		var typing_p = clamp(t / 5.1, 0.0, 1.0)
+		var chars_to_show = int(typing_p * total_bash_chars)
 		var cursor = "[color=#5af78e]█[/color]" if fmod(t, 0.24) < 0.12 else " "
-		
-		terminal_rtl.text = prompt_str + code_text_bbcode + cursor
+
+		terminal_rtl.text = prompt_str + bash_script_bbcode + cursor
 		terminal_rtl.visible_characters = 54 + chars_to_show
 
-	# BEAT 2: 5.8s to 10.5s -> Linux console runs command & displays errors & infinite stream
-	elif t < 10.5:
+	# =========================================================================
+	# BEAT 2A: 5.4s to 7.0s -> PART 1 COMPILE/RUN & ERROR
+	# =========================================================================
+	elif t < 7.0:
 		black_screen.visible = true
-		terminal_window.visible = true
+		terminal_rtl.visible = true
 		terminal_rtl.visible_characters = -1
 		black_hole_quad.visible = false
 		sun_sphere.visible = false
 		ship.visible = false
 
-		var term_text = prompt_str + code_text_bbcode + "\n\n"
-		term_text += "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] godot --headless --script emergency_routine.gd\n"
-		term_text += "[color=#a5e179]>> INITIALIZING EMERGENCY RECOVERY SCRIPT EXECUTION...[/color]\n\n"
+		var out = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] bash emergency_recovery.sh --check-relay\n\n"
+		out += "[color=#67d5ff]>> [1/3] VERIFYING QUANTUM RELAY HANDSHAKE (relay.unmilkyway.core)...[/color]\n"
+		if t >= 6.1:
+			out += "[color=#ff5555]>>> [ERR_CONNECTION_TIMEOUT] 0 repeaters in range. Link negotiation failed.[/color]\n"
+			out += "[color=#ff5555]    Galactic core communication grid unreachable. Signal lost.[/color]\n\n"
+			out += "[color=#ff7085][FAILED] EXIT CODE 1[/color]"
+		terminal_rtl.text = out
 
-		if t >= 6.8:
-			term_text += "[color=#e5c07b][1/3] query_sagittarius_quantum_relay()...[/color]\n"
-			term_text += "[color=#ff5555]>>> [ERR_CONNECTION_TIMEOUT] 0 quantum repeaters in range.[/color]\n"
-			term_text += "[color=#ff5555]    Galactic relay network unreachable. Link lost.[/color]\n\n"
+	# =========================================================================
+	# CLEAR 1: 7.0s to 7.2s -> Terminal clear
+	# =========================================================================
+	elif t < 7.2:
+		terminal_rtl.text = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] clear"
 
-		if t >= 7.6:
-			term_text += "[color=#e5c07b][2/3] query_hyperspace_propulsion_status()...[/color]\n"
-			term_text += "[color=#ff5555]>>> [CRITICAL_MELTDOWN] SCRIPT ERROR: Warp core coils vaporized.[/color]\n"
-			term_text += "[color=#ff5555]    Hyperdrive offline. Relativistic jump unavailable.[/color]\n\n"
+	# =========================================================================
+	# BEAT 2B: 7.2s to 8.5s -> PART 2 COMPILE/RUN & ERROR
+	# =========================================================================
+	elif t < 8.5:
+		black_screen.visible = true
+		terminal_rtl.visible = true
+		terminal_rtl.visible_characters = -1
+		black_hole_quad.visible = false
+		sun_sphere.visible = false
+		ship.visible = false
 
-		if t >= 8.4:
-			term_text += "[color=#61afef][3/3] compute_distance_to_supermassive_black_hole()...[/color]\n"
-			term_text += "[color=#98c379][OK] TARGET VECTOR SOLVED: GALACTIC CORE SINGULARITY.[/color]\n"
-			term_text += "[color=#e5c07b]CALCULATED DISTANCE: [/color]"
+		var out = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] bash emergency_recovery.sh --check-warp\n\n"
+		out += "[color=#67d5ff]>> [2/3] DIAGNOSING WARP CORE MAGNETIC CONTAINMENT & COILS...[/color]\n"
+		if t >= 7.8:
+			out += "[color=#ff5555]>>> [CRITICAL_MELTDOWN] SCRIPT ERROR: Hyperdrive coils vaporized.[/color]\n"
+			out += "[color=#ff5555]    Magnetic containment compromised. Relativistic propulsion offline.[/color]\n\n"
+			out += "[color=#ff7085][FAILED] EXIT CODE 2[/color]"
+		terminal_rtl.text = out
 
-			var num_time = t - 8.4
-			var digits_count = int(clamp(num_time / 2.0, 0.0, 1.0) * 850)
-			var sub_digits = infinite_digits_pool.substr(0, digits_count)
-			
-			term_text += "[color=#ffb454]" + sub_digits + "... AU[/color]\n\n"
-			if num_time > 1.2:
-				term_text += "[color=#ff7085]>>> SYSTEM WARNING: INFINITE DISTANCE DETECTED // TRAVEL TIME: UNMEASURABLE[/color]"
+	# =========================================================================
+	# CLEAR 2: 8.5s to 8.7s -> Terminal clear
+	# =========================================================================
+	elif t < 8.7:
+		terminal_rtl.text = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] clear"
 
-		terminal_rtl.text = term_text
+	# =========================================================================
+	# BEAT 2C: 8.7s to 10.5s -> PART 3: SOLVE DISTANCE & INFINITE NUMBERS STREAM
+	# =========================================================================
+	elif t < 10.5:
+		black_screen.visible = true
+		terminal_rtl.visible = true
+		terminal_rtl.visible_characters = -1
+		black_hole_quad.visible = false
+		sun_sphere.visible = false
+		ship.visible = false
 
+		var out = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] bash emergency_recovery.sh --solve-distance\n\n"
+		out += "[color=#67d5ff]>> [3/3] SOLVING RELATIVISTIC VECTOR TO SUPERMASSIVE BLACK HOLE...[/color]\n"
+		out += "[color=#98c379][OK] VECTOR SOLVED: GALACTIC CORE SINGULARITY (THE UNMILKY WAY).[/color]\n\n"
+		out += "[color=#e5c07b]CALCULATED DISTANCE TO HOME: [/color]"
+
+		var num_time = t - 8.9
+		var digits_count = int(clamp(num_time / 1.5, 0.0, 1.0) * 850)
+		var sub_digits = infinite_digits_pool.substr(0, digits_count)
+
+		out += "[color=#ffb454]" + sub_digits + "... AU[/color]\n\n"
+		if num_time > 0.9:
+			out += "[color=#ff7085]>>> SYSTEM WARNING: INFINITE DISTANCE DETECTED // TRAVEL TIME: UNMEASURABLE[/color]"
+
+		terminal_rtl.text = out
+
+	# =========================================================================
 	# BEAT 3: 10.5s to 13.0s -> SWITCH TO OTHER VIEW: SUPERMASSIVE BLACK HOLE
+	# =========================================================================
 	elif t < 13.0:
 		var b3_t = t - 10.5
 		black_screen.visible = false
-		terminal_window.visible = false
 
 		black_hole_quad.visible = true
 		sun_sphere.visible = false
@@ -341,7 +347,9 @@ func _update_sequence(t: float, dt: float) -> void:
 		camera.look_at(Vector3.ZERO, Vector3.UP)
 		black_hole_quad.rotation.z += dt * 0.04
 
+	# =========================================================================
 	# BEAT 4: 13.0s to 15.5s -> INSIDE CABIN LOOKING AT SUN
+	# =========================================================================
 	elif t < 15.5:
 		var b4_t = t - 13.0
 		black_hole_quad.visible = false
@@ -355,7 +363,9 @@ func _update_sequence(t: float, dt: float) -> void:
 		camera.look_at(Vector3(0.0, 1.96, -4.0), Vector3.UP)
 		sun_sphere.rotation.y += dt * 0.08
 
+	# =========================================================================
 	# BEAT 5: 15.5s to 18.5s -> CAMERA MOVES TO SUN AND TITLE: THE UNMILKY WAY HOME
+	# =========================================================================
 	else:
 		var b5_t = t - 15.5
 		var p5 = b5_t / 3.0

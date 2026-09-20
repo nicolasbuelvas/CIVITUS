@@ -340,7 +340,7 @@ func _update_sequence(t: float, dt: float) -> void:
 		black_hole_quad.rotation.z += dt * 0.05
 
 	# =========================================================================
-	# BEAT 3: 13.0s to 17.0s -> FAST WINDOW FLIGHT TO SUN & EXTENDED TITLE (4.0s)
+	# BEAT 3: 13.0s to 17.0s -> WINDOW FLIGHT (2.0s) & TITLE (2.0s)
 	# =========================================================================
 	else:
 		var b3_t = t - 13.0
@@ -352,8 +352,8 @@ func _update_sequence(t: float, dt: float) -> void:
 
 		sun_sphere.rotation.y += dt * 0.08
 
-		# Fast forward push out through window (13.0s to 14.5s)
-		var p = clamp(b3_t / 1.5, 0.0, 1.0)
+		# Part A: Fast flight out through window (13.0s to 15.0s, exactly 2.0s)
+		var p = clamp(b3_t / 2.0, 0.0, 1.0)
 		var s_p = p * p * (3.0 - 2.0 * p) # Smoothstep easing
 
 		var start_pos = Vector3(0.0, 1.84, -0.6)
@@ -365,10 +365,12 @@ func _update_sequence(t: float, dt: float) -> void:
 		var cur_look = start_look.lerp(end_look, s_p)
 		camera.look_at(cur_look, Vector3.UP)
 
-		# Smooth rapid darkening
-		fade_overlay.color = Color(0.0, 0.0, 0.0, clamp(b3_t / 1.4, 0.0, 0.90))
+		# Darken starfield to isolate the sun as flight completes
+		fade_overlay.color = Color(0.0, 0.0, 0.0, clamp(b3_t / 2.0, 0.0, 0.90))
 
-		# Title stays on screen for 2.5 full seconds
-		if b3_t > 0.6:
-			var title_p = clamp((b3_t - 0.6) / 0.8, 0.0, 1.0)
+		# Part B: Title on screen (15.0s to 17.0s, exactly 2.0s)
+		if b3_t >= 2.0:
+			var title_p = clamp((b3_t - 2.0) / 0.25, 0.0, 1.0)
 			title_card.modulate.a = title_p
+		else:
+			title_card.modulate.a = 0.0

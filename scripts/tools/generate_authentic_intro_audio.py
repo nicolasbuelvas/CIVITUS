@@ -89,28 +89,36 @@ left_audio[idx_bh : idx_bh + n_bh] += bh_drone * 0.88
 right_audio[idx_bh : idx_bh + n_bh] += bh_drone * 0.88
 
 # ==============================================================================
-# 3. WINDOW FLIGHT TO SUN & EXTENDED TITLE (13.0s to 17.0s) - EXACTLY 4.0 SECONDS
+# 3. FAST WINDOW FLIGHT (13.0s to 15.0s, 2.0s) & TITLE HIT (15.0s to 17.0s, 2.0s)
 # ==============================================================================
-idx_win = int(sample_rate * 13.0)
-n_win = total_samples - idx_win
-twin = np.linspace(0, 4.0, n_win)
-win_env = np.sin(np.pi * np.clip(twin / 4.0, 0, 1)) ** 0.9
+# 3A: Window flight whoosh (13.0s to 15.0s)
+idx_flight = int(sample_rate * 13.0)
+n_flight = int(sample_rate * 2.0)
+tfl = np.linspace(0, 2.0, n_flight)
+flight_whoosh = (
+    np.sin(2 * np.pi * 65.0 * tfl) * 0.45 +
+    np.sin(2 * np.pi * 130.0 * tfl) * 0.25
+) * np.sin(np.pi * np.clip(tfl / 2.0, 0, 1)) * 0.85
+left_audio[idx_flight : idx_flight + n_flight] += flight_whoosh
+right_audio[idx_flight : idx_flight + n_flight] += flight_whoosh
 
-# Fast whoosh forward (13.0s to 14.5s)
-whoosh = np.sin(2 * np.pi * 50.0 * twin) * np.exp(-twin * 2.0) * 0.65
+# 3B: Title Impact & Orchestral Sustained Resolve (15.0s to 17.0s)
+idx_title = int(sample_rate * 15.0)
+n_title = total_samples - idx_title
+tti = np.linspace(0, 2.0, n_title)
+title_env = np.sin(np.pi * np.clip(tti / 2.0, 0, 1)) ** 0.85
 
-# Full cinematic orchestral chord sustaining through 17.0s
 title_chord = (
-    0.55 * np.sin(2 * np.pi * 73.42 * twin) +
-    0.45 * np.sin(2 * np.pi * 110.0 * twin) +
-    0.38 * np.sin(2 * np.pi * 146.83 * twin) +
-    0.32 * np.sin(2 * np.pi * 174.61 * twin) +
-    0.26 * np.sin(2 * np.pi * 220.0 * twin)
-) * win_env * 0.92
+    0.55 * np.sin(2 * np.pi * 73.42 * tti) +
+    0.45 * np.sin(2 * np.pi * 110.0 * tti) +
+    0.38 * np.sin(2 * np.pi * 146.83 * tti) +
+    0.32 * np.sin(2 * np.pi * 174.61 * tti) +
+    0.26 * np.sin(2 * np.pi * 220.0 * tti)
+) * title_env * 0.95
 
-boom = np.sin(2 * np.pi * 45.0 * twin) * np.exp(-twin * 2.5) * 0.65
-left_audio[idx_win : idx_win + n_win] += (title_chord + whoosh + boom) * 0.85
-right_audio[idx_win : idx_win + n_win] += (title_chord + whoosh + boom) * 0.85
+title_boom = np.sin(2 * np.pi * 48.0 * tti) * np.exp(-tti * 3.0) * 0.75
+left_audio[idx_title : idx_title + n_title] += (title_chord + title_boom) * 0.90
+right_audio[idx_title : idx_title + n_title] += (title_chord + title_boom) * 0.90
 
 # Normalize
 max_val = max(np.max(np.abs(left_audio)), np.max(np.abs(right_audio)))

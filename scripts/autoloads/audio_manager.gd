@@ -43,12 +43,6 @@ func _ready() -> void:
 	music_player.volume_db = default_music_volume_db
 	add_child(music_player)
 	music_player.finished.connect(_on_music_finished)
-	
-	# Default to menu music if available, falling back to ambient gameplay music
-	if sounds.has("music_menu_theme"):
-		play_menu_music(0.0)
-	elif sounds.has("ambient_music"):
-		play_gameplay_music(0.0)
 
 func _on_music_finished() -> void:
 	if music_player and music_player.stream:

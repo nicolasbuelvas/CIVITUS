@@ -1,7 +1,7 @@
 extends Node3D
 
 var frame_count: int = 0
-var max_frames: int = 1080 # 18.0s @ 60fps
+var max_frames: int = 960 # 16.0s @ 60fps
 var frames_dir: String = "res://temp_frames/authentic_intro/"
 var anim_time: float = 0.0
 
@@ -16,6 +16,7 @@ var starfield_node: Node3D
 
 # UI references
 var black_screen: ColorRect
+var terminal_container: Control
 var terminal_rtl: RichTextLabel
 var fade_overlay: ColorRect
 var title_card: Control
@@ -75,8 +76,11 @@ var total_bash_chars: int = 0
 var infinite_digits_pool: String = ""
 
 func _ready() -> void:
-	print("[Linux TTY Intro] Initializing 18.0s fast-action intro sequence...")
+	print("[Linux TTY Intro] Initializing fast-action 16s intro sequence...")
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(frames_dir))
+	
+	if AudioManager:
+		AudioManager.stop_music(0.0)
 	
 	total_bash_chars = bash_script_plain.length()
 	
@@ -182,6 +186,12 @@ func _setup_ui() -> void:
 	black_screen.color = Color(0.05, 0.06, 0.08, 1.0)
 	add_child(black_screen)
 
+	# Terminal container for dynamic cinematic zoom-in
+	terminal_container = Control.new()
+	terminal_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	terminal_container.pivot_offset = Vector2(300, 220)
+	black_screen.add_child(terminal_container)
+
 	# Fullscreen Text Area - NO SCROLLBAR, NO SIDEBAR
 	terminal_rtl = RichTextLabel.new()
 	terminal_rtl.bbcode_enabled = true
@@ -189,7 +199,7 @@ func _setup_ui() -> void:
 	terminal_rtl.position = Vector2(36, 32)
 	terminal_rtl.size = Vector2(1208, 656)
 	terminal_rtl.add_theme_font_size_override("normal_font_size", 17)
-	black_screen.add_child(terminal_rtl)
+	terminal_container.add_child(terminal_rtl)
 
 	# 2. Fade overlay
 	fade_overlay = ColorRect.new()
@@ -235,81 +245,98 @@ func _process(_delta: float) -> void:
 
 	frame_count += 1
 	if frame_count >= max_frames:
-		print("[Linux TTY Intro] All 1080 frames captured.")
+		print("[Linux TTY Intro] All 960 frames captured.")
 		get_tree().quit(0)
 
 func _update_sequence(t: float, dt: float) -> void:
 	# =========================================================================
-	# BEAT 1: 0.0s to 13.5s -> CODE & REAL LINUX COMPILATION (13.5s - LONGEST)
+	# BEAT 1: 0.0s to 12.0s -> CODE & REAL LINUX COMPILATION (12.0s)
 	# =========================================================================
-	if t < 13.5:
+	if t < 12.0:
 		black_screen.visible = true
 		terminal_rtl.visible = true
 		black_hole_quad.visible = false
 		sun_sphere.visible = false
 		ship.visible = false
 
-		# Phase 1A: Typing bash script (0.0s to 7.0s)
-		if t < 7.0:
-			var typing_p = clamp(t / 6.6, 0.0, 1.0)
+		# Phase 1A: Typing bash script WITH DYNAMIC ZOOM IN (0.0s to 6.5s)
+		if t < 6.5:
+			var typing_p = clamp(t / 6.1, 0.0, 1.0)
 			var chars_to_show = int(typing_p * total_bash_chars)
 			var cursor = "[color=#5af78e]█[/color]" if fmod(t, 0.24) < 0.12 else " "
 			terminal_rtl.text = prompt_str + bash_script_bbcode + cursor
 			terminal_rtl.visible_characters = 54 + chars_to_show
 
-		# Phase 1B: Step 1 Linker & Network Error (7.0s to 9.0s)
-		elif t < 9.0:
+			# Progressive smooth cinematic zoom in
+			var zoom_s = lerp(1.0, 1.18, typing_p)
+			terminal_container.scale = Vector2(zoom_s, zoom_s)
+
+		# Phase 1B: Step 1 Linker & Network Error (6.5s to 8.2s)
+		elif t < 8.2:
+			terminal_container.scale = Vector2.ONE
 			terminal_rtl.visible_characters = -1
-			if t > 8.8:
+			if t > 8.0:
 				terminal_rtl.text = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] clear"
 			else:
 				var out = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] gcc -O2 emergency_recovery.c -o recovery -lquantum_relay\n\n"
 				out += "[color=#abb2bf]quantum_relay.c: In function 'ping_sagittarius_quantum_relay':[/color]\n"
-				if t >= 7.6:
+				if t >= 7.2:
 					out += "[color=#e5c07b]quantum_relay.c:19:5: warning: implicit declaration of function 'subspace_ping' [-Wimplicit-function-declaration][/color]\n"
 					out += "[color=#ff5555]/usr/bin/ld: cannot find -lquantum_relay: No such file or directory[/color]\n"
 					out += "[color=#ff5555]collect2: error: ld returned 1 exit status[/color]\n"
 					out += "[color=#ff7085]make: *** [Makefile:18: recovery] Error 1 (EHOSTUNREACH: 0 repeaters in local light-cone)[/color]"
 				terminal_rtl.text = out
 
-		# Phase 1C: Step 2 Segfault Critical Error (9.0s to 11.0s)
-		elif t < 11.0:
+		# Phase 1C: Step 2 Segfault Critical Error (8.2s to 9.8s)
+		elif t < 9.8:
+			terminal_container.scale = Vector2.ONE
 			terminal_rtl.visible_characters = -1
-			if t > 10.8:
+			if t > 9.6:
 				terminal_rtl.text = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] clear"
 			else:
 				var out = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] ./emergency_recovery --diagnose-warp\n\n"
 				out += "[color=#67d5ff][    0.001420] warp_core: probing magnetic pinch coil sensors...[/color]\n"
-				if t >= 9.6:
+				if t >= 8.9:
 					out += "[color=#e5c07b][    0.284102] WARN: sensor bus 0x3F unresponsive. Thermal runaway detected.[/color]\n"
 					out += "[color=#ff5555][    0.512904] emergency_recovery[2048]: segfault at 0x00000000 ip 0x7f8e12sp 0x7ffd19 in libhyperdrive.so[/color]\n"
 					out += "[color=#ff5555]Segmentation fault (core dumped)[/color]\n"
 					out += "[color=#ff7085][CRITICAL_MELTDOWN] exit status 139 (Warp coils vaporized)[/color]"
 				terminal_rtl.text = out
 
-		# Phase 1D: Step 3 Solve Distance & Infinite Stream (11.0s to 13.5s)
+		# Phase 1D: Step 3 Solve Distance & REAL LINUX KERNEL PANIC (9.8s to 12.0s)
 		else:
+			terminal_container.scale = Vector2.ONE
 			terminal_rtl.visible_characters = -1
 			var out = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] ./emergency_recovery --solve-distance\n\n"
 			out += "[color=#67d5ff][    0.000840] astrometrics: solving relativistic geodesic to Galactic Singularity...[/color]\n"
 			out += "[color=#98c379][OK] TARGET SOLVED: SAGITTARIUS SUPERMASSIVE BLACK HOLE (THE UNMILKY WAY).[/color]\n\n"
 			out += "[color=#e5c07b]CALCULATED DISTANCE TO HOME: [/color]"
 
-			var num_time = t - 11.3
-			var digits_count = int(clamp(num_time / 2.0, 0.0, 1.0) * 850)
+			var num_time = t - 9.9
+			var digits_count = int(clamp(num_time / 1.3, 0.0, 1.0) * 850)
 			var sub_digits = infinite_digits_pool.substr(0, digits_count)
-
 			out += "[color=#ffb454]" + sub_digits + "... AU[/color]\n\n"
-			if num_time > 1.0:
-				out += "[color=#ff7085]>>> [OVERFLOW] DISTANCE EXCEEDS 64-BIT PRECISION // TRAVEL TIME: UNMEASURABLE[/color]"
+
+			# Genuine Linux Kernel Panic when numbers overflow (NO AI SLOP)
+			if t >= 11.2:
+				out += "[color=#ff5555][  11.204891] Kernel panic - not syncing: Fatal arithmetic exception in astrometrics_geodesic_solve()[/color]\n"
+				out += "[color=#abb2bf][  11.204893] CPU: 0 PID: 2049 Comm: emergency_recovery Tainted: G        D    6.8.0-unmilkyway #1[/color]\n"
+				out += "[color=#abb2bf][  11.204895] Hardware name: Cockpit Avionics Flight Computer Rev 4 / NavBus[/color]\n"
+				out += "[color=#abb2bf][  11.204898] Call Trace:[/color]\n"
+				out += "[color=#abb2bf]   dump_stack_lvl+0x48/0x70[/color]\n"
+				out += "[color=#abb2bf]   panic+0x310/0x360[/color]\n"
+				out += "[color=#abb2bf]   ? geodesic_solve_relativistic+0x1a8/0x240 [astrometrics][/color]\n"
+				out += "[color=#abb2bf]   do_trap+0x80/0x140[/color]\n"
+				out += "[color=#ff5555][  11.204920] ---[ end Kernel panic - not syncing: Integer overflow in distance calculation ]---[/color]\n"
+				out += "[color=#ffffff]System halted.[/color]"
 
 			terminal_rtl.text = out
 
 	# =========================================================================
-	# BEAT 2: 13.5s to 15.3s -> SUPERMASSIVE BLACK HOLE (RÁPIDA - ONLY 1.8s)
+	# BEAT 2: 12.0s to 14.0s -> SUPERMASSIVE BLACK HOLE (EXACTLY 2.0s)
 	# =========================================================================
-	elif t < 15.3:
-		var b2_t = t - 13.5
+	elif t < 14.0:
+		var b2_t = t - 12.0
 		black_screen.visible = false
 		terminal_rtl.visible = false
 
@@ -317,15 +344,15 @@ func _update_sequence(t: float, dt: float) -> void:
 		sun_sphere.visible = false
 		ship.visible = false
 
-		camera.position = Vector3(0, 0, lerp(11.5, 7.0, b2_t / 1.8))
+		camera.position = Vector3(0, 0, lerp(12.0, 6.8, b2_t / 2.0))
 		camera.look_at(Vector3.ZERO, Vector3.UP)
 		black_hole_quad.rotation.z += dt * 0.05
 
 	# =========================================================================
-	# BEAT 3: 15.3s to 18.0s -> RAPID & FLUID GLIDE OUT WINDOW TO SUN (2.7s)
+	# BEAT 3: 14.0s to 16.0s -> FAST WINDOW FLIGHT TO SUN & TITLE (EXACTLY 2.0s)
 	# =========================================================================
 	else:
-		var b3_t = t - 15.3
+		var b3_t = t - 14.0
 		black_hole_quad.visible = false
 		ship.visible = true
 		sun_sphere.visible = true
@@ -334,12 +361,12 @@ func _update_sequence(t: float, dt: float) -> void:
 
 		sun_sphere.rotation.y += dt * 0.08
 
-		# Fast, dynamic, buttery-smooth forward flight out of window
-		var p = clamp(b3_t / 2.5, 0.0, 1.0)
+		# Fast, dynamic, high-speed flight through window
+		var p = clamp(b3_t / 1.8, 0.0, 1.0)
 		var s_p = p * p * (3.0 - 2.0 * p) # Smoothstep easing
 
 		var start_pos = Vector3(0.0, 1.84, -0.6)
-		var end_pos = Vector3(0.8, 2.5, -16.0)
+		var end_pos = Vector3(0.8, 2.5, -18.0)
 		camera.position = start_pos.lerp(end_pos, s_p)
 
 		var start_look = Vector3(0.0, 1.96, -4.0)
@@ -347,10 +374,10 @@ func _update_sequence(t: float, dt: float) -> void:
 		var cur_look = start_look.lerp(end_look, s_p)
 		camera.look_at(cur_look, Vector3.UP)
 
-		# Smooth rapid background darkening
-		fade_overlay.color = Color(0.0, 0.0, 0.0, clamp((b3_t - 0.7) / 1.4, 0.0, 0.90))
+		# Smooth rapid darkening
+		fade_overlay.color = Color(0.0, 0.0, 0.0, clamp(b3_t / 1.4, 0.0, 0.90))
 
 		# Fast title reveal
-		if b3_t > 0.8:
-			var title_p = clamp((b3_t - 0.8) / 1.3, 0.0, 1.0)
+		if b3_t > 0.5:
+			var title_p = clamp((b3_t - 0.5) / 1.0, 0.0, 1.0)
 			title_card.modulate.a = title_p

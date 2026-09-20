@@ -1,7 +1,7 @@
 extends Node3D
 
 var frame_count: int = 0
-var max_frames: int = 750 # 25.0s @ 30fps
+var max_frames: int = 1440 # 24.0s @ 60fps
 var frames_dir: String = "res://temp_frames/authentic_intro/"
 var anim_time: float = 0.0
 
@@ -75,7 +75,7 @@ var total_bash_chars: int = 0
 var infinite_digits_pool: String = ""
 
 func _ready() -> void:
-	print("[Linux TTY Intro] Initializing 25.0s timed intro sequence...")
+	print("[Linux TTY Intro] Initializing 24.0s @ 60 FPS sequence...")
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(frames_dir))
 	
 	total_bash_chars = bash_script_plain.length()
@@ -222,7 +222,8 @@ func _setup_ui() -> void:
 	title_card.add_child(subtitle_lbl)
 
 func _process(_delta: float) -> void:
-	var dt = 1.0 / 30.0
+	# Fixed step of 1/60s per frame for 60 FPS silky smooth motion
+	var dt = 1.0 / 60.0
 	anim_time += dt
 	_update_sequence(anim_time, dt)
 
@@ -235,57 +236,57 @@ func _process(_delta: float) -> void:
 
 	frame_count += 1
 	if frame_count >= max_frames:
-		print("[Linux TTY Intro] All 750 frames captured.")
+		print("[Linux TTY Intro] All 1440 frames captured.")
 		get_tree().quit(0)
 
 func _update_sequence(t: float, dt: float) -> void:
 	# =========================================================================
-	# BEAT 1: 0.0s to 12.0s -> CODE & TERMINAL (LONGEST BEAT - 12s)
+	# BEAT 1: 0.0s to 16.0s -> CODE & TERMINAL (LONGEST BEAT - 16s)
 	# =========================================================================
-	if t < 12.0:
+	if t < 16.0:
 		black_screen.visible = true
 		terminal_rtl.visible = true
 		black_hole_quad.visible = false
 		sun_sphere.visible = false
 		ship.visible = false
 
-		# Phase 1A: Typing bash script (0.0s to 6.5s)
-		if t < 6.5:
-			var typing_p = clamp(t / 6.0, 0.0, 1.0)
+		# Phase 1A: Typing bash script calmly (0.0s to 8.5s)
+		if t < 8.5:
+			var typing_p = clamp(t / 8.0, 0.0, 1.0)
 			var chars_to_show = int(typing_p * total_bash_chars)
 			var cursor = "[color=#5af78e]█[/color]" if fmod(t, 0.24) < 0.12 else " "
 			terminal_rtl.text = prompt_str + bash_script_bbcode + cursor
 			terminal_rtl.visible_characters = 54 + chars_to_show
 
-		# Phase 1B: Part 1 Run & Error (6.5s to 8.2s)
-		elif t < 8.2:
+		# Phase 1B: Part 1 Run & Error (8.5s to 10.8s)
+		elif t < 10.8:
 			terminal_rtl.visible_characters = -1
-			if t > 8.0:
+			if t > 10.6:
 				terminal_rtl.text = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] clear"
 			else:
 				var out = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] bash emergency_recovery.sh --check-relay\n\n"
 				out += "[color=#67d5ff]>> [1/3] VERIFYING QUANTUM RELAY HANDSHAKE (relay.unmilkyway.core)...[/color]\n"
-				if t >= 7.0:
+				if t >= 9.3:
 					out += "[color=#ff5555]>>> [ERR_CONNECTION_TIMEOUT] 0 repeaters in range. Link negotiation failed.[/color]\n"
 					out += "[color=#ff5555]    Galactic core communication grid unreachable. Signal lost.[/color]\n\n"
 					out += "[color=#ff7085][FAILED] EXIT CODE 1[/color]"
 				terminal_rtl.text = out
 
-		# Phase 1C: Part 2 Run & Error (8.2s to 9.8s)
-		elif t < 9.8:
+		# Phase 1C: Part 2 Run & Error (10.8s to 13.0s)
+		elif t < 13.0:
 			terminal_rtl.visible_characters = -1
-			if t > 9.6:
+			if t > 12.8:
 				terminal_rtl.text = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] clear"
 			else:
 				var out = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] bash emergency_recovery.sh --check-warp\n\n"
 				out += "[color=#67d5ff]>> [2/3] DIAGNOSING WARP CORE MAGNETIC CONTAINMENT & COILS...[/color]\n"
-				if t >= 8.8:
+				if t >= 11.6:
 					out += "[color=#ff5555]>>> [CRITICAL_MELTDOWN] SCRIPT ERROR: Hyperdrive coils vaporized.[/color]\n"
 					out += "[color=#ff5555]    Magnetic containment compromised. Relativistic propulsion offline.[/color]\n\n"
 					out += "[color=#ff7085][FAILED] EXIT CODE 2[/color]"
 				terminal_rtl.text = out
 
-		# Phase 1D: Part 3 Solve Distance & Infinite Stream (9.8s to 12.0s)
+		# Phase 1D: Part 3 Solve Distance & Infinite Stream (13.0s to 16.0s)
 		else:
 			terminal_rtl.visible_characters = -1
 			var out = "[color=#5af78e]astronaut@civitus-cockpit[/color]:[color=#57c7ff]~/systems[/color][color=#f1f1f0]$[/color] bash emergency_recovery.sh --solve-distance\n\n"
@@ -293,21 +294,21 @@ func _update_sequence(t: float, dt: float) -> void:
 			out += "[color=#98c379][OK] VECTOR SOLVED: GALACTIC CORE SINGULARITY (THE UNMILKY WAY).[/color]\n\n"
 			out += "[color=#e5c07b]CALCULATED DISTANCE TO HOME: [/color]"
 
-			var num_time = t - 10.1
-			var digits_count = int(clamp(num_time / 1.7, 0.0, 1.0) * 850)
+			var num_time = t - 13.3
+			var digits_count = int(clamp(num_time / 2.3, 0.0, 1.0) * 850)
 			var sub_digits = infinite_digits_pool.substr(0, digits_count)
 
 			out += "[color=#ffb454]" + sub_digits + "... AU[/color]\n\n"
-			if num_time > 1.0:
+			if num_time > 1.2:
 				out += "[color=#ff7085]>>> SYSTEM WARNING: INFINITE DISTANCE DETECTED // TRAVEL TIME: UNMEASURABLE[/color]"
 
 			terminal_rtl.text = out
 
 	# =========================================================================
-	# BEAT 2: 12.0s to 19.5s -> SUPERMASSIVE BLACK HOLE (SECOND LONGEST - 7.5s)
+	# BEAT 2: 16.0s to 19.5s -> SUPERMASSIVE BLACK HOLE (SHORTENED TO 3.5s)
 	# =========================================================================
 	elif t < 19.5:
-		var b2_t = t - 12.0
+		var b2_t = t - 16.0
 		black_screen.visible = false
 		terminal_rtl.visible = false
 
@@ -315,12 +316,12 @@ func _update_sequence(t: float, dt: float) -> void:
 		sun_sphere.visible = false
 		ship.visible = false
 
-		camera.position = Vector3(0, 0, lerp(13.5, 6.2, b2_t / 7.5))
+		camera.position = Vector3(0, 0, lerp(12.5, 6.8, b2_t / 3.5))
 		camera.look_at(Vector3.ZERO, Vector3.UP)
-		black_hole_quad.rotation.z += dt * 0.035
+		black_hole_quad.rotation.z += dt * 0.04
 
 	# =========================================================================
-	# BEAT 3: 19.5s to 25.0s -> CABIN, WINDOW & ULTRA SMOOTH SUN FLIGHT (5.5s)
+	# BEAT 3: 19.5s to 24.0s -> CABIN & ULTRA SMOOTH 60 FPS FORWARD GLIDE (4.5s)
 	# =========================================================================
 	else:
 		var b3_t = t - 19.5
@@ -333,12 +334,12 @@ func _update_sequence(t: float, dt: float) -> void:
 		sun_sphere.rotation.y += dt * 0.08
 
 		# Ultra smooth forward camera glide through the window cutout
-		var p = clamp(b3_t / 5.2, 0.0, 1.0)
-		# Smoothstep easing (S-curve: slow start, constant glide, slow stop)
-		var s_p = p * p * (3.0 - 2.0 * p)
+		var p = clamp(b3_t / 4.4, 0.0, 1.0)
+		var s_p = p * p * (3.0 - 2.0 * p) # Smoothstep easing
 
+		# Gentle displacement from cockpit center (Z=-0.6) smoothly floating forward
 		var start_pos = Vector3(0.0, 1.84, -0.6)
-		var end_pos = Vector3(1.0, 2.7, -27.0)
+		var end_pos = Vector3(0.8, 2.5, -14.0)
 		camera.position = start_pos.lerp(end_pos, s_p)
 
 		var start_look = Vector3(0.0, 1.96, -4.0)
@@ -347,9 +348,9 @@ func _update_sequence(t: float, dt: float) -> void:
 		camera.look_at(cur_look, Vector3.UP)
 
 		# Smooth progressive background darkening
-		fade_overlay.color = Color(0.0, 0.0, 0.0, clamp((b3_t - 1.8) / 2.0, 0.0, 0.90))
+		fade_overlay.color = Color(0.0, 0.0, 0.0, clamp((b3_t - 1.5) / 1.8, 0.0, 0.90))
 
 		# Smooth title fade-in
-		if b3_t > 2.0:
-			var title_p = clamp((b3_t - 2.0) / 1.8, 0.0, 1.0)
+		if b3_t > 1.8:
+			var title_p = clamp((b3_t - 1.8) / 1.6, 0.0, 1.0)
 			title_card.modulate.a = title_p

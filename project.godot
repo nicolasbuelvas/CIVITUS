@@ -12,8 +12,9 @@ config_version=5
 
 config/name="CIVITUS: Procedural Exploration"
 config/description="CIVITUS: Procedural Space Survival and Exploration."
-run/main_scene="res://scenes/screens/main_menu.tscn"
+run/main_scene="res://scenes/screens/boot_splash.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
+boot_splash/show_image=false
 boot_splash/bg_color=Color(0.04, 0.04, 0.08, 1)
 config/icon="res://icon.png"
 

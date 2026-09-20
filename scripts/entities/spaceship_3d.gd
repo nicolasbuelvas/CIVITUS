@@ -1,5 +1,7 @@
 extends Node3D
 
+const LandingFXProfile = preload("res://scripts/effects/landing_fx_profile.gd")
+
 signal hyperdrive_launched()
 signal hull_integrity_changed(health_dict: Dictionary, is_breached: bool)
 signal landing_completed()
@@ -31,6 +33,21 @@ var player_ref: CharacterBody3D = null
 # Crash pod integrity & environmental weathering
 var capsule_hull_hp: float = 100.0
 var active_hull_material: StandardMaterial3D = null
+var landing_tween: Tween = null
+
+func abort_landing() -> void:
+	is_landing_intro_active = false
+	if landing_tween and landing_tween.is_valid():
+		landing_tween.kill()
+
+func _exit_tree() -> void:
+	abort_landing()
+
+# Rocket Engine Visual FX & Thermal State
+var active_nozzle_material: StandardMaterial3D = null
+var active_flame_material: ShaderMaterial = null
+var engine_fire_stream: CPUParticles3D = null
+var engine_light_ref: OmniLight3D = null
 
 func _ready() -> void:
 	interior_area.body_entered.connect(_on_cabin_entered)
@@ -60,6 +77,91 @@ func _ready() -> void:
 		is_ramp_anchored = true
 		is_ramp_falling = false
 
+func setup_landing_engine_fx(planet_params: Dictionary = {}) -> void:
+	if planet_params.is_empty() and is_instance_valid(GameManager) and GameManager.current_planet is Dictionary:
+		planet_params = GameManager.current_planet
+		
+	var profile = LandingFXProfile.get_profile(planet_params)
+	
+	# 1. MainRocketEngine Nozzle incandescence (heats up during retro-burn)
+	var engine_mesh = get_node_or_null("HullStructure/MainRocketEngine") as MeshInstance3D
+	if engine_mesh:
+		if not active_nozzle_material:
+			var base_mat = engine_mesh.material_override
+			if not base_mat and engine_mesh.mesh:
+				base_mat = engine_mesh.mesh.material
+			if base_mat and base_mat is StandardMaterial3D:
+				active_nozzle_material = base_mat.duplicate()
+			else:
+				active_nozzle_material = StandardMaterial3D.new()
+			engine_mesh.material_override = active_nozzle_material
+			
+		active_nozzle_material.emission_enabled = true
+		active_nozzle_material.emission = profile.nozzle_heat_color
+		active_nozzle_material.emission_energy_multiplier = 3.5
+		
+	# 2. Supersonic Plume Shader tailored to planet atmospheric backpressure
+	var flame_plume = get_node_or_null("HullStructure/MainRocketEngine/FlamePivot/FlamePlume") as MeshInstance3D
+	if flame_plume:
+		if not active_flame_material:
+			var f_mat = flame_plume.get_active_material(0)
+			if f_mat and f_mat is ShaderMaterial:
+				active_flame_material = f_mat.duplicate()
+			else:
+				var s = load("res://assets/shaders/rocket_flame.gdshader")
+				active_flame_material = ShaderMaterial.new()
+				active_flame_material.shader = s
+			flame_plume.material_override = active_flame_material
+			
+		active_flame_material.set_shader_parameter("core_color", profile.engine_core_color)
+		active_flame_material.set_shader_parameter("flame_color", profile.engine_flame_color)
+		active_flame_material.set_shader_parameter("rim_color", profile.engine_rim_color)
+		active_flame_material.set_shader_parameter("shock_diamond_freq", profile.shock_diamond_freq)
+		active_flame_material.set_shader_parameter("flame_speed", profile.flame_speed)
+		active_flame_material.set_shader_parameter("expansion_power", profile.expansion_power)
+		
+	# 3. Dynamic Engine Light (localized beneath the heat shield, illuminating only ground and legs)
+	engine_light_ref = get_node_or_null("HullStructure/MainRocketEngine/FlamePivot/EngineLight") as OmniLight3D
+	if engine_light_ref:
+		engine_light_ref.position = Vector3(0, -0.65, 0)
+		engine_light_ref.light_color = profile.engine_light_color
+		engine_light_ref.light_energy = 6.0
+		engine_light_ref.omni_range = 16.0
+		engine_light_ref.visible = true
+		
+	# 4. Engine Sparks (pointing strictly down towards ground)
+	var sparks = get_node_or_null("HullStructure/MainRocketEngine/FlamePivot/RocketSparks") as CPUParticles3D
+	if sparks:
+		sparks.color = profile.engine_sparks_color
+		sparks.direction = Vector3(0, -1, 0)
+		sparks.gravity = Vector3(0, -14.0, 0)
+		
+	var flame_pivot = get_node_or_null("HullStructure/MainRocketEngine/FlamePivot")
+	
+	# 5. Engine Fire Stream (high-velocity supersonic fire tongues jetting straight down)
+	if flame_pivot and not engine_fire_stream:
+		engine_fire_stream = CPUParticles3D.new()
+		engine_fire_stream.name = "EngineFireStream"
+		engine_fire_stream.local_coords = false
+		engine_fire_stream.direction = Vector3(0, -1, 0)
+		engine_fire_stream.spread = 6.0
+		engine_fire_stream.gravity = Vector3(0, -14.0, 0) # Pulls strictly downward to ground
+		engine_fire_stream.initial_velocity_min = 24.0
+		engine_fire_stream.initial_velocity_max = 38.0
+		engine_fire_stream.scale_amount_min = 0.5
+		engine_fire_stream.scale_amount_max = 1.3
+		engine_fire_stream.lifetime = 0.35
+		engine_fire_stream.amount = 28
+		engine_fire_stream.emitting = false
+		var stream_mesh = QuadMesh.new()
+		stream_mesh.size = Vector2(1.2, 1.2)
+		stream_mesh.material = LandingFXProfile.create_billboard_mat(LandingFXProfile.get_soft_circle_texture(), true)
+		engine_fire_stream.mesh = stream_mesh
+		flame_pivot.add_child(engine_fire_stream)
+		
+	if engine_fire_stream:
+		engine_fire_stream.color = profile.engine_flame_color
+
 func play_landing_intro(target_pos: Vector3, up_dir: Vector3) -> void:
 	is_landing_intro_active = true
 	var start_pos = target_pos + up_dir * 88.0
@@ -71,6 +173,9 @@ func play_landing_intro(target_pos: Vector3, up_dir: Vector3) -> void:
 		ramp_current_angle = RAMP_RETRACTED_ANGLE
 		is_ramp_falling = false
 		is_ramp_anchored = false
+		
+	# Setup planet-specific propulsion flame, nozzle thermal glow, and exhaust particles
+	setup_landing_engine_fx()
 	
 	var flame_pivot = get_node_or_null("HullStructure/MainRocketEngine/FlamePivot")
 	var sparks = get_node_or_null("HullStructure/MainRocketEngine/FlamePivot/RocketSparks")
@@ -79,12 +184,16 @@ func play_landing_intro(target_pos: Vector3, up_dir: Vector3) -> void:
 		flame_pivot.scale = Vector3(1.0, 1.0, 1.0)
 	if sparks:
 		sparks.emitting = true
+	if engine_fire_stream:
+		engine_fire_stream.emitting = true
 	
 	AudioManager.play("reentry", 0.80, 4.5)
 	AudioManager.play("thruster", 0.90, 4.0)
 	
 	# Smooth continuous atmospheric retro-burn descent without intermediate slowdowns
-	var tw = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	abort_landing()
+	landing_tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var tw = landing_tween
 	
 	# Continuous descent: high speed in upper atmosphere decelerating smoothly into touchdown
 	tw.tween_property(self, "global_position", target_pos, 5.4)
@@ -99,6 +208,21 @@ func play_landing_intro(target_pos: Vector3, up_dir: Vector3) -> void:
 			flame_pivot.visible = false
 		if sparks:
 			sparks.emitting = false
+		if engine_fire_stream:
+			engine_fire_stream.emitting = false
+		if engine_light_ref:
+			engine_light_ref.light_energy = 0.0
+			engine_light_ref.visible = false
+			
+		# Smooth nozzle thermal cooldown: hot glowing metal cools down over 3.2s
+		if active_nozzle_material:
+			var tw_nozzle_cool = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tw_nozzle_cool.tween_property(active_nozzle_material, "emission_energy_multiplier", 0.05, 3.2)
+			tw_nozzle_cool.tween_callback(func():
+				if active_nozzle_material:
+					active_nozzle_material.emission_enabled = false
+			)
+			
 		AudioManager.play("docking", 1.0, 5.0)
 		
 		# KSP landing leg suspension compression bounce
@@ -139,6 +263,11 @@ func _physics_process(delta: float) -> void:
 		boarding_ramp.rotation.x = ramp_current_angle
 
 func _process(delta: float) -> void:
+	# Supersonic combustion pulsation on the engine light during descent
+	if is_landing_intro_active and is_instance_valid(engine_light_ref):
+		var t_sec = Time.get_ticks_msec() / 1000.0
+		engine_light_ref.light_energy = 7.5 + sin(t_sec * 38.0) * 1.4 + cos(t_sec * 52.0) * 0.9
+
 	var planet = GameManager.current_planet
 	var temp = planet.get("temperature", 20.0)
 	var is_hostile_temp = (temp > 65.0 or temp < -35.0)
@@ -154,8 +283,26 @@ func _process(delta: float) -> void:
 		capsule_hull_hp = max(10.0, capsule_hull_hp - dmg_rate * delta)
 		_update_hazard_oxidation_visuals(planet, temp)
 
-	# 2. Cabin is ALWAYS a 100% SAFE HAVEN
-	if is_player_in_cabin:
+	# 2. Dynamic tidal fluid contact: affected by rising tides but NEVER destroyed
+	var ship_dist = global_position.length()
+	var planet_ref = get_parent()
+	var ocean_r = 160.0
+	if planet_ref and planet_ref.has_method("get_ocean_surface_radius"):
+		ocean_r = planet_ref.get_ocean_surface_radius()
+	elif GameManager.current_planet.has("radius"):
+		ocean_r = float(GameManager.current_planet.get("radius", 160.0))
+		
+	var has_fluid = str(planet.get("water_status", "Seco / Desolado")) != "Seco / Desolado" and str(planet.get("water_status", "")) != ""
+	if has_fluid and ship_dist < (ocean_r + 1.25):
+		var water_stat = str(planet.get("water_status", ""))
+		var is_molten = planet.get("is_molten", false) or water_stat == "Lava Fundida"
+		var fluid_corrosion = 2.0 if is_molten else 0.45
+		# Ship is affected by fluid contact, but strictly safe from destruction (minimum 25.0 HP threshold)
+		capsule_hull_hp = max(25.0, capsule_hull_hp - fluid_corrosion * delta)
+		_update_hazard_oxidation_visuals(planet, temp)
+
+	# 3. Safe Haven: vitals (O2, Suit Hull, Fuel) regenerate ONLY when hatch door is hermetically CLOSED!
+	if is_player_in_cabin and not is_hatch_open and not is_operating_hatch:
 		GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 60.0 * delta)
 		GameManager.player_stats.hull = min(100.0, GameManager.player_stats.hull + 35.0 * delta)
 		GameManager.player_stats.fuel = min(100.0, GameManager.player_stats.fuel + 45.0 * delta)

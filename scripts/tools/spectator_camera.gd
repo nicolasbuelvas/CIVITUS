@@ -19,6 +19,8 @@ var info_panel: PanelContainer = null
 var info_label: Label = null
 var status_banner: Label = null
 var current_category: int = 0
+var is_rotation_frozen: bool = false
+var solar_angle: float = 0.0
 
 const CATEGORY_NAMES = [
 	"1. HABITABLE (Clase H - Agua y Biósfera)",
@@ -26,16 +28,18 @@ const CATEGORY_NAMES = [
 	"3. CRIOGÉNICO (Clase K - Metano y Hielo)",
 	"4. TÓXICO (Clase V - Ácido Sulfúrico)",
 	"5. ÍGNEO (Clase S - Magma y Basalto)",
-	"6. VACÍO (Clase D - Lunar / Sin Atmósfera)"
+	"6. VACÍO (Clase D - Lunar / Sin Atmósfera)",
+	"7. OCÉANO GLOBAL 100% (Clase O - Acuático Pelágico)",
+	"8. SINGULARIDAD (Clase X • PRO - Plasma Cuántico)"
 ]
 
 func _ready() -> void:
 	current = true
-	far = 2500.0
+	far = 3000.0
 	fov = 75.0
 	
 	# Initial position: in high orbit looking down towards North Pole
-	global_position = Vector3(0, 220, 110)
+	global_position = Vector3(0, 225, 120)
 	look_at(Vector3(0, 160, 0), Vector3.UP)
 	
 	var rot = transform.basis.get_euler()
@@ -46,8 +50,9 @@ func _ready() -> void:
 	_capture_mouse(true)
 	current_category = 0
 	
-	# Explicitly generate Category 0 (Habitable / Ocean) on startup once scene tree is ready
-	call_deferred("_generate_planet_category", 0)
+	# Explicitly generate Category 6 (100% Ocean World: Thalassa-777) on startup
+	current_category = 6
+	call_deferred("_generate_planet_category", 6, 700777)
 
 func _create_spectator_hud() -> void:
 	var canvas = CanvasLayer.new()
@@ -59,7 +64,7 @@ func _create_spectator_hud() -> void:
 	info_panel = PanelContainer.new()
 	info_panel.anchors_preset = Control.PRESET_TOP_LEFT
 	info_panel.position = Vector2(24, 20)
-	info_panel.custom_minimum_size = Vector2(380, 230)
+	info_panel.custom_minimum_size = Vector2(430, 260)
 	
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.03, 0.06, 0.12, 0.88)
@@ -93,18 +98,18 @@ func _create_spectator_hud() -> void:
 	status_banner.offset_top = 25.0
 	status_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status_banner.add_theme_font_size_override("font_size", 16)
-	status_banner.add_theme_color_override("font_color", Color(0.4, 1.0, 0.7))
+	status_banner.add_theme_color_override("font_color", Color(0.35, 1.0, 0.75))
 	status_banner.text = ""
 	canvas.add_child(status_banner)
 	
 	# Bottom Controls Help Bar
 	var help_label = Label.new()
 	help_label.anchors_preset = Control.PRESET_BOTTOM_WIDE
-	help_label.offset_top = -52.0
+	help_label.offset_top = -54.0
 	help_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	help_label.add_theme_font_size_override("font_size", 13)
-	help_label.add_theme_color_override("font_color", Color(0.80, 0.92, 1.0, 0.95))
-	help_label.text = "[WASD] Volar | [Espacio/Ctrl] Subir/Bajar | [Rueda] Velocidad | [1-6] Categorías (Pulsa de nuevo para re-generar) | [Tab] Ratón"
+	help_label.add_theme_color_override("font_color", Color(0.82, 0.94, 1.0, 0.95))
+	help_label.text = "[WASD] Volar | [Espacio/Ctrl] Subir/Bajar | [1-8] Categorías | [R] Random | [O] Órbita | [P] Superficie | [T] Sol | [F] Giro | [H] HUD"
 	canvas.add_child(help_label)
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -118,7 +123,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				hud_visible = not hud_visible
 				if info_panel: info_panel.visible = hud_visible
 			KEY_R:
-				_generate_planet_category(randi() % 6)
+				_generate_planet_category(randi() % 8)
 			KEY_1:
 				_generate_planet_category(0) # Base: Habitable / Templado
 			KEY_2:
@@ -131,6 +136,18 @@ func _unhandled_input(event: InputEvent) -> void:
 				_generate_planet_category(4) # Ígneo / Magmático
 			KEY_6:
 				_generate_planet_category(5) # Vacío / Lunar
+			KEY_7:
+				_generate_planet_category(6) # Océano Global 100% (Acuático Pelágico)
+			KEY_8:
+				_generate_planet_category(7) # Singularidad (Clase X • PRO)
+			KEY_O:
+				_teleport_orbit()
+			KEY_P:
+				_teleport_surface()
+			KEY_T:
+				_advance_solar_cycle()
+			KEY_F:
+				_toggle_planetary_rotation()
 
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -144,6 +161,52 @@ func _unhandled_input(event: InputEvent) -> void:
 		yaw -= event.relative.x * mouse_sensitivity
 		pitch = clampf(pitch - event.relative.y * mouse_sensitivity, -deg_to_rad(89.0), deg_to_rad(89.0))
 		transform.basis = Basis.from_euler(Vector3(pitch, yaw, 0.0))
+
+func _teleport_orbit() -> void:
+	global_position = Vector3(0, 240, 130)
+	look_at(Vector3.ZERO, Vector3.UP)
+	var rot = transform.basis.get_euler()
+	pitch = rot.x
+	yaw = rot.y
+	_notify("🔭 Vista Órbita Global (Altitud: ~110m)")
+
+func _teleport_surface() -> void:
+	var p = GameManager.current_planet
+	var r = p.get("radius", 160.0)
+	global_position = Vector3(0, r + 12.0, 16.0)
+	look_at(Vector3(0, r, 0), Vector3.UP)
+	var rot = transform.basis.get_euler()
+	pitch = rot.x
+	yaw = rot.y
+	_notify("🌍 Vista Superficie y Relieve (Altitud: ~12m)")
+
+func _toggle_planetary_rotation() -> void:
+	is_rotation_frozen = not is_rotation_frozen
+	var parent_node = get_parent()
+	if parent_node:
+		var planet = parent_node.get_node_or_null("SphericalPlanet")
+		if planet:
+			planet.set_process(not is_rotation_frozen)
+	_notify("⏱ Rotación planetaria: %s" % ("PAUSADA" if is_rotation_frozen else "REANUDADA"))
+
+func _advance_solar_cycle() -> void:
+	solar_angle += PI * 0.25 # Advance 45 degrees
+	var parent_node = get_parent()
+	if parent_node:
+		var sun = parent_node.get_node_or_null("SunLight") as DirectionalLight3D
+		if sun:
+			var sun_x = cos(solar_angle) * 0.8
+			var sun_y = sin(solar_angle) * 0.75 + 0.25
+			var sun_z = sin(solar_angle * 0.7) * 0.6
+			sun.transform.basis = Basis.looking_at(Vector3(sun_x, -sun_y, sun_z).normalized(), Vector3.UP)
+			_notify("☀️ Posición Solar: %d°" % int(fposmod(rad_to_deg(solar_angle), 360.0)))
+
+func _notify(msg: String) -> void:
+	if status_banner:
+		status_banner.text = msg
+		var tween = create_tween()
+		tween.tween_interval(2.5)
+		tween.tween_callback(func(): if status_banner and status_banner.text == msg: status_banner.text = "")
 
 func _capture_mouse(capture: bool) -> void:
 	mouse_captured = capture
@@ -192,44 +255,54 @@ func _update_telemetry() -> void:
 	var temp = p.get("temperature", 22.0)
 	var atmo = p.get("atmosphere", 1.0)
 	var grav = p.get("gravity_g", 1.0)
+	var grav_ms2 = grav * 9.8
 	var water_stat = p.get("water_status", "Seco")
+	var is_ocean = bool(p.get("is_ocean_world", false))
+	var ocean_cov = float(p.get("ocean_coverage", 1.0 if is_ocean else (0.68 if water_stat != "Seco / Desolado" and water_stat != "" else 0.0)))
 	var p_seed = p.get("seed", 1337)
+	var rad = p.get("radiation", 0.02)
+	
+	var ocean_text = "0.0% (Seco / Desolado)"
+	if is_ocean or ocean_cov >= 0.99:
+		ocean_text = "100.0% (Océano Global Pelágico)"
+	elif ocean_cov > 0.0:
+		ocean_text = "%.1f%% (Océanos y Mares)" % (ocean_cov * 100.0)
 	
 	var cat_name = CATEGORY_NAMES[current_category] if current_category < CATEGORY_NAMES.size() else "Desconocida"
 	
 	info_label.text = (
 		"★ INSPECTOR PROCEDURAL CIVITUS ★\n" +
 		"---------------------------------------------------\n" +
-		"Categoría Activa: %s\n" +
-		"Planeta: %s\n" +
+		"Categoría: %s\n" +
+		"Planeta: %s | Semilla: #%d\n" +
 		"Clasificación: %s\n" +
-		"Semilla Procedural: %d\n" +
+		"Cobertura Líquida: %s\n" +
 		"---------------------------------------------------\n" +
-		"Temperatura: %.1f °C | Gravedad: %.2f G\n" +
-		"Presión Atmosférica: %.2f atm | Fluido: %s\n" +
+		"Temperatura: %.1f °C | Gravedad: %.2f G (%.1f m/s²)\n" +
+		"Atmósfera: %.2f atm | Radiación: %.2f rad/s\n" +
+		"Estado del Fluido: %s\n" +
 		"---------------------------------------------------\n" +
-		"Altitud radial: %.1f m | Velocidad: %.0f m/s\n" +
-		"(Tip: Pulsa la misma tecla para regenerar otro)\n"
+		"Altitud radial: %.1f m | Velocidad vuelo: %.0f m/s\n" +
+		"[1-8] Categorías | [R] Random | [O] Órbita | [P] Superficie\n" +
+		"[T] Hora Solar | [F] Rotación | [H] Ocultar HUD\n"
 	) % [
-		cat_name, p_name, p_type, p_seed,
-		temp, grav, atmo, water_stat,
+		cat_name, p_name, p_seed,
+		p_type, ocean_text,
+		temp, grav, grav_ms2,
+		atmo, rad,
+		water_stat,
 		alt, fly_speed
 	]
 
-func _generate_planet_category(category_idx: int) -> void:
+func _generate_planet_category(category_idx: int, forced_seed: int = -1) -> void:
 	current_category = category_idx
-	var new_seed = randi() % 900000 + 100
+	var new_seed = forced_seed if forced_seed > 0 else (randi() % 900000 + 100)
 	
 	var p = SolarSystem.generate_procedural_planet_for_archetype(category_idx, new_seed)
 	GameManager.select_planet(p)
 	
-	if status_banner:
-		var cat_name = CATEGORY_NAMES[category_idx] if category_idx < CATEGORY_NAMES.size() else ""
-		status_banner.text = "⚡ Regenerado: %s (Semilla #%d)" % [p.get("name", ""), new_seed]
-		# Clear banner after 2.5 seconds
-		var tween = create_tween()
-		tween.tween_interval(2.5)
-		tween.tween_callback(func(): if status_banner: status_banner.text = "")
+	var cat_name = CATEGORY_NAMES[category_idx] if category_idx < CATEGORY_NAMES.size() else ""
+	_notify("⚡ Regenerado: %s (Semilla #%d)" % [p.get("name", ""), new_seed])
 		
 	_reload_planet_scene()
 
@@ -239,12 +312,17 @@ func _reload_planet_scene() -> void:
 		return
 	var old_planet = parent_node.get_node_or_null("SphericalPlanet")
 	if old_planet:
+		if old_planet.has_method("abort_generation"):
+			old_planet.abort_generation()
 		old_planet.free() # Immediate free so name isn't duplicated
 		
 	var scene = load("res://scenes/world/spherical_planet.tscn")
 	var new_planet = scene.instantiate()
 	new_planet.name = "SphericalPlanet"
 	parent_node.add_child(new_planet)
+	
+	# Assert spectator camera priority
+	current = true
 	
 	if "planet" in parent_node:
 		parent_node.planet = new_planet

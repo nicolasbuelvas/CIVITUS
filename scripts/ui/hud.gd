@@ -8,6 +8,9 @@ extends Control
 @onready var sprint_btn: TextureButton = $MobileLayer/ActionCluster/SprintBtn
 @onready var cam_toggle_btn: Button = get_node_or_null("MobileLayer/ActionCluster/CamToggleBtn")
 
+var thrust_icon = preload("res://assets/sprites/icon_thrust.png")
+var swim_icon = preload("res://assets/sprites/icon_swim.png")
+
 @onready var o2_bar: ProgressBar = $TopLayer/VitalsPod/Margin/VBox/O2Row/O2Bar
 @onready var o2_val_label: Label = $TopLayer/VitalsPod/Margin/VBox/O2Row/Val
 @onready var fuel_bar: ProgressBar = $TopLayer/VitalsPod/Margin/VBox/FuelRow/FuelBar
@@ -246,6 +249,13 @@ func _on_stats_changed(o2: float, fuel: float, hull: float) -> void:
 	
 	if player and not player.is_first_person and vitals_pod:
 		vitals_pod.visible = (o2 < 20.0 or hull < 25.0)
+
+	# Dynamic Jetpack vs Swim Button Icon
+	if jump_btn and is_instance_valid(player):
+		var is_swimming_manual = player.is_in_liquid and fuel <= 0.01
+		var target_icon = swim_icon if is_swimming_manual else thrust_icon
+		if jump_btn.texture_normal != target_icon:
+			jump_btn.texture_normal = target_icon
 
 # Multi-Touch Camera Drag & Two-Finger Pinch Zoom (Excluding Joystick)
 func _on_touch_camera_gui_input(event: InputEvent) -> void:

@@ -123,10 +123,10 @@ void fragment() {
 	// Darken joint crevices between hexagonal columns
 	shaded_terrain *= (0.50 + 0.50 * edge_groove);
 	
-	// Shoreline wetness near sea level (darkens rock and adds gloss)
+	// Shoreline wetness near sea level (adds slight sheen and rich mineral saturation without pitch-black darkening)
 	float dist_to_sea = abs(v_radial_dist - sea_level_radius);
 	float is_shore_wet = 1.0 - smoothstep(0.0, 1.4, dist_to_sea);
-	shaded_terrain = mix(shaded_terrain, shaded_terrain * 0.65, is_shore_wet * 0.85);
+	shaded_terrain = mix(shaded_terrain, shaded_terrain * 0.90, is_shore_wet * 0.40);
 	
 	// Normal perturbation for rough micro-relief
 	vec3 perturbed_norm = norm;

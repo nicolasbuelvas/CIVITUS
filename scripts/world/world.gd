@@ -209,16 +209,53 @@ func _update_lighting_and_sky() -> void:
 	sun_light.light_energy = base_light_energy * clampf(sunset_t + 0.15, 0.05, 1.0)
 	
 	if env:
-		if local_sun_altitude > 0.10:
-			var day_amb = atmosphere_color.lerp(star_color, 0.25).lightened(0.10) * clampf(effective_density * 0.40, 0.20, 0.55)
-			env.ambient_light_color = day_amb
-		elif local_sun_altitude >= -0.20:
-			var tw_t = smoothstep(-0.20, 0.10, local_sun_altitude)
-			var twilight_amb = twilight_color.darkened(0.4) * clampf(effective_density * 0.35, 0.15, 0.4)
-			var night_amb = Color(0.035, 0.040, 0.065)
-			env.ambient_light_color = night_amb.lerp(twilight_amb, tw_t)
+		# Check if camera or observer is currently submerged inside planetary fluid
+		var active_cam = get_viewport().get_camera_3d() if is_inside_tree() else null
+		var cam_pos = active_cam.global_position if is_instance_valid(active_cam) else (player_node.global_position if is_instance_valid(player_node) else Vector3.ZERO)
+		var sea_r = planet.get_ocean_surface_radius() if (is_instance_valid(planet) and planet.has_method("get_ocean_surface_radius")) else (float(planet.radius) if (is_instance_valid(planet) and "radius" in planet) else 160.0)
+		var p_params = GameManager.current_planet if is_instance_valid(GameManager) else {}
+		var has_fluid = str(p_params.get("water_status", "Seco / Desolado")) != "Seco / Desolado" and str(p_params.get("water_status", "")) != ""
+		var is_cam_underwater = has_fluid and (cam_pos.length() < sea_r)
+
+		if is_cam_underwater:
+			# Deep Fluid Volumetric Immersion: transforms underwater into authentic liquid realm
+			env.fog_enabled = true
+			env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
+			var water_stat = str(p_params.get("water_status", ""))
+			var chem = str(p_params.get("ocean_chemical", ""))
+			var is_molten = p_params.get("is_molten", false) or water_stat == "Lava Fundida" or chem == "magma"
+			var is_acid = water_stat == "Vapor Tóxico" or chem == "sulfuric_acid"
+			var is_cryo = water_stat == "Hielo Criogénico" or chem == "methane"
+			
+			if is_molten:
+				env.fog_light_color = Color(1.0, 0.25, 0.05)
+				env.fog_density = 0.085
+				env.ambient_light_color = Color(1.0, 0.35, 0.08)
+			elif is_acid:
+				env.fog_light_color = Color(0.38, 0.65, 0.12)
+				env.fog_density = 0.065
+				env.ambient_light_color = Color(0.32, 0.58, 0.15)
+			elif is_cryo:
+				env.fog_light_color = Color(0.12, 0.48, 0.82)
+				env.fog_density = 0.052
+				env.ambient_light_color = Color(0.15, 0.45, 0.75)
+			else:
+				var ocean_c: Color = p_params.get("ocean_color", Color(0.12, 0.48, 0.88))
+				env.fog_light_color = ocean_c.lerp(Color(0.04, 0.22, 0.58), 0.40)
+				env.fog_density = 0.045
+				env.ambient_light_color = ocean_c.lightened(0.15)
 		else:
-			env.ambient_light_color = Color(0.035, 0.040, 0.065)
+			env.fog_enabled = false
+			if local_sun_altitude > 0.10:
+				var day_amb = atmosphere_color.lerp(star_color, 0.25).lightened(0.10) * clampf(effective_density * 0.40, 0.20, 0.55)
+				env.ambient_light_color = day_amb
+			elif local_sun_altitude >= -0.20:
+				var tw_t = smoothstep(-0.20, 0.10, local_sun_altitude)
+				var twilight_amb = twilight_color.darkened(0.4) * clampf(effective_density * 0.35, 0.15, 0.4)
+				var night_amb = Color(0.035, 0.040, 0.065)
+				env.ambient_light_color = night_amb.lerp(twilight_amb, tw_t)
+			else:
+				env.ambient_light_color = Color(0.035, 0.040, 0.065)
 
 # Public helper for tactical visor / HUD solar telemetry
 func get_solar_time_display() -> String:

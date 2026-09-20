@@ -1,6 +1,8 @@
 extends Node3D
 class_name SphericalPlanet
 
+const LandingFXProfile = preload("res://scripts/effects/landing_fx_profile.gd")
+
 signal generation_step_changed(step_idx: int, total_steps: int, step_desc: String)
 signal planet_ready()
 
@@ -43,10 +45,53 @@ var meteor_timer: float = 8.0
 var landing_target_pos: Vector3 = Vector3.ZERO
 var landing_up_dir: Vector3 = Vector3.UP
 var is_landing_sequence_running: bool = false
+var is_aborted: bool = false
+var landing_cinematic_tween: Tween = null
 var scorch_crater_mat: ShaderMaterial = null
 var scorch_crater_node: MeshInstance3D = null
+var ground_plume_fire: CPUParticles3D = null
+var ground_plume_smoke: CPUParticles3D = null
 var ground_plume_dust: CPUParticles3D = null
 var ground_plume_sparks: CPUParticles3D = null
+
+# Dynamic Tidal Oscillations (Rising and falling coastline fluid)
+var tide_time: float = 0.0
+var tide_amplitude: float = 0.0
+var tide_speed: float = 0.065
+
+func abort_generation() -> void:
+	is_aborted = true
+	is_generating = false
+	if landing_cinematic_tween and landing_cinematic_tween.is_valid():
+		landing_cinematic_tween.kill()
+	if spaceship_instance and spaceship_instance.has_method("abort_landing"):
+		spaceship_instance.abort_landing()
+
+func _calc_tide_parameters(p_params: Dictionary) -> void:
+	var water_stat = str(p_params.get("water_status", "Seco / Desolado"))
+	if water_stat == "Seco / Desolado" or water_stat == "":
+		tide_amplitude = 0.0
+		return
+		
+	var grav_g: float = float(p_params.get("gravity_g", 1.0))
+	var ocean_cov: float = float(p_params.get("ocean_coverage", 0.68))
+	var is_ocean: bool = bool(p_params.get("is_ocean_world", false))
+	
+	# Low gravity facilitates dynamic tidal swell; expansive ocean coverage enhances liquid surge
+	var grav_factor = clampf(1.15 / sqrt(maxf(0.25, grav_g)), 0.6, 2.2)
+	var cov_factor = 1.0 if is_ocean else clampf(ocean_cov, 0.4, 1.25)
+	
+	# Dynamic shore rise and fall between +/-0.35m and +/-1.35m
+	tide_amplitude = 0.45 * grav_factor * cov_factor
+	tide_speed = 0.065
+
+func get_current_tide() -> float:
+	if tide_amplitude <= 0.001:
+		return 0.0
+	return sin(tide_time * tide_speed) * tide_amplitude + sin(tide_time * tide_speed * 2.2) * (tide_amplitude * 0.25)
+
+func get_ocean_surface_radius() -> float:
+	return radius + get_current_tide()
 
 # Global step tracking across 40 fine-grained micro-stages
 const TOTAL_SUBSTEPS: int = 40
@@ -66,6 +111,25 @@ func _ensure_resource_references() -> void:
 	if not basalt_scene: basalt_scene = load("res://scenes/entities/basalt_column.tscn")
 
 func _process(delta: float) -> void:
+	# Update dynamic tidal oscillation on planetary fluid
+	tide_time += delta
+	var current_ocean_r = get_ocean_surface_radius()
+	if is_instance_valid(ocean_instance):
+		ocean_instance.scale = Vector3.ONE * (current_ocean_r / radius)
+
+	# Update real-time fluid ripple wake around player (ONLY when player is actually in liquid!)
+	if is_instance_valid(ocean_instance) and is_instance_valid(player_instance):
+		var ocean_mat = ocean_instance.material_override as ShaderMaterial
+		if ocean_mat:
+			var player_in_water = bool(player_instance.get("is_in_liquid"))
+			if player_in_water:
+				ocean_mat.set_shader_parameter("character_pos", player_instance.global_position)
+				var p_speed = player_instance.velocity.length()
+				ocean_mat.set_shader_parameter("character_motion", clampf(p_speed / 4.5, 0.0, 1.5))
+			else:
+				ocean_mat.set_shader_parameter("character_pos", Vector3.ZERO)
+				ocean_mat.set_shader_parameter("character_motion", 0.0)
+
 	# Active chase camera from above tracking spaceship during descent
 	if has_node("LandingCinematicCamera3D") and is_instance_valid(spaceship_instance):
 		var cam = get_node_or_null("LandingCinematicCamera3D") as Camera3D
@@ -76,7 +140,7 @@ func _process(delta: float) -> void:
 			cam.global_position = target_cam_pos
 			cam.look_at(ship_pos + landing_up_dir * -1.5, landing_up_dir)
 
-		# Smooth progressive ground scorch and KSP-style surface plume blast under rocket
+		# Smooth progressive ground scorch and realistic supersonic surface interaction
 		if is_instance_valid(spaceship_instance) and not cam.get_meta("is_zooming", false):
 			var dist = spaceship_instance.global_position.distance_to(landing_target_pos)
 			if scorch_crater_mat:
@@ -85,9 +149,17 @@ func _process(delta: float) -> void:
 				scorch_crater_mat.set_shader_parameter("scorch_opacity", current_opacity)
 				scorch_crater_mat.set_shader_parameter("heat_glow", current_opacity * 1.35)
 				
-			# KSP Ground Blast: Rocket exhaust strikes surface when altitude < 28m
-			if dist <= 28.0:
-				var blast_intensity = clampf(1.0 - (dist / 28.0), 0.0, 1.0)
+			# Supersonic Ground Interaction: Engine exhaust strikes surface when altitude < 30m
+			if dist <= 30.0:
+				var blast_intensity = clampf(1.0 - (dist / 30.0), 0.0, 1.0)
+				if ground_plume_fire:
+					ground_plume_fire.emitting = true
+					ground_plume_fire.initial_velocity_min = 10.0 + blast_intensity * 14.0
+					ground_plume_fire.initial_velocity_max = 18.0 + blast_intensity * 16.0
+				if ground_plume_smoke:
+					ground_plume_smoke.emitting = true
+					ground_plume_smoke.initial_velocity_min = 6.0 + blast_intensity * 10.0
+					ground_plume_smoke.initial_velocity_max = 14.0 + blast_intensity * 12.0
 				if ground_plume_dust:
 					ground_plume_dust.emitting = true
 					ground_plume_dust.initial_velocity_min = 8.0 + blast_intensity * 12.0
@@ -95,6 +167,8 @@ func _process(delta: float) -> void:
 				if ground_plume_sparks:
 					ground_plume_sparks.emitting = true
 			else:
+				if ground_plume_fire: ground_plume_fire.emitting = false
+				if ground_plume_smoke: ground_plume_smoke.emitting = false
 				if ground_plume_dust: ground_plume_dust.emitting = false
 				if ground_plume_sparks: ground_plume_sparks.emitting = false
 
@@ -117,6 +191,8 @@ func _init_planet_world() -> void:
 	
 	var planet_params = GameManager.current_planet
 	var p_seed = planet_params.get("seed", 1337)
+	
+	_calc_tide_parameters(planet_params)
 	
 	noise.seed = p_seed
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
@@ -202,9 +278,10 @@ func _init_planet_world() -> void:
 		var fluid_shader = load("res://assets/shaders/spherical_fluid.gdshader")
 		var ocean_mat = ShaderMaterial.new()
 		ocean_mat.shader = fluid_shader
-		var p_ocean_col: Color = planet_params.get("ocean_color", Color(0.06, 0.35, 0.75))
-		ocean_mat.set_shader_parameter("fluid_color", Color(p_ocean_col.r, p_ocean_col.g, p_ocean_col.b, 0.82))
-		ocean_mat.set_shader_parameter("deep_color", Color(p_ocean_col.r * 0.45, p_ocean_col.g * 0.45, p_ocean_col.b * 0.45, 0.96))
+		var p_ocean_col: Color = planet_params.get("ocean_color", Color(0.12, 0.52, 0.90))
+		ocean_mat.set_shader_parameter("fluid_color", Color(p_ocean_col.r, p_ocean_col.g, p_ocean_col.b, 0.88))
+		var deep_col = p_ocean_col.lerp(Color(0.06, 0.28, 0.62), 0.35)
+		ocean_mat.set_shader_parameter("deep_color", Color(deep_col.r, deep_col.g, deep_col.b, 0.96))
 		ocean_mat.set_shader_parameter("wave_speed", 0.035)
 		ocean_mat.set_shader_parameter("wave_amplitude", 0.15)
 		ocean_mat.set_shader_parameter("roughness", 0.08)
@@ -350,13 +427,15 @@ func _init_planet_world() -> void:
 
 	# Sub 35: Activar cámara orbital 3D en segundo plano
 	generation_step_changed.emit(35, TOTAL_SUBSTEPS, GameManager.loc("shader_sub_9"))
-	var landing_cam = get_node_or_null("LandingCinematicCamera3D") as Camera3D
-	if landing_cam:
-		landing_cam.current = true
-	elif player_instance:
-		var cam: Camera3D = player_instance.get_node_or_null("CameraPivot/Camera3D")
-		if cam:
-			cam.current = true
+	var is_spectator_mode = (get_parent() and get_parent().has_node("SpectatorCamera3D"))
+	if not is_spectator_mode:
+		var landing_cam = get_node_or_null("LandingCinematicCamera3D") as Camera3D
+		if landing_cam:
+			landing_cam.current = true
+		elif player_instance:
+			var cam: Camera3D = player_instance.get_node_or_null("CameraPivot/Camera3D")
+			if cam:
+				cam.current = true
 	if is_inside_tree():
 		await get_tree().process_frame
 
@@ -400,7 +479,10 @@ func _init_planet_world() -> void:
 	# Standalone autostart (when running world directly without loading screen)
 	var has_loader = get_tree().root.find_child("LoadingScreen", true, false) != null
 	if not has_loader and not is_landing_sequence_running:
-		start_landing_cinematic()
+		if is_spectator_mode:
+			start_landing_cinematic(true)
+		else:
+			start_landing_cinematic(false)
 
 func _generate_single_face_data(normal: Vector3, params: Dictionary) -> Dictionary:
 	var vertices = PackedVector3Array()
@@ -501,8 +583,8 @@ func _generate_single_face_data(normal: Vector3, params: Dictionary) -> Dictiona
 func _determine_surface_color_smooth(h: float, p_ocean: Color, p_beach: Color, p_land: Color, p_mount: Color, p_peak: Color, norm_dir: Vector3 = Vector3.UP, planet_params: Dictionary = {}) -> Color:
 	var base_col: Color
 	if h < -3.5:
-		# Deep oceanic abyss / marine trench
-		base_col = p_ocean.darkened(0.42)
+		# Deep oceanic seabed - rich luminous azure tone instead of dark shadowy black
+		base_col = p_ocean.lerp(Color(0.12, 0.45, 0.82), 0.50)
 	elif h < 0.2:
 		# Shallow coastal shelf & riverbanks
 		var t = smoothstep(-3.5, 0.2, h)
@@ -575,7 +657,7 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 				var t_dir = Vector3(sin(t_ang) * t_dist_factor, 0.965, cos(t_ang) * t_dist_factor).normalized()
 				var t_elev = _get_elevation(t_dir)
 				var p_type_start = planet_params.get("type", "Habitable")
-				var is_start_tree_viable = (p_type_start.contains("Habitable") or p_type_start.contains("Tierra") or planet_params.get("has_oxygen", false)) and not planet_params.get("is_molten", false) and not p_type_start.contains("Vacío")
+				var is_start_tree_viable = (p_type_start.contains("Habitable") or p_type_start.contains("Tierra") or planet_params.get("has_oxygen", false)) and not planet_params.get("is_molten", false) and not p_type_start.contains("Vacío") and not planet_params.get("is_ocean_world", false)
 				if is_start_tree_viable and t_elev >= -0.5 and tree_scene:
 					var tree = tree_scene.instantiate()
 					tree.position = t_dir * (radius + t_elev)
@@ -625,9 +707,9 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 			var elev = _get_elevation(dir)
 			var surf_pos = dir * (radius + elev)
 			
-			# Flora spawns in valleys/plains: 0.0m <= elev <= 6.5m (strictly on habitable/viable worlds)
+			# Flora spawns in valleys/plains: 0.0m <= elev <= 6.5m (strictly on habitable/viable worlds without global ocean)
 			var p_type = planet_params.get("type", "Habitable")
-			var is_tree_viable = (p_type.contains("Habitable") or p_type.contains("Tierra") or planet_params.get("has_oxygen", false)) and not planet_params.get("is_molten", false) and not p_type.contains("Vacío")
+			var is_tree_viable = (p_type.contains("Habitable") or p_type.contains("Tierra") or planet_params.get("has_oxygen", false)) and not planet_params.get("is_molten", false) and not p_type.contains("Vacío") and not planet_params.get("is_ocean_world", false)
 			
 			if is_tree_viable and elev >= 0.0 and elev <= 6.5 and rng.randf() < 0.65:
 				if tree_scene:
@@ -707,6 +789,11 @@ func _setup_weather_particles(planet_params: Dictionary, center_pos: Vector3) ->
 	if not planet_params.get("has_atmosphere", true):
 		return
 		
+	var lvl = planet_params.get("level", 0)
+	if lvl == 0:
+		# Temperate habitable world has clear crisp air; zero water droplets falling on dry land
+		return
+		
 	weather_system = CPUParticles3D.new()
 	weather_system.name = "WeatherParticles"
 	weather_system.position = center_pos + Vector3.UP * 8.0
@@ -715,13 +802,7 @@ func _setup_weather_particles(planet_params: Dictionary, center_pos: Vector3) ->
 	weather_system.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
 	weather_system.emission_sphere_radius = 28.0
 	
-	var lvl = planet_params.get("level", 0)
 	match lvl:
-		0: # Habitable: floating spores / pollen
-			weather_system.color = Color(0.85, 1.0, 0.85, 0.45)
-			weather_system.gravity = Vector3(0, -1.2, 0)
-			weather_system.initial_velocity_min = 0.5
-			weather_system.initial_velocity_max = 2.0
 		1: # Desert: red dust storm
 			weather_system.color = Color(0.85, 0.45, 0.22, 0.55)
 			weather_system.gravity = Vector3(4.5, -0.5, 0) # horizontal wind
@@ -775,7 +856,7 @@ func _spawn_shooting_star() -> void:
 	tw.parallel().tween_property(mat, "albedo_color:a", 0.0, 1.2)
 	tw.tween_callback(star.queue_free)
 
-func start_landing_cinematic() -> void:
+func start_landing_cinematic(is_spectator: bool = false) -> void:
 	if is_landing_sequence_running:
 		return
 	is_landing_sequence_running = true
@@ -797,14 +878,26 @@ func start_landing_cinematic() -> void:
 		if spaceship_instance.has_method("play_landing_intro"):
 			spaceship_instance.play_landing_intro(landing_target_pos, landing_up_dir)
 			
-	var cam = get_node_or_null("LandingCinematicCamera3D") as Camera3D
-	if cam:
-		cam.current = true
-		if spaceship_instance:
-			var s_pos = spaceship_instance.global_position
-			var s_fwd = spaceship_instance.global_transform.basis.z.normalized()
-			cam.global_position = s_pos + landing_up_dir * 20.0 + s_fwd * 18.0
-			cam.look_at(s_pos + landing_up_dir * -1.5, landing_up_dir)
+	if not is_spectator:
+		var cam = get_node_or_null("LandingCinematicCamera3D") as Camera3D
+		if cam:
+			cam.current = true
+			if spaceship_instance:
+				var s_pos = spaceship_instance.global_position
+				var s_fwd = spaceship_instance.global_transform.basis.z.normalized()
+				cam.global_position = s_pos + landing_up_dir * 20.0 + s_fwd * 18.0
+				cam.look_at(s_pos + landing_up_dir * -1.5, landing_up_dir)
+	else:
+		if spaceship_instance and spaceship_instance.has_signal("landing_completed"):
+			if not spaceship_instance.landing_completed.is_connected(_on_spectator_landing_completed):
+				spaceship_instance.landing_completed.connect(_on_spectator_landing_completed)
+
+func _on_spectator_landing_completed() -> void:
+	if not is_instance_valid(self) or is_aborted:
+		return
+	var north_elev = _get_elevation(landing_up_dir)
+	var true_ground_pos = landing_up_dir * (radius + north_elev)
+	_spawn_ground_impact_effects(true_ground_pos, landing_up_dir)
 
 func _deploy_astronaut_node(north_dir: Vector3) -> void:
 	var parent_node = get_parent()
@@ -893,12 +986,17 @@ func _deploy_landing_camera(ground_ship_pos: Vector3, north_dir: Vector3) -> voi
 					player_instance.visible = true
 					player_instance.is_action_locked = true
 					player_instance.is_first_person = false
-					player_instance.set_suit_mode(true)
+					player_instance.set_suit_mode(false)
 					if player_instance.head: player_instance.head.visible = true
+					if player_instance.face: player_instance.face.visible = true
 					if player_instance.helmet:
 						player_instance.helmet.visible = true
-						player_instance.helmet.position = Vector3(0, 1.6, 0)
-						player_instance.helmet.rotation = Vector3.ZERO
+						player_instance.helmet.position = player_instance.HELMET_HELD_POS
+						player_instance.helmet.rotation = player_instance.HELMET_HELD_ROT
+					if player_instance.left_arm:
+						player_instance.left_arm.rotation = player_instance.LEFT_ARM_HELD_ROT
+					if player_instance.right_arm:
+						player_instance.right_arm.rotation = player_instance.RIGHT_ARM_HELD_ROT
 
 				# 2. Smooth zoom in from exterior into spaceship cabin continuously tracking astronaut
 				var p_head = player_instance.global_position + north_dir * 1.45 if is_instance_valid(player_instance) else spaceship_instance.global_position + north_dir * 1.6
@@ -978,73 +1076,120 @@ func _init_ground_scorch(pos: Vector3, up_dir: Vector3) -> void:
 	add_child(crater_inst)
 	scorch_crater_node = crater_inst
 	
-	# Kerbal Space Program style Ground Plume Blast: dust & sparks matching planet biome
+	# Kerbal Space Program style Ground Plume Blast & Supersonic Surface Interaction
 	var planet_params = GameManager.current_planet if is_instance_valid(GameManager) else {}
-	var lvl: int = planet_params.get("level", 0)
-	var p_type: String = str(planet_params.get("type", ""))
-	var has_atmo: bool = planet_params.get("has_atmosphere", true)
+	var profile = LandingFXProfile.get_profile(planet_params)
 	
-	var dust_color = Color(0.68, 0.58, 0.44, 0.65) # Habitable: loam dust
-	var spark_color = Color(1.0, 0.65, 0.20, 1.0) # Golden thermal sparks
-	var blast_gravity = Vector3(0, -0.8, 0)
-	
-	if p_type.contains("Desert") or p_type.contains("Desierto") or lvl == 1:
-		dust_color = Color(0.85, 0.44, 0.22, 0.85) # Desert: red oxide sand
-		spark_color = Color(1.0, 0.52, 0.12, 1.0)
-		blast_gravity = Vector3(0, -1.2, 0)
-	elif p_type.contains("Toxic") or p_type.contains("Acido") or lvl == 2:
-		dust_color = Color(0.65, 0.82, 0.18, 0.75) # Toxic: sulfur cloud
-		spark_color = Color(0.85, 1.0, 0.25, 1.0)
-		blast_gravity = Vector3(0, -0.5, 0)
-	elif p_type.contains("Cryo") or p_type.contains("Hielo") or lvl == 3:
-		dust_color = Color(0.88, 0.95, 1.0, 0.85) # Cryo: ice vapor & frost
-		spark_color = Color(0.55, 0.88, 1.0, 1.0)
-		blast_gravity = Vector3(0, -0.6, 0)
-	elif p_type.contains("Volcan") or p_type.contains("Lava") or lvl >= 4:
-		dust_color = Color(0.22, 0.18, 0.16, 0.90) # Volcanic: dark ash
-		spark_color = Color(1.0, 0.38, 0.05, 1.0)
-		blast_gravity = Vector3(0, -1.5, 0)
-	elif not has_atmo or p_type.contains("Luna") or p_type.contains("Barren") or p_type.contains("Vacio"):
-		dust_color = Color(0.72, 0.72, 0.75, 0.60) # Lunar: grey regolith spray
-		spark_color = Color(1.0, 0.70, 0.30, 0.9)
-		blast_gravity = Vector3(0, -0.4, 0)
-		
-	# 1. Radial Ground Surface Plume (expanding outward along the surface)
+	if scorch_crater_mat:
+		scorch_crater_mat.set_shader_parameter("crater_center_color", profile.crater_center_color)
+		scorch_crater_mat.set_shader_parameter("scorch_edge_color", profile.crater_edge_color)
+		scorch_crater_mat.set_shader_parameter("ember_color", profile.crater_ember_color)
+		var surf_col = planet_params.get("surface_color", Color(0.45, 0.40, 0.35))
+		scorch_crater_mat.set_shader_parameter("planet_regolith_color", surf_col)
+
+	var soft_circle_tex = LandingFXProfile.get_soft_circle_texture()
+	var soft_smoke_tex = LandingFXProfile.get_soft_smoke_texture()
+
+	# 1. Radial Ground Surface Fire Splash (hot supersonic gas deflecting horizontally FLAT along the ground)
+	ground_plume_fire = CPUParticles3D.new()
+	ground_plume_fire.name = "GroundPlumeFire"
+	ground_plume_fire.emitting = false
+	ground_plume_fire.amount = 50
+	ground_plume_fire.lifetime = 0.40
+	ground_plume_fire.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	ground_plume_fire.emission_ring_axis = Vector3(0, 1, 0)
+	ground_plume_fire.emission_ring_radius = 1.4
+	ground_plume_fire.emission_ring_inner_radius = 0.2
+	ground_plume_fire.direction = Vector3(0, 0, 0)
+	ground_plume_fire.flatness = 1.0 # 100% horizontal flat deflection along the ground surface, never rises into cabin
+	ground_plume_fire.gravity = Vector3(0, -1.5, 0) # Hugs the ground tightly beneath landing legs
+	ground_plume_fire.radial_accel_min = 28.0
+	ground_plume_fire.radial_accel_max = 48.0
+	ground_plume_fire.initial_velocity_min = 14.0
+	ground_plume_fire.initial_velocity_max = 26.0
+	ground_plume_fire.damping_min = 12.0
+	ground_plume_fire.damping_max = 18.0
+	ground_plume_fire.color = profile.ground_fire_color
+	ground_plume_fire.scale_amount_min = 0.5
+	ground_plume_fire.scale_amount_max = 1.4
+	var fire_mesh = QuadMesh.new()
+	fire_mesh.size = Vector2(1.2, 1.2)
+	fire_mesh.material = LandingFXProfile.create_billboard_mat(soft_circle_tex, true)
+	ground_plume_fire.mesh = fire_mesh
+	crater_inst.add_child(ground_plume_fire)
+
+	# 2. Dense Billowing Ground Smoke (spawns STRICTLY outside the spaceship perimeter > 5.2m)
+	ground_plume_smoke = CPUParticles3D.new()
+	ground_plume_smoke.name = "GroundPlumeSmoke"
+	ground_plume_smoke.emitting = false
+	ground_plume_smoke.amount = 65
+	ground_plume_smoke.lifetime = profile.ground_smoke_lifetime
+	ground_plume_smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	ground_plume_smoke.emission_ring_axis = Vector3(0, 1, 0)
+	ground_plume_smoke.emission_ring_radius = 8.5
+	ground_plume_smoke.emission_ring_inner_radius = 5.2 # Beyond 3.6m hull and 4.6m legs, NEVER inside ship!
+	ground_plume_smoke.direction = Vector3(0, 0.9, 0)
+	ground_plume_smoke.spread = 35.0
+	ground_plume_smoke.radial_accel_min = 8.0
+	ground_plume_smoke.radial_accel_max = 16.0 # Pushes smoke outwards into the terrain
+	ground_plume_smoke.gravity = profile.ground_smoke_buoyancy
+	ground_plume_smoke.initial_velocity_min = 4.0
+	ground_plume_smoke.initial_velocity_max = 10.0
+	ground_plume_smoke.damping_min = 4.0
+	ground_plume_smoke.damping_max = 8.0
+	ground_plume_smoke.color = profile.ground_smoke_color
+	ground_plume_smoke.scale_amount_min = 1.6
+	ground_plume_smoke.scale_amount_max = profile.ground_smoke_scale_max
+	var smoke_mesh = QuadMesh.new()
+	smoke_mesh.size = Vector2(2.2, 2.2)
+	smoke_mesh.material = LandingFXProfile.create_billboard_mat(soft_smoke_tex, false)
+	ground_plume_smoke.mesh = smoke_mesh
+	crater_inst.add_child(ground_plume_smoke)
+
+	# 3. Radial Ground Surface Plume (expanding outward along the surface outside ship)
 	ground_plume_dust = CPUParticles3D.new()
 	ground_plume_dust.name = "GroundPlumeDust"
 	ground_plume_dust.emitting = false
-	ground_plume_dust.amount = 55
+	ground_plume_dust.amount = 50
 	ground_plume_dust.lifetime = 1.4
 	ground_plume_dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
 	ground_plume_dust.emission_ring_axis = Vector3(0, 1, 0)
-	ground_plume_dust.emission_ring_radius = 2.4
-	ground_plume_dust.emission_ring_inner_radius = 0.8
-	ground_plume_dust.direction = Vector3(0, 0.10, 0)
-	ground_plume_dust.spread = 90.0
-	ground_plume_dust.gravity = blast_gravity
-	ground_plume_dust.initial_velocity_min = 6.0
-	ground_plume_dust.initial_velocity_max = 15.0
-	ground_plume_dust.color = dust_color
+	ground_plume_dust.emission_ring_radius = 8.0
+	ground_plume_dust.emission_ring_inner_radius = 4.8
+	ground_plume_dust.direction = Vector3(0, 0.12, 0)
+	ground_plume_dust.flatness = 0.85
+	ground_plume_dust.radial_accel_min = 16.0
+	ground_plume_dust.radial_accel_max = 30.0
+	ground_plume_dust.gravity = profile.ground_smoke_buoyancy * 0.4 - Vector3(0, 1.2, 0)
+	ground_plume_dust.initial_velocity_min = 8.0
+	ground_plume_dust.initial_velocity_max = 18.0
+	ground_plume_dust.color = profile.ground_dust_color
 	ground_plume_dust.scale_amount_min = 0.8
 	ground_plume_dust.scale_amount_max = 2.4
+	var dust_mesh = QuadMesh.new()
+	dust_mesh.size = Vector2(1.2, 1.2)
+	dust_mesh.material = LandingFXProfile.create_billboard_mat(soft_smoke_tex, false)
+	ground_plume_dust.mesh = dust_mesh
 	crater_inst.add_child(ground_plume_dust)
 	
-	# 2. Impingement Thermal Sparks
+	# 4. Impingement Thermal Sparks (skimming low to the ground)
 	ground_plume_sparks = CPUParticles3D.new()
 	ground_plume_sparks.name = "GroundPlumeSparks"
 	ground_plume_sparks.emitting = false
 	ground_plume_sparks.amount = 35
-	ground_plume_sparks.lifetime = 0.75
+	ground_plume_sparks.lifetime = 0.65
 	ground_plume_sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
 	ground_plume_sparks.emission_ring_axis = Vector3(0, 1, 0)
-	ground_plume_sparks.emission_ring_radius = 1.4
-	ground_plume_sparks.emission_ring_inner_radius = 0.2
-	ground_plume_sparks.direction = Vector3(0, 0.35, 0)
-	ground_plume_sparks.spread = 75.0
-	ground_plume_sparks.gravity = Vector3(0, -9.8, 0)
+	ground_plume_sparks.emission_ring_radius = 2.2
+	ground_plume_sparks.emission_ring_inner_radius = 0.4
+	ground_plume_sparks.direction = Vector3(0, 0.15, 0)
+	ground_plume_sparks.flatness = 0.85
+	ground_plume_sparks.radial_accel_min = 18.0
+	ground_plume_sparks.radial_accel_max = 32.0
+	ground_plume_sparks.gravity = Vector3(0, -12.0, 0)
 	ground_plume_sparks.initial_velocity_min = 10.0
-	ground_plume_sparks.initial_velocity_max = 20.0
-	ground_plume_sparks.color = spark_color
+	ground_plume_sparks.initial_velocity_max = 22.0
+	ground_plume_sparks.color = profile.ground_spark_color
 	crater_inst.add_child(ground_plume_sparks)
 
 func _spawn_ground_impact_effects(pos: Vector3, up_dir: Vector3) -> void:
@@ -1053,32 +1198,93 @@ func _spawn_ground_impact_effects(pos: Vector3, up_dir: Vector3) -> void:
 		
 	if scorch_crater_mat:
 		scorch_crater_mat.set_shader_parameter("scorch_opacity", 1.0)
-		scorch_crater_mat.set_shader_parameter("heat_glow", 1.25)
+		scorch_crater_mat.set_shader_parameter("heat_glow", 1.35)
+		# Smooth cooling of ground heat glow after landing over 10 seconds
+		var tw_crater_cool = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw_crater_cool.tween_method(func(val: float):
+			if scorch_crater_mat:
+				scorch_crater_mat.set_shader_parameter("heat_glow", val)
+		, 1.35, 0.15, 10.0)
 		
+	if ground_plume_fire:
+		ground_plume_fire.emitting = false
+	if ground_plume_smoke:
+		ground_plume_smoke.emitting = false
 	if ground_plume_dust:
 		ground_plume_dust.emitting = false
 	if ground_plume_sparks:
 		ground_plume_sparks.emitting = false
 		
 	var crater_inst = get_node_or_null("GroundImpactCrater")
-	if crater_inst and not crater_inst.has_node("ResidualSmoke"):
-		# Residual smoke gently drifts up from the ground
-		var smoke = CPUParticles3D.new()
-		smoke.name = "ResidualSmoke"
-		smoke.emitting = true
-		smoke.amount = 25
-		smoke.lifetime = 3.5
-		smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
-		smoke.emission_ring_axis = Vector3(0, 1, 0)
-		smoke.emission_ring_radius = 4.8
-		smoke.emission_ring_inner_radius = 2.6
-		smoke.direction = Vector3(0, 1, 0)
-		smoke.spread = 22.0
-		smoke.gravity = Vector3(0, 0.40, 0)
-		smoke.initial_velocity_min = 0.2
-		smoke.initial_velocity_max = 0.6
-		smoke.color = Color(0.65, 0.62, 0.58, 0.24)
-		crater_inst.add_child(smoke)
+	if crater_inst:
+		var planet_params = GameManager.current_planet if is_instance_valid(GameManager) else {}
+		var profile = LandingFXProfile.get_profile(planet_params)
+		var soft_smoke_tex = LandingFXProfile.get_soft_smoke_texture()
+		
+		# Residual smoke gently drifts up from the perimeter scorched ground (OUTSIDE ship!)
+		if not crater_inst.has_node("ResidualSmoke"):
+			var smoke = CPUParticles3D.new()
+			smoke.name = "ResidualSmoke"
+			smoke.emitting = true
+			smoke.amount = 30
+			smoke.lifetime = 4.0
+			smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+			smoke.emission_ring_axis = Vector3(0, 1, 0)
+			smoke.emission_ring_radius = 7.5
+			smoke.emission_ring_inner_radius = 4.8 # Strictly outside cabin, zero smoke inside!
+			smoke.direction = Vector3(0, 1, 0)
+			smoke.spread = 26.0
+			smoke.radial_accel_min = 1.0
+			smoke.radial_accel_max = 3.0
+			smoke.gravity = profile.ground_smoke_buoyancy * 0.6
+			smoke.initial_velocity_min = 0.4
+			smoke.initial_velocity_max = 1.0
+			var smoke_col = profile.ground_smoke_color
+			smoke_col.a = minf(smoke_col.a, 0.30)
+			smoke.color = smoke_col
+			smoke.scale_amount_min = 1.6
+			smoke.scale_amount_max = 3.6
+			var res_smoke_mesh = QuadMesh.new()
+			res_smoke_mesh.size = Vector2(1.8, 1.8)
+			res_smoke_mesh.material = LandingFXProfile.create_billboard_mat(soft_smoke_tex, false)
+			smoke.mesh = res_smoke_mesh
+			crater_inst.add_child(smoke)
+			
+			# Stop residual smoke after 12 seconds
+			var tw_smoke = create_tween()
+			tw_smoke.tween_interval(12.0)
+			tw_smoke.tween_callback(func():
+				if is_instance_valid(smoke):
+					smoke.emitting = false
+			)
+			
+		# Residual glowing embers crackling in the perimeter cracks
+		if not crater_inst.has_node("ResidualEmbers"):
+			var embers = CPUParticles3D.new()
+			embers.name = "ResidualEmbers"
+			embers.emitting = true
+			embers.amount = 16
+			embers.lifetime = 1.8
+			embers.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+			embers.emission_ring_axis = Vector3(0, 1, 0)
+			embers.emission_ring_radius = 7.0
+			embers.emission_ring_inner_radius = 4.8
+			embers.direction = Vector3(0, 1, 0)
+			embers.spread = 45.0
+			embers.gravity = Vector3(0, 0.3, 0)
+			embers.initial_velocity_min = 0.6
+			embers.initial_velocity_max = 1.8
+			embers.color = profile.crater_ember_color
+			embers.scale_amount_min = 0.3
+			embers.scale_amount_max = 0.8
+			crater_inst.add_child(embers)
+			
+			var tw_embers = create_tween()
+			tw_embers.tween_interval(8.0)
+			tw_embers.tween_callback(func():
+				if is_instance_valid(embers):
+					embers.emitting = false
+			)
 
 func _deploy_hud_node() -> void:
 	var parent_node = get_parent()
@@ -1096,15 +1302,20 @@ func _deploy_hud_node() -> void:
 
 static func _calc_elevation_static(noise_obj: FastNoiseLite, norm_dir: Vector3, planet_params: Dictionary = {}) -> float:
 	var pole_dot = norm_dir.dot(Vector3.UP)
+	var is_ocean = bool(planet_params.get("is_ocean_world", false))
+	var p_type = str(planet_params.get("type", ""))
+	var is_marine = is_ocean or p_type.contains("Oceán") or p_type.contains("Ocean")
 	
-	# 1. North Pole Landing Plateau (flattened strictly in immediate ~10m pad under spaceship)
-	if pole_dot > 0.985:
-		var blend = smoothstep(0.985, 0.995, pole_dot)
-		return lerp(_calc_raw_terrain(noise_obj, norm_dir, planet_params), 0.5, blend)
+	# 1. North Pole Landing Plateau (flattened strictly in immediate ~12m pad under spaceship)
+	if pole_dot > 0.982:
+		var blend = smoothstep(0.982, 0.995, pole_dot)
+		var base_h = _calc_raw_terrain(noise_obj, norm_dir, planet_params)
+		var target_pad_h = 1.80 if is_marine else 3.20
+		return lerp(base_h, target_pad_h, blend)
 		
 	# 2. Scenic Landing Bay / Swimming Lake (25m behind spaceship at -Z)
 	var water_stat = planet_params.get("water_status", "Seco / Desolado")
-	if water_stat != "Seco / Desolado" and water_stat != "":
+	if not is_ocean and water_stat != "Seco / Desolado" and water_stat != "":
 		if pole_dot > 0.935 and pole_dot <= 0.980 and norm_dir.z < -0.10:
 			var lake_factor = smoothstep(0.935, 0.960, pole_dot) * smoothstep(0.980, 0.965, pole_dot)
 			var base_elev = _calc_raw_terrain(noise_obj, norm_dir, planet_params)
@@ -1116,6 +1327,10 @@ static func _calc_raw_terrain(noise_obj: FastNoiseLite, norm_dir: Vector3, plane
 	var seed_i: int = planet_params.get("seed", noise_obj.seed)
 	var lvl: int = planet_params.get("level", 0)
 	var has_atmo: bool = planet_params.get("has_atmosphere", true)
+	var water_stat: String = str(planet_params.get("water_status", "Seco / Desolado"))
+	var has_liquid: bool = (water_stat != "Seco / Desolado" and water_stat != "")
+	var is_ocean: bool = bool(planet_params.get("is_ocean_world", false))
+	var ocean_cov: float = float(planet_params.get("ocean_coverage", 1.0 if is_ocean else (0.68 if has_liquid else 0.0)))
 	
 	# 1. Domain Warping: tectonic shear and crustal folding
 	var warp_scale = 22.0
@@ -1168,7 +1383,9 @@ static func _calc_raw_terrain(noise_obj: FastNoiseLite, norm_dir: Vector3, plane
 		var c_dir = get_cenote_direction(seed_i, c_idx)
 		var d_cen = norm_dir.distance_to(c_dir)
 		if d_cen < 0.12:
-			var sink = smoothstep(0.12, 0.03, d_cen) * 11.5
+			# Organic smooth karst depression, avoids sharp pitch-black shadow circles
+			var max_depth = 4.2 if has_liquid else 7.0
+			var sink = smoothstep(0.12, 0.02, d_cen) * max_depth
 			cenote_sink = maxf(cenote_sink, sink)
 
 	# 7. Impact Craters on barren / thin-atmosphere worlds (Moon/Mercury/Mars analogues)
@@ -1195,7 +1412,26 @@ static func _calc_raw_terrain(noise_obj: FastNoiseLite, norm_dir: Vector3, plane
 	# 8. Micro-detail and Regolith Roughness
 	var detail = noise_obj.get_noise_3dv(norm_dir * 240.0) * 0.95
 
+	# 9. Ocean World and Sea-level Elevation Resolution
+	if is_ocean:
+		# 100% Oceanic / Aquatic World:
+		# Entire planetary crust is submerged below sea level (elevation < 0.0 everywhere!).
+		# Submarine features: abyssal plains (-8m to -14m), submarine oceanic ridges (-2m to -5m),
+		# hydrothermal seamounts (-1.5m to -4m), and oceanic trenches (-16m). Zero emerged land!
+		var abyssal_floor = continent * 0.45 - 9.5
+		var sub_ridges = (mountains * 0.35) if mountains > 0.0 else 0.0
+		var sub_mons = mons_relief * 0.25
+		var trench = canyon_relief * 0.6
+		var total_submerged = abyssal_floor + sub_ridges + sub_mons + trench + detail * 0.5
+		return clampf(total_submerged, -16.0, -0.6)
+
 	var total_h = continent + mountains + mons_relief + canyon_relief - cenote_sink + crater_relief + detail
+
+	if has_liquid and ocean_cov > 0.10:
+		# Procedural liquid shift: calibrates dry land vs submerged ratio
+		var sea_shift = lerpf(-1.0, -13.5, clampf((ocean_cov - 0.30) / 0.65, 0.0, 1.0))
+		total_h += sea_shift
+
 	return clampf(total_h, -16.0, 26.0)
 
 static func get_cenote_direction(seed_val: int, idx: int) -> Vector3:

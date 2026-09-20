@@ -352,6 +352,8 @@ static func _build_planet(
 	var greenhouse_k: float = 0.0
 	var is_molten: bool = false
 	var is_singularity: bool = false
+	var is_ocean_world: bool = false
+	var ocean_coverage: float = 0.0
 	
 	if is_primary_hz:
 		# Primary habitable candidate in Goldilocks zone
@@ -362,6 +364,10 @@ static func _build_planet(
 		greenhouse_k = 33.0
 		gravity_g = round(rng.randf_range(0.85, 1.15) * 100.0) / 100.0
 		radiation = round(rng.randf_range(0.01, 0.04) * 100.0) / 100.0
+		# Procedural chance for 100% Ocean World (pelagic waterworld without emerged continents)
+		var is_ocean_roll = (rng.randf() < 0.25)
+		is_ocean_world = is_ocean_roll
+		ocean_coverage = 1.0 if is_ocean_roll else round(rng.randf_range(0.55, 0.88) * 100.0) / 100.0
 	elif is_hz:
 		# Secondary body in HZ (e.g. airless moon or arid desert)
 		if rng.randf() > 0.5:
@@ -396,6 +402,9 @@ static func _build_planet(
 					greenhouse_k = 240.0
 					gravity_g = round(rng.randf_range(2.5, 3.5) * 100.0) / 100.0
 					radiation = round(rng.randf_range(1.2, 1.8) * 100.0) / 100.0
+					var is_lava_ocean = (rng.randf() < 0.20)
+					is_ocean_world = is_lava_ocean
+					ocean_coverage = 1.0 if is_lava_ocean else round(rng.randf_range(0.40, 0.85) * 100.0) / 100.0
 				else:
 					# Airless vacuum world (Mercury-like, Level 1)
 					has_atmosphere = false
@@ -416,6 +425,9 @@ static func _build_planet(
 					greenhouse_k = 180.0
 					gravity_g = round(rng.randf_range(0.85, 1.20) * 100.0) / 100.0
 					radiation = round(rng.randf_range(0.20, 0.35) * 100.0) / 100.0
+					var is_toxic_ocean = (rng.randf() < 0.18)
+					is_ocean_world = is_toxic_ocean
+					ocean_coverage = 1.0 if is_toxic_ocean else round(rng.randf_range(0.35, 0.80) * 100.0) / 100.0
 				else:
 					has_atmosphere = true
 					atmosphere = round(rng.randf_range(0.35, 0.60) * 100.0) / 100.0
@@ -455,6 +467,9 @@ static func _build_planet(
 					greenhouse_k = 6.0
 					gravity_g = round(rng.randf_range(0.40, 0.85) * 100.0) / 100.0
 					radiation = round(rng.randf_range(0.30, 0.50) * 100.0) / 100.0
+					var is_cryo_ocean = (rng.randf() < 0.18)
+					is_ocean_world = is_cryo_ocean
+					ocean_coverage = 1.0 if is_cryo_ocean else round(rng.randf_range(0.35, 0.85) * 100.0) / 100.0
 
 	# Calculate final temperature in Celsius from equilibrium + greenhouse effect
 	var temp_k = t_eq_k + greenhouse_k
@@ -499,7 +514,9 @@ static func _build_planet(
 		"seed": p_seed,
 		"is_locked": (level >= 4),
 		"is_molten": is_molten,
-		"is_singularity": is_singularity
+		"is_singularity": is_singularity,
+		"is_ocean_world": is_ocean_world,
+		"ocean_coverage": ocean_coverage
 	}
 	
 	# Apply visual theme, descriptions, and shader parameters by dynamically computed level
@@ -531,6 +548,89 @@ static func _build_planet(
 	
 	return p
 
+# Realistic 100% Oceanic / Pelagic World Generator across chemical and physical domains
+# Supported chemicals: "h2o", "magma", "sulfuric_acid", "methane", "hycean"
+static func generate_oceanic_world(chemical: String = "", p_seed: int = -1) -> Dictionary:
+	if p_seed == -1:
+		p_seed = randi() % 900000 + 100
+	var rng = RandomNumberGenerator.new()
+	rng.seed = p_seed
+	
+	var valid_chems = ["h2o", "magma", "sulfuric_acid", "methane", "hycean"]
+	if chemical == "" or not valid_chems.has(chemical):
+		chemical = valid_chems[abs(p_seed) % valid_chems.size()]
+		
+	var data: Dictionary = {}
+	match chemical:
+		"magma":
+			data = {
+				"prefix": "Phlegethon", "water": "Lava Fundida", "oxy": false,
+				"atmo": 5.20, "temp": 780.0, "grav": 1.35, "rad": 0.95,
+				"molten": true, "has_atmo": true, "lvl": 5, "hz": false,
+				"chem_label": "Magma Silicatado Incandescente"
+			}
+		"sulfuric_acid":
+			data = {
+				"prefix": "Lerna", "water": "Vapor Tóxico", "oxy": false,
+				"atmo": 3.40, "temp": 115.0, "grav": 0.95, "rad": 0.28,
+				"molten": false, "has_atmo": true, "lvl": 2, "hz": false,
+				"chem_label": "Ácido Sulfúrico Concentrado (H₂SO₄)"
+			}
+		"methane":
+			data = {
+				"prefix": "Nereus", "water": "Hielo Criogénico", "oxy": false,
+				"atmo": 1.65, "temp": -155.0, "grav": 0.65, "rad": 0.08,
+				"molten": false, "has_atmo": true, "lvl": 3, "hz": false,
+				"chem_label": "Metano / Etano Criogénico (CH₄)"
+			}
+		"hycean":
+			data = {
+				"prefix": "Proteus", "water": "Líquida", "oxy": false,
+				"atmo": 2.50, "temp": 52.0, "grav": 1.15, "rad": 0.04,
+				"molten": false, "has_atmo": true, "lvl": 0, "hz": true,
+				"chem_label": "Solución Hiceánica (NH₃ + H₂O)"
+			}
+		_: # "h2o"
+			data = {
+				"prefix": "Thalassa", "water": "Líquida", "oxy": true,
+				"atmo": 1.15, "temp": 21.0, "grav": 1.02, "rad": 0.01,
+				"molten": false, "has_atmo": true, "lvl": 0, "hz": true,
+				"chem_label": "Agua Marina (H₂O)"
+			}
+			
+	var p_name = "%s-%03d" % [data["prefix"], p_seed % 1000]
+	var visual_lvl = data["lvl"]
+	
+	var p: Dictionary = {
+		"name": p_name,
+		"index": 6,
+		"level": visual_lvl,
+		"orbit_au": 1.0,
+		"is_in_habitable_zone": data["hz"],
+		"has_atmosphere": data["has_atmo"],
+		"atmosphere": data["atmo"],
+		"has_oxygen": data["oxy"],
+		"water_status": data["water"],
+		"ocean_chemical": chemical,
+		"ocean_chemical_label": data["chem_label"],
+		"temperature": data["temp"] + rng.randf_range(-4.0, 4.0),
+		"gravity": data["grav"] * 9.8,
+		"gravity_g": data["grav"],
+		"radiation": data["rad"],
+		"coords": Vector3.ZERO,
+		"coords_str": "[Sector Procedural Pelágico]",
+		"seed": p_seed,
+		"is_locked": false,
+		"is_molten": data["molten"],
+		"is_singularity": false,
+		"is_ocean_world": true,
+		"ocean_coverage": 1.0
+	}
+	
+	_apply_level_visuals(p, visual_lvl, rng)
+	p["telemetry_graph"] = calculate_telemetry_graph(p)
+	return p
+
 # Standalone procedural planet generator for any archetype category
 static func generate_procedural_planet_for_archetype(category_idx: int, p_seed: int = -1) -> Dictionary:
 	if p_seed == -1:
@@ -538,25 +638,32 @@ static func generate_procedural_planet_for_archetype(category_idx: int, p_seed: 
 	var rng = RandomNumberGenerator.new()
 	rng.seed = p_seed
 	
+	# Category 6 is the 100% Oceanic / Pelagic world archetype with realistic chemistry
+	if category_idx == 6:
+		return generate_oceanic_world("", p_seed)
+	
 	var archetypes = {
-		0: { "prefix": "Gaia", "water": "Líquida", "oxy": true, "atmo": 1.0, "temp": 19.0, "grav": 1.0, "rad": 0.02, "molten": false, "has_atmo": true, "lvl": 0 },
-		1: { "prefix": "Ares", "water": "Seco / Desolado", "oxy": false, "atmo": 0.22, "temp": 28.0, "grav": 0.65, "rad": 0.12, "molten": false, "has_atmo": true, "lvl": 1 },
-		2: { "prefix": "Boreas", "water": "Hielo Criogénico", "oxy": false, "atmo": 1.45, "temp": -115.0, "grav": 0.55, "rad": 0.08, "molten": false, "has_atmo": true, "lvl": 3 },
-		3: { "prefix": "Cybele", "water": "Vapor Tóxico", "oxy": false, "atmo": 2.85, "temp": 95.0, "grav": 0.95, "rad": 0.28, "molten": false, "has_atmo": true, "lvl": 2 },
-		4: { "prefix": "Tartarus", "water": "Lava Fundida", "oxy": false, "atmo": 4.80, "temp": 520.0, "grav": 1.35, "rad": 0.65, "molten": true, "has_atmo": true, "lvl": 5 },
-		5: { "prefix": "Selene", "water": "Seco / Desolado", "oxy": false, "atmo": 0.0, "temp": -35.0, "grav": 0.38, "rad": 0.32, "molten": false, "has_atmo": false, "lvl": 1 }
+		0: { "prefix": "Gaia", "water": "Líquida", "oxy": true, "atmo": 1.0, "temp": 19.0, "grav": 1.0, "rad": 0.02, "molten": false, "has_atmo": true, "lvl": 0, "ocean": false, "ocean_cov": 0.68 },
+		1: { "prefix": "Ares", "water": "Seco / Desolado", "oxy": false, "atmo": 0.22, "temp": 28.0, "grav": 0.65, "rad": 0.12, "molten": false, "has_atmo": true, "lvl": 1, "ocean": false, "ocean_cov": 0.0 },
+		2: { "prefix": "Boreas", "water": "Hielo Criogénico", "oxy": false, "atmo": 1.45, "temp": -115.0, "grav": 0.55, "rad": 0.08, "molten": false, "has_atmo": true, "lvl": 3, "ocean": false, "ocean_cov": 0.65 },
+		3: { "prefix": "Cybele", "water": "Vapor Tóxico", "oxy": false, "atmo": 2.85, "temp": 95.0, "grav": 0.95, "rad": 0.28, "molten": false, "has_atmo": true, "lvl": 2, "ocean": false, "ocean_cov": 0.50 },
+		4: { "prefix": "Tartarus", "water": "Lava Fundida", "oxy": false, "atmo": 4.80, "temp": 520.0, "grav": 1.35, "rad": 0.65, "molten": true, "has_atmo": true, "lvl": 5, "ocean": false, "ocean_cov": 0.70 },
+		5: { "prefix": "Selene", "water": "Seco / Desolado", "oxy": false, "atmo": 0.0, "temp": -35.0, "grav": 0.38, "rad": 0.32, "molten": false, "has_atmo": false, "lvl": 1, "ocean": false, "ocean_cov": 0.0 },
+		7: { "prefix": "Acheron", "water": "Seco / Desolado", "oxy": false, "atmo": 3.80, "temp": 165.0, "grav": 2.80, "rad": 0.95, "molten": false, "has_atmo": true, "lvl": 4, "ocean": false, "ocean_cov": 0.0 }
 	}
 	
 	var data = archetypes.get(category_idx, archetypes[0])
 	var p_name = "%s-%03d" % [data["prefix"], p_seed % 1000]
 	var visual_lvl = data["lvl"]
+	var is_ocean_archetype = bool(data.get("ocean", false))
+	var ocean_cov_archetype = float(data.get("ocean_cov", 1.0 if is_ocean_archetype else 0.0))
 	
 	var p: Dictionary = {
 		"name": p_name,
 		"index": category_idx,
 		"level": visual_lvl,
 		"orbit_au": 1.0,
-		"is_in_habitable_zone": (category_idx == 0),
+		"is_in_habitable_zone": (category_idx == 0 or category_idx == 6),
 		"has_atmosphere": data["has_atmo"],
 		"atmosphere": data["atmo"],
 		"has_oxygen": data["oxy"],
@@ -570,7 +677,9 @@ static func generate_procedural_planet_for_archetype(category_idx: int, p_seed: 
 		"seed": p_seed,
 		"is_locked": false,
 		"is_molten": data["molten"],
-		"is_singularity": false
+		"is_singularity": (visual_lvl == 4),
+		"is_ocean_world": is_ocean_archetype,
+		"ocean_coverage": ocean_cov_archetype
 	}
 	
 	_apply_level_visuals(p, visual_lvl, rng)
@@ -692,30 +801,76 @@ static func calculate_telemetry_graph(p: Dictionary) -> Dictionary:
 
 static func _apply_level_visuals(p: Dictionary, lvl: int, rng: RandomNumberGenerator) -> void:
 	match lvl:
-		0: # Level 0: Habitable / Earth-like (only in HZ with oxygen and liquid water)
-			p["type_label"] = "Rocoso Templado (Clase H)"
-			p["type"] = "Habitable"
-			p["description"] = "Mundo templado con hidrosfera líquida estable, atmósfera respirable y baja actividad sísmica."
-			p["primary_ore"] = "Hierro / Cobre"
-			p["surface_color"] = Color(0.28, 0.58, 0.35)
-			p["sky_color"] = Color(0.12, 0.22, 0.45)
-			p["ocean_color"] = Color(0.04, 0.22, 0.55)
-			p["shore_color"] = Color(0.12, 0.48, 0.72)
-			p["beach_color"] = Color(0.82, 0.75, 0.52)
-			p["land_color"] = Color(0.20, 0.55, 0.26)
-			p["mountain_color"] = Color(0.48, 0.42, 0.36)
-			p["peak_color"] = Color(0.92, 0.96, 1.0)
-			p["atmosphere_color"] = Color(0.30, 0.70, 1.0)
-			p["cloud_color"] = Color(1.0, 1.0, 1.0)
-			p["emission_color"] = Color(0.0, 0.0, 0.0)
-			p["emission_energy"] = 0.0
-			p["water_threshold"] = 0.46
-			p["mountain_threshold"] = 0.72
-			p["peak_threshold"] = 0.88
-			p["cloud_density"] = 0.52
-			p["cloud_speed"] = 0.03
-			p["has_rings"] = false
-			p["noise_scale"] = 2.4
+		0: # Level 0: Habitable / Earth-like or 100% Ocean World
+			if p.get("is_ocean_world", false):
+				var chem = p.get("ocean_chemical", "h2o")
+				if chem == "hycean":
+					p["type_label"] = "Super-Océano Hiceánico (Clase Y • Pelágico NH₃-H₂O)"
+					p["type"] = "Oceánico"
+					p["description"] = "Planeta Hiceánico con un océano global de solución amoniaco-agua bajo densa atmósfera de hidrógeno."
+					p["primary_ore"] = "Silicio Marino / Compuestos Nitrados"
+					p["surface_color"] = Color(0.08, 0.12, 0.35)
+					p["sky_color"] = Color(0.10, 0.15, 0.35)
+					p["ocean_color"] = Color(0.14, 0.44, 0.88)
+					p["shore_color"] = Color(0.15, 0.45, 0.72)
+					p["beach_color"] = Color(0.20, 0.65, 0.85)
+					p["land_color"] = Color(0.08, 0.16, 0.42)
+					p["mountain_color"] = Color(0.10, 0.18, 0.48)
+					p["peak_color"] = Color(0.35, 0.75, 0.95)
+					p["atmosphere_color"] = Color(0.35, 0.50, 0.95)
+					p["cloud_color"] = Color(0.75, 0.82, 0.95)
+					p["cloud_density"] = 0.68
+				else:
+					p["type_label"] = "Mundo Océano Global (Clase O • Pelágico H₂O)"
+					p["type"] = "Oceánico"
+					p["description"] = "Planeta 100% acuático sin masa continental emergida. Hidrosfera global profunda con fosas abisales y atmósfera respirable."
+					p["primary_ore"] = "Cobre / Silicio Marino"
+					p["surface_color"] = Color(0.04, 0.28, 0.58) # Deep seabed
+					p["sky_color"] = Color(0.08, 0.25, 0.55)
+					p["ocean_color"] = Color(0.10, 0.52, 0.94)
+					p["shore_color"] = Color(0.08, 0.65, 0.85)
+					p["beach_color"] = Color(0.15, 0.78, 0.90)
+					p["land_color"] = Color(0.06, 0.32, 0.60)
+					p["mountain_color"] = Color(0.08, 0.22, 0.45)
+					p["peak_color"] = Color(0.20, 0.82, 0.95)
+					p["atmosphere_color"] = Color(0.25, 0.68, 1.0)
+					p["cloud_color"] = Color(0.95, 0.98, 1.0)
+					p["cloud_density"] = 0.62
+				p["emission_color"] = Color(0.0, 0.0, 0.0)
+				p["emission_energy"] = 0.0
+				p["water_threshold"] = 1.0
+				p["mountain_threshold"] = 0.85
+				p["peak_threshold"] = 0.95
+				p["cloud_speed"] = 0.04
+				p["has_rings"] = false
+				p["noise_scale"] = 2.2
+				p["ocean_coverage"] = 1.0
+			else:
+				p["type_label"] = "Rocoso Templado (Clase H)"
+				p["type"] = "Habitable"
+				p["description"] = "Mundo templado con hidrosfera líquida estable, atmósfera respirable y baja actividad sísmica."
+				p["primary_ore"] = "Hierro / Cobre"
+				p["surface_color"] = Color(0.28, 0.58, 0.35)
+				p["sky_color"] = Color(0.12, 0.22, 0.45)
+				p["ocean_color"] = Color(0.12, 0.48, 0.88)
+				p["shore_color"] = Color(0.12, 0.48, 0.72)
+				p["beach_color"] = Color(0.82, 0.75, 0.52)
+				p["land_color"] = Color(0.20, 0.55, 0.26)
+				p["mountain_color"] = Color(0.48, 0.42, 0.36)
+				p["peak_color"] = Color(0.92, 0.96, 1.0)
+				p["atmosphere_color"] = Color(0.30, 0.70, 1.0)
+				p["cloud_color"] = Color(1.0, 1.0, 1.0)
+				p["emission_color"] = Color(0.0, 0.0, 0.0)
+				p["emission_energy"] = 0.0
+				p["water_threshold"] = 0.46
+				p["mountain_threshold"] = 0.72
+				p["peak_threshold"] = 0.88
+				p["cloud_density"] = 0.52
+				p["cloud_speed"] = 0.03
+				p["has_rings"] = false
+				p["noise_scale"] = 2.4
+				if not p.has("ocean_coverage") or p["ocean_coverage"] == 0.0:
+					p["ocean_coverage"] = 0.68
 			
 		1: # Level 1: Desertic / Thin atmosphere (e.g. Mars-like)
 			p["type_label"] = "Desierto Rojo (Clase D)"
@@ -743,55 +898,104 @@ static func _apply_level_visuals(p: Dictionary, lvl: int, rng: RandomNumberGener
 			p["noise_scale"] = 3.0
 			
 		2: # Level 2: Toxic / Acidic / Dense greenhouse (e.g. Venus-like)
-			p["type_label"] = "Sulfúrico Denso (Clase V)"
-			p["type"] = "Tóxico"
-			p["description"] = "Superficie hiperbárica bajo nubes de ácido sulfúrico concentrado y niebla corrosiva."
-			p["primary_ore"] = "Azufre / Silicio"
-			p["surface_color"] = Color(0.68, 0.62, 0.15)
-			p["sky_color"] = Color(0.35, 0.32, 0.08)
-			p["ocean_color"] = Color(0.55, 0.52, 0.10)
-			p["shore_color"] = Color(0.65, 0.58, 0.12)
-			p["beach_color"] = Color(0.72, 0.68, 0.22)
-			p["land_color"] = Color(0.48, 0.42, 0.18)
-			p["mountain_color"] = Color(0.38, 0.32, 0.12)
-			p["peak_color"] = Color(0.75, 0.70, 0.30)
-			p["atmosphere_color"] = Color(0.85, 0.80, 0.25)
-			p["cloud_color"] = Color(0.92, 0.88, 0.45)
-			p["emission_color"] = Color(0.45, 0.40, 0.05)
-			p["emission_energy"] = 0.15
-			p["water_threshold"] = 0.38
-			p["mountain_threshold"] = 0.68
-			p["peak_threshold"] = 0.85
-			p["cloud_density"] = 0.75
-			p["cloud_speed"] = 0.07
-			p["has_rings"] = false
-			p["noise_scale"] = 2.6
+			if p.get("is_ocean_world", false):
+				p["type_label"] = "Océano de Ácido Sulfúrico (Clase V • Pelágico Tóxico)"
+				p["type"] = "Tóxico"
+				p["description"] = "Superficie 100% líquida de ácido sulfúrico concentrado y sulfatos metálicos bajo densa bruma química corrosiva."
+				p["primary_ore"] = "Azufre / Silicio Ácido"
+				p["surface_color"] = Color(0.25, 0.28, 0.08)
+				p["sky_color"] = Color(0.35, 0.32, 0.08)
+				p["ocean_color"] = Color(0.48, 0.62, 0.10)
+				p["shore_color"] = Color(0.65, 0.72, 0.15)
+				p["beach_color"] = Color(0.72, 0.78, 0.22)
+				p["land_color"] = Color(0.32, 0.35, 0.10)
+				p["mountain_color"] = Color(0.22, 0.24, 0.06)
+				p["peak_color"] = Color(0.60, 0.68, 0.18)
+				p["atmosphere_color"] = Color(0.85, 0.80, 0.25)
+				p["cloud_color"] = Color(0.85, 0.88, 0.35)
+				p["emission_color"] = Color(0.25, 0.30, 0.05)
+				p["emission_energy"] = 0.25
+				p["water_threshold"] = 1.0
+				p["cloud_density"] = 0.78
+				p["cloud_speed"] = 0.07
+				p["has_rings"] = false
+				p["noise_scale"] = 2.4
+				p["ocean_coverage"] = 1.0
+			else:
+				p["type_label"] = "Sulfúrico Denso (Clase V)"
+				p["type"] = "Tóxico"
+				p["description"] = "Superficie hiperbárica bajo nubes de ácido sulfúrico concentrado y niebla corrosiva."
+				p["primary_ore"] = "Azufre / Silicio"
+				p["surface_color"] = Color(0.68, 0.62, 0.15)
+				p["sky_color"] = Color(0.35, 0.32, 0.08)
+				p["ocean_color"] = Color(0.55, 0.52, 0.10)
+				p["shore_color"] = Color(0.65, 0.58, 0.12)
+				p["beach_color"] = Color(0.72, 0.68, 0.22)
+				p["land_color"] = Color(0.48, 0.42, 0.18)
+				p["mountain_color"] = Color(0.38, 0.32, 0.12)
+				p["peak_color"] = Color(0.75, 0.70, 0.30)
+				p["atmosphere_color"] = Color(0.85, 0.80, 0.25)
+				p["cloud_color"] = Color(0.92, 0.88, 0.45)
+				p["emission_color"] = Color(0.45, 0.40, 0.05)
+				p["emission_energy"] = 0.15
+				p["water_threshold"] = 0.38
+				p["mountain_threshold"] = 0.68
+				p["peak_threshold"] = 0.85
+				p["cloud_density"] = 0.75
+				p["cloud_speed"] = 0.07
+				p["has_rings"] = false
+				p["noise_scale"] = 2.6
 			
 		3: # Level 3: Cryogenic Glacial / Ice giant moons
-			p["type_label"] = "Criogénico Glaciar (Clase K)"
-			p["type"] = "Glaciar"
-			p["description"] = "Desierto de nitrógeno sólido y glaciares de metano. Frío criogénico letal."
-			p["primary_ore"] = "Hielo de Metano / Uranio"
-			p["surface_color"] = Color(0.20, 0.48, 0.68)
-			p["sky_color"] = Color(0.04, 0.08, 0.18)
-			p["ocean_color"] = Color(0.06, 0.20, 0.42)
-			p["shore_color"] = Color(0.15, 0.45, 0.65)
-			p["beach_color"] = Color(0.60, 0.85, 0.95)
-			p["land_color"] = Color(0.25, 0.55, 0.75)
-			p["mountain_color"] = Color(0.40, 0.68, 0.88)
-			p["peak_color"] = Color(0.95, 0.98, 1.0)
-			p["atmosphere_color"] = Color(0.25, 0.75, 0.95)
-			p["cloud_color"] = Color(0.85, 0.95, 1.0)
-			p["emission_color"] = Color(0.0, 0.0, 0.0)
-			p["emission_energy"] = 0.0
-			p["water_threshold"] = 0.35
-			p["mountain_threshold"] = 0.60
-			p["peak_threshold"] = 0.78
-			p["cloud_density"] = 0.35
-			p["cloud_speed"] = 0.02
-			p["has_rings"] = true
-			p["ring_color"] = Color(0.70, 0.85, 0.98)
-			p["noise_scale"] = 2.8
+			if p.get("is_ocean_world", false):
+				p["type_label"] = "Océano Criogénico de Metano (Clase K • Pelágico Glaciar)"
+				p["type"] = "Glaciar"
+				p["description"] = "Mundo criogénico cubierto al 100% por mares de metano y etano líquido sobre un lecho abisal de hielo cristalino."
+				p["primary_ore"] = "Hielo de Metano / Uranio"
+				p["surface_color"] = Color(0.08, 0.22, 0.38)
+				p["sky_color"] = Color(0.04, 0.08, 0.18)
+				p["ocean_color"] = Color(0.16, 0.58, 0.92)
+				p["shore_color"] = Color(0.15, 0.62, 0.88)
+				p["beach_color"] = Color(0.40, 0.85, 0.98)
+				p["land_color"] = Color(0.12, 0.30, 0.48)
+				p["mountain_color"] = Color(0.18, 0.38, 0.58)
+				p["peak_color"] = Color(0.65, 0.90, 1.0)
+				p["atmosphere_color"] = Color(0.25, 0.75, 0.95)
+				p["cloud_color"] = Color(0.85, 0.95, 1.0)
+				p["emission_color"] = Color(0.0, 0.0, 0.0)
+				p["emission_energy"] = 0.0
+				p["water_threshold"] = 1.0
+				p["cloud_density"] = 0.55
+				p["cloud_speed"] = 0.03
+				p["has_rings"] = true
+				p["ring_color"] = Color(0.70, 0.85, 0.98)
+				p["noise_scale"] = 2.5
+				p["ocean_coverage"] = 1.0
+			else:
+				p["type_label"] = "Criogénico Glaciar (Clase K)"
+				p["type"] = "Glaciar"
+				p["description"] = "Desierto de nitrógeno sólido y glaciares de metano. Frío criogénico letal."
+				p["primary_ore"] = "Hielo de Metano / Uranio"
+				p["surface_color"] = Color(0.20, 0.48, 0.68)
+				p["sky_color"] = Color(0.04, 0.08, 0.18)
+				p["ocean_color"] = Color(0.15, 0.45, 0.82)
+				p["shore_color"] = Color(0.15, 0.45, 0.65)
+				p["beach_color"] = Color(0.60, 0.85, 0.95)
+				p["land_color"] = Color(0.25, 0.55, 0.75)
+				p["mountain_color"] = Color(0.40, 0.68, 0.88)
+				p["peak_color"] = Color(0.95, 0.98, 1.0)
+				p["atmosphere_color"] = Color(0.25, 0.75, 0.95)
+				p["cloud_color"] = Color(0.85, 0.95, 1.0)
+				p["emission_color"] = Color(0.0, 0.0, 0.0)
+				p["emission_energy"] = 0.0
+				p["water_threshold"] = 0.35
+				p["mountain_threshold"] = 0.60
+				p["peak_threshold"] = 0.78
+				p["cloud_density"] = 0.35
+				p["cloud_speed"] = 0.02
+				p["has_rings"] = true
+				p["ring_color"] = Color(0.70, 0.85, 0.98)
+				p["noise_scale"] = 2.8
 			
 		4: # Level 4: Singularity / Void Pro (extreme gravity/plasma)
 			p["type_label"] = "Abismo Singular (Clase X • PRO)"
@@ -820,30 +1024,55 @@ static func _apply_level_visuals(p: Dictionary, lvl: int, rng: RandomNumberGener
 			p["noise_scale"] = 3.5
 			
 		5: # Level 5: Tartarus / Hell-Star Pro (scorching molten lava close to star)
-			p["type_label"] = "Infierno Ígneo (Clase S • PRO)"
-			p["type"] = "Ígneo"
-			p["description"] = "Mares incandescentes de magma vivo bajo columnas volcánicas masivas y radiación extrema."
-			p["primary_ore"] = "Uranio Hiperdenso / Antimateria"
-			p["surface_color"] = Color(0.78, 0.18, 0.08)
-			p["sky_color"] = Color(0.22, 0.02, 0.02)
-			p["ocean_color"] = Color(1.0, 0.32, 0.02) # glowing lava ocean
-			p["shore_color"] = Color(1.0, 0.65, 0.05)
-			p["beach_color"] = Color(0.95, 0.45, 0.05)
-			p["land_color"] = Color(0.15, 0.08, 0.08)
-			p["mountain_color"] = Color(0.25, 0.12, 0.10)
-			p["peak_color"] = Color(0.45, 0.20, 0.15)
-			p["atmosphere_color"] = Color(1.0, 0.45, 0.10)
-			p["cloud_color"] = Color(0.35, 0.15, 0.12)
-			p["emission_color"] = Color(1.0, 0.40, 0.05) # glowing lava emission
-			p["emission_energy"] = 4.8
-			p["water_threshold"] = 0.52
-			p["mountain_threshold"] = 0.75
-			p["peak_threshold"] = 0.90
-			p["cloud_density"] = 0.58
-			p["cloud_speed"] = 0.10
-			p["has_rings"] = true
-			p["ring_color"] = Color(1.0, 0.55, 0.15)
-			p["noise_scale"] = 4.0
+			if p.get("is_ocean_world", false):
+				p["type_label"] = "Océano de Magma Global (Clase S • Pelágico Ígneo)"
+				p["type"] = "Ígneo"
+				p["description"] = "Mundo 100% cubierto por un mar global tempestuoso de roca fundida y magma vivo bajo nubes volcánicas de ceniza y azufre."
+				p["primary_ore"] = "Uranio Hiperdenso / Antimateria"
+				p["surface_color"] = Color(0.18, 0.08, 0.06)
+				p["sky_color"] = Color(0.22, 0.02, 0.02)
+				p["ocean_color"] = Color(1.0, 0.32, 0.02) # glowing lava ocean
+				p["shore_color"] = Color(1.0, 0.65, 0.05)
+				p["beach_color"] = Color(0.95, 0.45, 0.05)
+				p["land_color"] = Color(0.12, 0.05, 0.05)
+				p["mountain_color"] = Color(0.20, 0.08, 0.08)
+				p["peak_color"] = Color(0.40, 0.15, 0.10)
+				p["atmosphere_color"] = Color(1.0, 0.45, 0.10)
+				p["cloud_color"] = Color(0.35, 0.15, 0.12)
+				p["emission_color"] = Color(1.0, 0.40, 0.05) # glowing lava emission
+				p["emission_energy"] = 4.8
+				p["water_threshold"] = 1.0
+				p["cloud_density"] = 0.65
+				p["cloud_speed"] = 0.10
+				p["has_rings"] = true
+				p["ring_color"] = Color(1.0, 0.55, 0.15)
+				p["noise_scale"] = 3.2
+				p["ocean_coverage"] = 1.0
+			else:
+				p["type_label"] = "Infierno Ígneo (Clase S • PRO)"
+				p["type"] = "Ígneo"
+				p["description"] = "Mares incandescentes de magma vivo bajo columnas volcánicas masivas y radiación extrema."
+				p["primary_ore"] = "Uranio Hiperdenso / Antimateria"
+				p["surface_color"] = Color(0.78, 0.18, 0.08)
+				p["sky_color"] = Color(0.22, 0.02, 0.02)
+				p["ocean_color"] = Color(1.0, 0.32, 0.02) # glowing lava ocean
+				p["shore_color"] = Color(1.0, 0.65, 0.05)
+				p["beach_color"] = Color(0.95, 0.45, 0.05)
+				p["land_color"] = Color(0.15, 0.08, 0.08)
+				p["mountain_color"] = Color(0.25, 0.12, 0.10)
+				p["peak_color"] = Color(0.45, 0.20, 0.15)
+				p["atmosphere_color"] = Color(1.0, 0.45, 0.10)
+				p["cloud_color"] = Color(0.35, 0.15, 0.12)
+				p["emission_color"] = Color(1.0, 0.40, 0.05) # glowing lava emission
+				p["emission_energy"] = 4.8
+				p["water_threshold"] = 0.52
+				p["mountain_threshold"] = 0.75
+				p["peak_threshold"] = 0.90
+				p["cloud_density"] = 0.58
+				p["cloud_speed"] = 0.10
+				p["has_rings"] = true
+				p["ring_color"] = Color(1.0, 0.55, 0.15)
+				p["noise_scale"] = 4.0
 
 static func _pick_weighted(items: Array, weights: Array, rng: RandomNumberGenerator) -> Variant:
 	var total = 0

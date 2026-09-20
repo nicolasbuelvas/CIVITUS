@@ -25,6 +25,9 @@ func _ready() -> void:
 	load_sound("jarvis", "res://assets/audio/sfx_jarvis.wav")
 	load_sound("docking", "res://assets/audio/sfx_docking.wav")
 	load_sound("reentry", "res://assets/audio/sfx_reentry.wav")
+	load_sound("splash", "res://assets/audio/sfx_splash.wav")
+	load_sound("bubbles", "res://assets/audio/sfx_bubbles.wav")
+	load_sound("flint_jump", "res://assets/audio/sfx_flint_jump.wav")
 	load_sound("ambient_music", "res://assets/audio/music_space_ambient.wav")
 	load_sound("music_menu_theme", "res://assets/audio/music_menu_theme.wav")
 

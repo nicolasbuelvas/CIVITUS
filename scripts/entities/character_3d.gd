@@ -1,5 +1,7 @@
 extends CharacterBody3D
 
+const LandingFXProfile = preload("res://scripts/effects/landing_fx_profile.gd")
+
 signal stats_changed(oxygen: float, fuel: float, hull: float)
 signal interaction_available(type: String, target_node: Node3D)
 signal interaction_lost()
@@ -29,11 +31,47 @@ var is_first_person: bool = false
 var is_sprinting: bool = false
 var is_dead: bool = false
 var is_in_liquid: bool = false
+var was_in_liquid: bool = false
 var nearby_interactable: Node3D = null
 var current_interactable_type: String = ""
+var planet: Dictionary = {}
 
+# Locomotion, Swimming, and Jetpack State
 var walk_time: float = 0.0
 var vertical_speed: float = 0.0
+var can_emergency_spark_jump: bool = true
+var is_swimming_manual: bool = false
+var is_jetpack_thrusting: bool = false
+var swim_time: float = 0.0
+
+# Dynamic Ocean Wave Physics & Staged Water Interactions
+var wave_surge_velocity: Vector3 = Vector3.ZERO
+var wave_stumble_timer: float = 0.0
+var water_impact_timer: float = 0.0
+var current_wave_height: float = 0.0
+var current_wave_flow: Vector3 = Vector3.ZERO
+
+# Dual Jetpack Thrusters & Twin Particle FX (2 SRC)
+var jetpack_left_mesh: Node3D = null
+var jetpack_right_mesh: Node3D = null
+var flame_particles_left: CPUParticles3D = null
+var flame_particles_right: CPUParticles3D = null
+var flame_particles: CPUParticles3D = null
+var flame_smoke_left: CPUParticles3D = null
+var flame_smoke_right: CPUParticles3D = null
+var bubble_particles_left: CPUParticles3D = null
+var bubble_particles_right: CPUParticles3D = null
+var bubble_particles: CPUParticles3D = null
+var spark_particles_left: CPUParticles3D = null
+var spark_particles_right: CPUParticles3D = null
+var spark_particles: CPUParticles3D = null
+var splash_particles: CPUParticles3D = null
+var jetpack_light: OmniLight3D = null
+
+# Thermal and Fluid Suit Materials & Particle FX
+var active_suit_material: StandardMaterial3D = null
+var suit_effect_intensity: float = 0.0
+
 var laser_immediate: ImmediateMesh = ImmediateMesh.new()
 var is_action_locked: bool = false
 
@@ -44,6 +82,8 @@ var target_yaw: float = 0.0
 var target_pitch: float = 0.0
 var target_zoom: float = 0.0
 var current_zoom: float = 0.0
+var was_cam_underwater: bool = false
+var cam_submersion_anim_t: float = 0.0
 var cam_base_fwd: Vector3 = Vector3.FORWARD
 var current_facing: Vector3 = Vector3.FORWARD
 const MIN_ZOOM: float = 0.0
@@ -52,6 +92,13 @@ const FPS_THRESHOLD: float = 0.8
 const HELMET_HEAD_POS: Vector3 = Vector3(0, 1.6, 0)
 const HELMET_HELD_POS: Vector3 = Vector3(0, 0.95, -0.36)
 const HELMET_HELD_ROT: Vector3 = Vector3(0.35, 0, 0)
+const LEFT_ARM_HELD_ROT: Vector3 = Vector3(0.72, 0.22, 0.42)
+const RIGHT_ARM_HELD_ROT: Vector3 = Vector3(0.72, -0.22, -0.42)
+
+# Surface Swimming State
+var is_surface_swimming: bool = false
+
+var underwater_screen_overlay: ColorRect = null
 
 func _ready() -> void:
 	if laser_mesh:
@@ -62,8 +109,25 @@ func _ready() -> void:
 		laser_mesh.material_override = mat
 	if camera_pivot:
 		camera_pivot.top_level = true
+	_setup_suit_materials()
+	_setup_fluid_and_jetpack_particles()
+	_setup_underwater_overlay()
 	set_suit_mode(true)
 	_check_fps_mode()
+
+func _setup_underwater_overlay() -> void:
+	var canvas = CanvasLayer.new()
+	canvas.name = "UnderwaterCanvas"
+	canvas.layer = 105
+	add_child(canvas)
+	
+	underwater_screen_overlay = ColorRect.new()
+	underwater_screen_overlay.name = "UnderwaterOverlay"
+	underwater_screen_overlay.anchors_preset = Control.PRESET_FULL_RECT
+	underwater_screen_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	underwater_screen_overlay.color = Color(0.04, 0.28, 0.65, 0.0)
+	underwater_screen_overlay.visible = false
+	canvas.add_child(underwater_screen_overlay)
 
 func setup_spawn(spawn_pos: Vector3, up_dir: Vector3, facing_dir: Vector3) -> void:
 	global_position = spawn_pos
@@ -119,6 +183,9 @@ func set_suit_mode(outside: bool) -> void:
 				helmet.rotation = HELMET_HELD_ROT
 		if face:
 			face.visible = not outside
+		if not outside:
+			if left_arm: left_arm.rotation = LEFT_ARM_HELD_ROT
+			if right_arm and not is_mining: right_arm.rotation = RIGHT_ARM_HELD_ROT
 
 func animate_put_on_helmet() -> void:
 	is_in_space_suit = true
@@ -237,7 +304,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			zoom_camera(1.0)
 
 func _physics_process(delta: float) -> void:
-	var planet = GameManager.current_planet
+	if is_instance_valid(GameManager) and (GameManager.current_planet.size() > 0 or planet.is_empty()):
+		planet = GameManager.current_planet
 	var gravity_val: float = planet.get("gravity", 9.8)
 
 	var up_dir = global_position.normalized()
@@ -250,6 +318,12 @@ func _physics_process(delta: float) -> void:
 		target_yaw += 2.5 * delta
 	if Input.is_action_pressed("rotate_cam_right"):
 		target_yaw -= 2.5 * delta
+
+	# Synchronize camera orientation and facing with diurnal planetary rotation
+	var day_len = float(planet.get("day_length", 1200.0))
+	var rot_d_angle = (TAU / maxf(10.0, day_len)) * delta
+	cam_base_fwd = cam_base_fwd.rotated(Vector3.UP, rot_d_angle)
+	current_facing = current_facing.rotated(Vector3.UP, rot_d_angle)
 
 	# 1. Spherical Orbit Camera Rotation
 	cam_yaw = lerp_angle(cam_yaw, target_yaw, delta * 20.0)
@@ -303,17 +377,44 @@ func _physics_process(delta: float) -> void:
 			camera.position.z = lerp(camera.position.z, effective_dist, delta * 18.0)
 			camera.fov = lerp(camera.fov, 55.0, delta * 12.0)
 			
-		# Mathematical Spherical Ground Floor: Camera can NEVER penetrate below planet surface
+		# Mathematical Spherical Ground Floor: Camera stops at SOLID ROCK TERRAIN floor (not water level)
 		if camera:
 			var cam_pos = camera.global_position
 			var cam_dir = cam_pos.normalized()
-			var min_surface_r = planet_radius + _calc_ground_elevation(cam_dir) + 0.85
+			var ground_elev = _calc_ground_elevation(cam_dir)
+			var min_surface_r = planet_radius + ground_elev + 0.65
 			if cam_pos.length() < min_surface_r:
 				camera.global_position = cam_dir * min_surface_r
 				
 		# Anti-clipping: hide head if 3P camera is pushed closer than 1.1m
 		if head:
 			head.visible = (effective_dist >= 1.1)
+
+	# Dynamic Camera Submersion Transition & Audio Reaction (underwater camera dive/surface)
+	if camera:
+		var cam_rad = camera.global_position.length()
+		var p_parent = get_parent()
+		var cur_sea_r = planet_radius
+		if p_parent and p_parent.has_method("get_ocean_surface_radius"):
+			cur_sea_r = p_parent.get_ocean_surface_radius()
+		var has_liq = str(planet.get("water_status", "Seco / Desolado")) != "Seco / Desolado" and str(planet.get("water_status", "")) != ""
+		var is_cam_submerged = has_liq and (cam_rad < cur_sea_r)
+		
+		if is_cam_submerged != was_cam_underwater:
+			was_cam_underwater = is_cam_submerged
+			cam_submersion_anim_t = 0.50 # 500ms dynamic optical dive reaction
+			if is_cam_submerged:
+				AudioManager.play("splash", 0.85, -4.0)
+				AudioManager.play("bubbles", 1.0, -1.0)
+			else:
+				AudioManager.play("splash", 0.90, 3.0)
+				
+		if cam_submersion_anim_t > 0.0:
+			cam_submersion_anim_t = maxf(0.0, cam_submersion_anim_t - delta)
+			var sub_pulse = sin((cam_submersion_anim_t / 0.50) * PI)
+			# Fluid dive optical FOV distortion pulse & vertical refractive displacement
+			camera.fov += sub_pulse * 4.5
+			camera.position.y -= sub_pulse * 0.08
 
 	# 3. Camera-Dependent Movement Input Projected onto Spherical Tangent Plane
 	var input_vec = Vector2.ZERO
@@ -351,31 +452,97 @@ func _physics_process(delta: float) -> void:
 	var planet_temp = planet.get("temperature", 22.0)
 	var has_oxygen_atmo = planet.get("has_oxygen", false)
 	
-	# Liquid Ocean / Hydro Basin Immersion
+	# Liquid Ocean / Hydro Basin Immersion (Dynamic Tides & Hitbox Calibration)
 	var ocean_surface_r = planet_radius
+	var p_node = get_parent()
+	if p_node and p_node.has_method("get_ocean_surface_radius"):
+		ocean_surface_r = p_node.get_ocean_surface_radius()
+	elif GameManager.current_planet.has("radius"):
+		ocean_surface_r = float(GameManager.current_planet.get("radius", 160.0))
+
 	var dist_from_center = global_position.length()
-	is_in_liquid = (dist_from_center < ocean_surface_r)
+	var has_planetary_liquid = str(planet.get("water_status", "Seco / Desolado")) != "Seco / Desolado" and str(planet.get("water_status", "")) != ""
+	# Real fluid immersion: astronaut interacts with fluid whenever submerged
+	is_in_liquid = has_planetary_liquid and (dist_from_center < (ocean_surface_r + 0.10))
+	
+	# Detect surface transition: spawn fluid splash strictly when crossing the liquid threshold
+	if is_in_liquid != was_in_liquid:
+		var dist_to_surface = absf(dist_from_center - ocean_surface_r)
+		if has_planetary_liquid and dist_to_surface < 0.65:
+			_trigger_liquid_splash(planet)
+			if is_in_liquid and vertical_speed < -3.0:
+				water_impact_timer = 0.55
+				vertical_speed *= 0.35 # Fluid cushions high impact fall
+		was_in_liquid = is_in_liquid
+		
+	# Physical Ocean Waves: only applies when actively swimming in fluid, NEVER pushing stationary player on solid land
+	if is_in_liquid and not is_on_floor():
+		var norm_pos = global_position.normalized()
+		var wave_t = walk_time * 0.038
+		var w1 = sin(norm_pos.x * 28.0 + norm_pos.y * 22.0 + wave_t * 4.0) * 0.45
+		var w2 = cos(norm_pos.z * 32.0 + norm_pos.x * 18.0 - wave_t * 3.5) * 0.35
+		var w3 = sin(norm_pos.y * 42.0 - norm_pos.z * 26.0 + wave_t * 5.2) * 0.20
+		var local_wave_factor = w1 + w2 + w3
+		current_wave_height = local_wave_factor * 0.35
+		
+		var wave_t1 = Vector3(-norm_pos.z, 0.0, norm_pos.x).slide(up_dir).normalized()
+		var wave_t2 = Vector3(norm_pos.y, -norm_pos.x, 0.0).slide(up_dir).normalized()
+		current_wave_flow = (wave_t1 * w1 + wave_t2 * w2) * 2.2
+		wave_surge_velocity = wave_surge_velocity.lerp(current_wave_flow * 0.45, delta * 3.5)
+	else:
+		current_wave_height = 0.0
+		current_wave_flow = Vector3.ZERO
+		wave_surge_velocity = wave_surge_velocity.lerp(Vector3.ZERO, delta * 8.0)
+		if is_on_floor() or not is_in_liquid:
+			wave_surge_velocity = Vector3.ZERO
+
+	water_impact_timer = maxf(0.0, water_impact_timer - delta)
+	wave_stumble_timer = maxf(0.0, wave_stumble_timer - delta)
+		
+	_update_suit_thermal_and_fluid_reactions(delta, planet)
 	
 	if is_in_liquid:
 		var submersion_depth = ocean_surface_r - dist_from_center
-		if has_oxygen_atmo:
-			# Water Swimming: Submerged oxygen drain
-			if submersion_depth > 1.1:
-				GameManager.player_stats.oxygen = max(0.0, GameManager.player_stats.oxygen - 2.5 * delta)
-		elif planet_temp > 70.0:
-			# Magma / Acid: Thermal burning of hull
-			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 35.0 * delta)
-		elif planet_temp < -60.0:
-			# Cryogenic Liquid Methane: Severe thermal freezing
+		var water_stat = str(planet.get("water_status", ""))
+		var chem = str(planet.get("ocean_chemical", ""))
+		var is_molten = planet.get("is_molten", false) or water_stat == "Lava Fundida" or chem == "magma"
+		var is_acid = water_stat == "Vapor Tóxico" or chem == "sulfuric_acid"
+		var is_cryo = water_stat == "Hielo Criogénico" or chem == "methane"
+		
+		if is_molten:
+			# Magma Ocean + Thermal Wave Surge: Severe burning of suit hull
+			var wave_burn = 38.0 + maxf(0.0, current_wave_height) * 25.0
+			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - wave_burn * delta)
+		elif is_acid:
+			# Sulfuric Acid Ocean + Corrosive Chemical Wave: Acid damage to suit
+			var wave_acid = 28.0 + maxf(0.0, current_wave_height) * 20.0
+			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - wave_acid * delta)
+		elif is_cryo:
+			# Cryogenic Methane Ocean: Subzero freezing
 			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 22.0 * delta)
-		else:
-			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 16.0 * delta)
+		elif not has_oxygen_atmo and planet_temp > 70.0:
+			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 18.0 * delta)
+
+	# Oxygen Consumption Calculation
+	var head_dist = dist_from_center + 1.55 # Helmet center is ~1.55m above astronaut feet
+	var is_head_submerged = has_planetary_liquid and (head_dist < ocean_surface_r)
+	var is_head_above_water = not has_planetary_liquid or (head_dist >= ocean_surface_r)
 
 	if is_in_space_suit:
-		if has_oxygen_atmo and not is_in_liquid:
+		if has_oxygen_atmo and is_head_above_water:
+			# Respires breathable atmosphere whenever head is above the water line!
 			GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 45.0 * delta)
-		elif not is_in_liquid:
-			var o2_drain = 3.8 if (is_sprint_active and input_str > 0.1) else 1.2
+		else:
+			# Submerged underwater or unbreathable atmosphere: consumes oxygen tank
+			var o2_drain = 1.2
+			if is_head_submerged:
+				o2_drain = 2.5 # Submerged breathing resistance
+				if is_swimming_manual:
+					o2_drain += 3.8
+				if is_sprint_active and input_str > 0.1:
+					o2_drain += 3.8
+			elif is_sprint_active and input_str > 0.1:
+				o2_drain = 3.8
 			GameManager.player_stats.oxygen = max(0.0, GameManager.player_stats.oxygen - o2_drain * delta)
 	
 	if GameManager.player_stats.oxygen <= 0.0:
@@ -388,100 +555,294 @@ func _physics_process(delta: float) -> void:
 		)
 		_die(death_reason)
 
-	# 6. Horizontal Velocity & Procedural Character Facing
+	# 6. Locomotion, Underwater Walking, Jetpack & Swimming
+	var is_jump_pressed = not is_action_locked and (Input.is_action_pressed("jump_thrust") or Input.is_key_pressed(KEY_SPACE))
+	var is_jump_just_pressed = not is_action_locked and (Input.is_action_just_pressed("jump_thrust") or Input.is_key_pressed(KEY_SPACE))
+	var is_crouch_pressed = not is_action_locked and ((InputMap.has_action("crouch") and Input.is_action_pressed("crouch")) or Input.is_key_pressed(KEY_CTRL))
+
 	var current_speed = walk_speed * (1.85 if is_sprint_active else 1.0)
 	var horizontal_vel = move_tangent * (input_str * current_speed)
 
-	if input_str > 0.05 and visuals and not is_action_locked:
-		walk_time += delta * (14.0 if is_sprint_active else 8.5)
-		var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
-		if left_leg: left_leg.rotation.x = swing
-		if right_leg: right_leg.rotation.x = -swing
+	# Touching solid floor (either on dry land or on the seabed) primes emergency spark jump
+	if is_on_floor():
+		can_emergency_spark_jump = true
 
-		visuals.rotation.y = 0.0
-		visuals.rotation.z = -input_vec.x * 0.08
-		var double_bounce = abs(sin(walk_time))
-		visuals.position.y = double_bounce * 0.05
-	elif visuals and not is_action_locked:
-		walk_time += delta * 1.5
-		var idle_breath = sin(walk_time) * 0.015
-		visuals.position.y = idle_breath
-		visuals.rotation.y = 0.0
-		visuals.rotation.z = lerp_angle(visuals.rotation.z, 0.0, delta * 10.0)
-		if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, 0.0, delta * 10.0)
-		if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, 0.0, delta * 10.0)
+	# --- JETPACK NORMAL (cuando tiene combustible) ---
+	if is_jump_pressed and GameManager.player_stats.fuel > 0.0:
+		is_jetpack_thrusting = true
+		vertical_speed += jetpack_accel * delta
+		vertical_speed = min(vertical_speed, 14.0)
+		GameManager.player_stats.fuel = max(0.0, GameManager.player_stats.fuel - 18.0 * delta)
+		is_surface_swimming = false
 
-	# Upper body arms & helmet holding logic
-	if not is_in_space_suit and not is_action_locked:
-		var breath = sin(walk_time * 1.5) * 0.015
-		var arm_target_l = Vector3(0.72 + breath, 0.22, 0.42)
-		var arm_target_r = Vector3(0.72 + breath, -0.22, -0.42)
-		if left_arm: left_arm.rotation = left_arm.rotation.lerp(arm_target_l, delta * 12.0)
-		if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(arm_target_r, delta * 12.0)
-		if helmet and not is_first_person:
-			helmet.position = Vector3(HELMET_HELD_POS.x, HELMET_HELD_POS.y + breath * 0.4, HELMET_HELD_POS.z)
-			helmet.rotation = HELMET_HELD_ROT
-			helmet.visible = true
-	elif is_in_space_suit and not is_action_locked:
-		if is_in_liquid and input_str > 0.05:
-			# Swimming breaststroke / paddle arm animation
-			var stroke = sin(walk_time * 1.5)
-			if left_arm:
-				left_arm.rotation.x = stroke * 0.9
-				left_arm.rotation.z = deg_to_rad(25.0) + abs(stroke) * 0.35
-			if right_arm and not is_mining:
-				right_arm.rotation.x = -stroke * 0.9
-				right_arm.rotation.z = -deg_to_rad(25.0) - abs(stroke) * 0.35
-		elif input_str > 0.05:
-			var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
-			if left_arm: left_arm.rotation.x = -swing * 0.8
-			if left_arm: left_arm.rotation.z = lerp_angle(left_arm.rotation.z, 0.0, delta * 10.0)
-			if right_arm and not is_mining: right_arm.rotation.x = swing * 0.8
-			if right_arm: right_arm.rotation.z = lerp_angle(right_arm.rotation.z, 0.0, delta * 10.0)
+		if is_in_liquid:
+			# Cavitación submarina con burbujas y propulsión normal
+			_set_jetpack_flames(false)
+			_set_jetpack_bubbles(true)
+			is_swimming_manual = true
+			if fmod(walk_time, 0.35) < delta:
+				AudioManager.play("bubbles", 0.9, 0.0)
 		else:
-			if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
-			if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
-
-	# 7. Vertical Velocity / Jetpack / Jump / Swimming
-	if is_in_liquid:
-		floor_snap_length = 0.0 # Crucial: Disable floor snap so water buoyancy lifts character off ocean bed
-		var dist_c = global_position.length()
-		var depth = ocean_surface_r - dist_c
-		
-		# Fluid Buoyancy: floats near surface (depth ~0.3m)
-		if depth > 0.35:
-			vertical_speed = lerpf(vertical_speed, 2.2, delta * 3.5)
-		else:
-			vertical_speed = lerpf(vertical_speed, 0.0, delta * 5.0)
-			
-		# Swimming actions
-		if not is_action_locked and (Input.is_action_pressed("jump_thrust") or Input.is_key_pressed(KEY_SPACE)):
-			# Swim upwards towards surface / breach shore
-			vertical_speed = 4.8
-			if fmod(walk_time, 0.45) < delta:
-				AudioManager.play("jump", 0.7, -4.0)
-		elif not is_action_locked and ((InputMap.has_action("crouch") and Input.is_action_pressed("crouch")) or Input.is_key_pressed(KEY_CTRL)):
-			vertical_speed = -3.5 # Dive down
-			
-		horizontal_vel *= 0.85 # Fluid drag
-	elif is_on_floor():
-		floor_snap_length = 0.85
-		vertical_speed = 0.0
-		if not is_action_locked and Input.is_action_just_pressed("jump_thrust"):
-			vertical_speed = jump_velocity
-			AudioManager.play("jump", 1.0)
-	else:
-		if not is_action_locked and Input.is_action_pressed("jump_thrust") and GameManager.player_stats.fuel > 0.0:
-			vertical_speed += jetpack_accel * delta
-			vertical_speed = min(vertical_speed, 12.0)
-			GameManager.player_stats.fuel = max(0.0, GameManager.player_stats.fuel - 18.0 * delta)
+			# Propulsión supersónica atmosférica con llamas
+			_set_jetpack_bubbles(false)
+			_set_jetpack_flames(true)
+			is_swimming_manual = false
 			if fmod(walk_time, 0.25) < delta:
 				AudioManager.play("thruster", 1.0, -8.0)
-		else:
-			vertical_speed -= gravity_val * delta
-			vertical_speed = max(vertical_speed, -25.0)
+	else:
+		# Jetpack apagado (sin presionar o sin combustible)
+		is_jetpack_thrusting = false
+		_set_jetpack_flames(false)
+		_set_jetpack_bubbles(false)
 
-	velocity = horizontal_vel + up_dir * vertical_speed
+		# --- SALTO Y LOCOMOCIÓN SIN JETPACK / SIN COMBUSTIBLE ---
+		if is_in_liquid:
+			floor_snap_length = 0.85
+			var fluid_gravity = gravity_val * 0.62
+
+			if is_on_floor():
+				# Tocando fondo marino: salto de impulso disponible
+				vertical_speed = 0.0
+				is_surface_swimming = false
+				is_swimming_manual = false
+				if is_jump_just_pressed:
+					can_emergency_spark_jump = false
+					vertical_speed = jump_velocity * 0.85
+					_trigger_emergency_sparks()
+					AudioManager.play("flint_jump", 1.1, 2.0)
+					AudioManager.play("bubbles", 1.0, 1.0)
+			else:
+				# En medio del agua: sin flotabilidad, desciende por gravedad al fondo marino
+				is_surface_swimming = false
+				is_swimming_manual = false
+				vertical_speed -= fluid_gravity * delta
+				if is_crouch_pressed:
+					vertical_speed = min(vertical_speed, -4.5)
+				vertical_speed = max(vertical_speed, -12.0)
+
+		elif is_on_floor():
+			# En tierra firme
+			is_surface_swimming = false
+			floor_snap_length = 0.85
+			vertical_speed = 0.0
+			is_swimming_manual = false
+
+			if is_jump_just_pressed:
+				if GameManager.player_stats.fuel > 0.0:
+					vertical_speed = jump_velocity
+					AudioManager.play("jump", 1.0)
+				elif can_emergency_spark_jump:
+					can_emergency_spark_jump = false
+					vertical_speed = jump_velocity * 0.85
+					AudioManager.play("flint_jump", 1.1, 2.0)
+					_trigger_emergency_sparks()
+
+		else:
+			# En el aire (airborne)
+			is_surface_swimming = false
+			is_swimming_manual = false
+
+			if is_jump_just_pressed and GameManager.player_stats.fuel <= 0.0 and can_emergency_spark_jump:
+				# Salto de emergencia en el aire sin combustible
+				can_emergency_spark_jump = false
+				vertical_speed = jump_velocity * 0.85
+				AudioManager.play("flint_jump", 1.1, 2.0)
+				_trigger_emergency_sparks()
+			else:
+				# Caída libre / gravedad
+				vertical_speed -= gravity_val * delta
+				vertical_speed = max(vertical_speed, -25.0)
+
+	if is_in_liquid:
+		var liq_density = get_liquid_density()
+		var drag_factor = clampf(1.05 / sqrt(liq_density), 0.50, 1.20)
+		var seabed_speed = current_speed * 0.70 * drag_factor
+		horizontal_vel = move_tangent * (input_str * seabed_speed)
+
+	# 7. Procedural Limb & Posture Animations (Air, Land, Underwater, Jetpack)
+	if not is_action_locked and visuals:
+		if is_in_liquid:
+			var submersion_depth: float = maxf(0.0, ocean_surface_r - global_position.length())
+			var is_deep_water: bool = submersion_depth >= 1.15 and not is_on_floor()
+			var is_swimming_active: bool = (is_deep_water and (input_str > 0.05 or is_crouch_pressed)) or is_swimming_manual
+			
+			# Natural Upright Posture in Fluid: zero forward/backward tilt when entering or staying in water!
+			visuals.rotation.x = lerp_angle(visuals.rotation.x, 0.0, delta * 8.0)
+			visuals.rotation.z = lerp_angle(visuals.rotation.z, 0.0, delta * 8.0)
+			
+			if is_surface_swimming:
+				# High-Quality Surface Swimming: Head floating above water, arms & legs tread water rítmicamente
+				swim_time += delta * (5.8 if input_str > 0.05 else 3.2)
+				visuals.rotation.x = lerp_angle(visuals.rotation.x, 0.0, delta * 8.0)
+				visuals.rotation.z = lerp_angle(visuals.rotation.z, -input_vec.x * 0.05, delta * 6.0)
+				visuals.position.y = 0.0
+				
+				# Harmonic surface breaststroke / treading arms
+				var arm_phase = swim_time
+				var arm_swing = sin(arm_phase)
+				var arm_pitch = -deg_to_rad(24.0) + arm_swing * deg_to_rad(18.0)
+				var arm_spread = deg_to_rad(28.0) + cos(arm_phase) * deg_to_rad(12.0)
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(arm_pitch, 0, arm_spread), delta * 8.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(arm_pitch, 0, -arm_spread), delta * 8.0)
+				
+				# Scissor flutter kicks under surface
+				var kick_left = sin(arm_phase * 2.2) * deg_to_rad(24.0)
+				var kick_right = sin(arm_phase * 2.2 + PI) * deg_to_rad(24.0)
+				if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, kick_left, delta * 8.0)
+				if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, kick_right, delta * 8.0)
+			elif wave_stumble_timer > 0.0:
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(deg_to_rad(-15.0), 0, deg_to_rad(25.0)), delta * 8.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(deg_to_rad(-15.0), 0, deg_to_rad(-25.0)), delta * 8.0)
+				if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, deg_to_rad(12.0), delta * 8.0)
+				if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, deg_to_rad(12.0), delta * 8.0)
+			elif water_impact_timer > 0.0:
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(deg_to_rad(15.0), 0, deg_to_rad(20.0)), delta * 8.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(deg_to_rad(15.0), 0, deg_to_rad(-20.0)), delta * 8.0)
+				if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, deg_to_rad(14.0), delta * 8.0)
+				if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, deg_to_rad(14.0), delta * 8.0)
+			elif is_jetpack_thrusting:
+				# Vertical Jetpack Ascent through water
+				walk_time += delta * 6.0
+				if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, deg_to_rad(12.0), delta * 8.0)
+				if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, deg_to_rad(12.0), delta * 8.0)
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(-deg_to_rad(15.0), 0, deg_to_rad(15.0)), delta * 8.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(-deg_to_rad(15.0), 0, -deg_to_rad(15.0)), delta * 8.0)
+			elif is_swimming_active:
+				# Upright swimming treading / propulsion
+				swim_time += delta * (4.2 if is_sprint_active else 3.0)
+				var stroke_phase = swim_time
+				var arm_cycle = sin(stroke_phase)
+				var arm_pitch = -deg_to_rad(20.0) - arm_cycle * deg_to_rad(16.0)
+				var arm_spread = deg_to_rad(16.0) + cos(stroke_phase) * deg_to_rad(10.0)
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(arm_pitch, 0, arm_spread), delta * 8.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(arm_pitch, 0, -arm_spread), delta * 8.0)
+				var kick_left = sin(stroke_phase * 2.0) * deg_to_rad(18.0)
+				var kick_right = sin(stroke_phase * 2.0 + PI) * deg_to_rad(18.0)
+				if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, kick_left, delta * 8.0)
+				if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, kick_right, delta * 8.0)
+			elif is_deep_water:
+				# Upright descent through water
+				walk_time += delta * 1.8
+				visuals.position.y = 0.0
+				var gentle_scull = sin(walk_time * 1.6) * 0.08
+				if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, deg_to_rad(10.0) + gentle_scull, delta * 5.0)
+				if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, deg_to_rad(6.0) - gentle_scull, delta * 5.0)
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(deg_to_rad(14.0) + gentle_scull, 0, deg_to_rad(18.0)), delta * 5.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(deg_to_rad(14.0) + gentle_scull, 0, -deg_to_rad(18.0)), delta * 5.0)
+			elif input_str > 0.05:
+				# Underwater Seabed Bounding Strides ("saltitos" proporcionales a la densidad del líquido)
+				var liq_density = get_liquid_density()
+				var density_t = clampf((liq_density - 0.45) / 2.2, 0.0, 1.0)
+				var hop_freq = lerpf(4.8, 2.4, density_t) * (1.25 if is_sprint_active else 1.0)
+				var hop_height = lerpf(0.24, 0.11, density_t)
+				
+				walk_time += delta * hop_freq
+				var hop_phase = fmod(walk_time, PI)
+				var hop_y = sin(hop_phase) * hop_height
+				visuals.position.y = hop_y
+				
+				# Inclinación sutil hacia adelante durante el saltito
+				var forward_lean = deg_to_rad(5.0) + (hop_y / maxf(0.01, hop_height)) * deg_to_rad(4.0)
+				visuals.rotation.x = lerp_angle(visuals.rotation.x, forward_lean, delta * 6.0)
+				visuals.rotation.z = -input_vec.x * 0.04
+				
+				# Zancada amplia y suspendida de saltito submarino
+				var stride = sin(walk_time) * (0.42 if is_sprint_active else 0.32)
+				if left_leg: left_leg.rotation.x = stride
+				if right_leg: right_leg.rotation.x = -stride
+				
+				# Brazos extendidos para estabilización hidrodinámica
+				var arm_spread = deg_to_rad(14.0) + sin(hop_phase) * deg_to_rad(6.0)
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(-deg_to_rad(10.0), 0, arm_spread), delta * 8.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(-deg_to_rad(10.0), 0, -arm_spread), delta * 8.0)
+				
+				# Burbujas periódicas levantadas en cada saltito en el fondo
+				if hop_phase < delta * hop_freq:
+					if fmod(walk_time, TAU) < delta * hop_freq * 1.5:
+						AudioManager.play("bubbles", 0.75, -2.0)
+			else:
+				# Upright standing still in fluid
+				walk_time += delta * 1.5
+				visuals.position.y = 0.0
+				if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, 0.0, delta * 6.0)
+				if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, 0.0, delta * 6.0)
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(0.1, 0, 0.12), delta * 6.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(0.1, 0, -0.12), delta * 6.0)
+		else:
+			# Land / Air Postures
+			if is_jetpack_thrusting:
+				# 2) Airborne Jetpack Flight Posture
+				visuals.rotation.x = lerp_angle(visuals.rotation.x, deg_to_rad(14.0), delta * 6.0)
+				visuals.rotation.z = -input_vec.x * 0.10
+				if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, deg_to_rad(22.0), delta * 6.0)
+				if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, deg_to_rad(26.0), delta * 6.0)
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(deg_to_rad(-18.0), 0, deg_to_rad(18.0)), delta * 6.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(deg_to_rad(-18.0), 0, deg_to_rad(-18.0)), delta * 6.0)
+			elif not is_in_space_suit:
+				# 3) Holding helmet with both hands in front of torso (Image 6: exact natural pose)
+				walk_time += delta * (12.0 if input_str > 0.05 else 1.5)
+				var breath = sin(walk_time * 1.5) * 0.015
+				var swing = sin(walk_time) * 0.35 if input_str > 0.05 else 0.0
+				visuals.position.y = abs(sin(walk_time)) * 0.04 if input_str > 0.05 else sin(walk_time) * 0.012
+				visuals.rotation.x = lerp_angle(visuals.rotation.x, 0.0, delta * 8.0)
+				visuals.rotation.z = -input_vec.x * 0.06 if input_str > 0.05 else 0.0
+				if left_leg: left_leg.rotation.x = swing
+				if right_leg: right_leg.rotation.x = -swing
+				
+				var arm_target_l = Vector3(0.72 + breath, 0.22, 0.42)
+				var arm_target_r = Vector3(0.72 + breath, -0.22, -0.42)
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(arm_target_l, delta * 12.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(arm_target_r, delta * 12.0)
+				if helmet and not is_first_person:
+					helmet.position = Vector3(HELMET_HELD_POS.x, HELMET_HELD_POS.y + breath * 0.4, HELMET_HELD_POS.z)
+					helmet.rotation = HELMET_HELD_ROT
+					helmet.visible = true
+			elif input_str > 0.05:
+				walk_time += delta * (14.0 if is_sprint_active else 8.5)
+				var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
+				visuals.rotation.x = lerp_angle(visuals.rotation.x, 0.0, delta * 8.0)
+				visuals.rotation.z = -input_vec.x * 0.08
+				visuals.position.y = abs(sin(walk_time)) * 0.05
+				if left_leg: left_leg.rotation.x = swing
+				if right_leg: right_leg.rotation.x = -swing
+				if left_arm: left_arm.rotation = Vector3(-swing * 0.8, 0, 0)
+				if right_arm and not is_mining: right_arm.rotation = Vector3(swing * 0.8, 0, 0)
+			else:
+				walk_time += delta * 1.5
+				var idle_breath = sin(walk_time) * 0.015
+				visuals.position.y = idle_breath
+				visuals.rotation.x = lerp_angle(visuals.rotation.x, 0.0, delta * 8.0)
+				visuals.rotation.z = lerp_angle(visuals.rotation.z, 0.0, delta * 10.0)
+				if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, 0.0, delta * 10.0)
+				if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, 0.0, delta * 10.0)
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
+
+	# Dynamic Fullscreen Fluid Submersion Overlay
+	if underwater_screen_overlay:
+		if was_cam_underwater:
+			underwater_screen_overlay.visible = true
+			var water_stat = str(planet.get("water_status", ""))
+			var is_molten = planet.get("is_molten", false) or water_stat == "Lava Fundida"
+			var is_acid = water_stat == "Vapor Tóxico"
+			var is_cryo = water_stat == "Hielo Criogénico"
+			
+			var target_tint = Color(0.04, 0.35, 0.75, 0.32)
+			if is_molten:
+				target_tint = Color(0.95, 0.25, 0.05, 0.52)
+			elif is_acid:
+				target_tint = Color(0.40, 0.68, 0.10, 0.40)
+			elif is_cryo:
+				target_tint = Color(0.12, 0.52, 0.85, 0.35)
+				
+			underwater_screen_overlay.color = underwater_screen_overlay.color.lerp(target_tint, delta * 8.0)
+		else:
+			if underwater_screen_overlay.color.a > 0.02:
+				underwater_screen_overlay.color.a = lerpf(underwater_screen_overlay.color.a, 0.0, delta * 12.0)
+			else:
+				underwater_screen_overlay.visible = false
+
+	velocity = horizontal_vel + up_dir * vertical_speed + wave_surge_velocity
 	move_and_slide()
 
 	# Ceiling Collision Detection: Stop upward speed immediately if ceiling touched
@@ -591,10 +952,35 @@ func _draw_laser(target_pos: Vector3) -> void:
 	laser_immediate.surface_end()
 
 func _calc_ground_elevation(dir: Vector3) -> float:
-	var planet_node = get_parent().get_node_or_null("SphericalPlanet") if get_parent() else null
-	if planet_node and planet_node.has_method("_get_elevation"):
-		return planet_node._get_elevation(dir)
-	return 0.5
+	var p_node = get_parent()
+	if p_node and p_node.has_method("_get_elevation"):
+		return p_node._get_elevation(dir)
+	var root_w = get_tree().current_scene if is_inside_tree() else null
+	if root_w:
+		var p_sub = root_w.get_node_or_null("SphericalPlanet")
+		if p_sub and p_sub.has_method("_get_elevation"):
+			return p_sub._get_elevation(dir)
+	return -8.0
+
+func get_liquid_density() -> float:
+	var p_params = planet if planet.size() > 0 else (GameManager.current_planet if is_instance_valid(GameManager) else {})
+	var chem = str(p_params.get("ocean_chemical", ""))
+	var water_stat = str(p_params.get("water_status", ""))
+	var is_molten = p_params.get("is_molten", false) or water_stat == "Lava Fundida" or chem == "magma"
+	var is_acid = water_stat == "Vapor Tóxico" or chem == "sulfuric_acid"
+	var is_cryo = water_stat == "Hielo Criogénico" or chem == "methane"
+	var is_hycean = chem == "hycean"
+	
+	if is_molten:
+		return 2.65 # Magma basáltico denso (~2650 kg/m³)
+	elif is_acid:
+		return 1.84 # Ácido sulfúrico concentrado (~1840 kg/m³)
+	elif is_cryo:
+		return 0.45 # Metano/etano líquido superligero (~450 kg/m³)
+	elif is_hycean:
+		return 0.92 # Amoníaco-agua (~920 kg/m³)
+	else:
+		return 1.00 # Agua marina estándar (~1025 kg/m³)
 
 func _die(reason: String) -> void:
 	is_dead = true
@@ -616,3 +1002,358 @@ func _die(reason: String) -> void:
 	timer.timeout.connect(func():
 		GameManager.game_over.emit(reason)
 	)
+
+func _setup_suit_materials() -> void:
+	active_suit_material = StandardMaterial3D.new()
+	active_suit_material.albedo_color = Color(0.92, 0.94, 0.97)
+	active_suit_material.roughness = 0.40
+	active_suit_material.metallic = 0.10
+	
+	var mesh_paths = [
+		"Visuals/Torso",
+		"Visuals/Helmet/HelmetSphere",
+		"Visuals/LeftArm/Mesh",
+		"Visuals/RightArm/Mesh",
+		"Visuals/LeftLeg/Mesh",
+		"Visuals/RightLeg/Mesh"
+	]
+	for path in mesh_paths:
+		var m = get_node_or_null(path) as MeshInstance3D
+		if m:
+			m.material_override = active_suit_material
+
+func _create_jetpack_mesh_unit(is_left: bool) -> Node3D:
+	var root = Node3D.new()
+	root.name = "JetpackLeft" if is_left else "JetpackRight"
+	root.position = Vector3(-0.28 if is_left else 0.28, -0.06, 0.06)
+	
+	# Titanium Jetpack Body
+	var body_mesh = CylinderMesh.new()
+	body_mesh.top_radius = 0.065
+	body_mesh.bottom_radius = 0.065
+	body_mesh.height = 0.32
+	body_mesh.radial_segments = 16
+	var body_mat = StandardMaterial3D.new()
+	body_mat.albedo_color = Color(0.22, 0.26, 0.34, 1.0)
+	body_mat.metallic = 0.92
+	body_mat.roughness = 0.24
+	body_mesh.material = body_mat
+	
+	var body_inst = MeshInstance3D.new()
+	body_inst.name = "Body"
+	body_inst.mesh = body_mesh
+	root.add_child(body_inst)
+	
+	# Conical Titanium Nozzle
+	var nozzle_mesh = CylinderMesh.new()
+	nozzle_mesh.top_radius = 0.055
+	nozzle_mesh.bottom_radius = 0.082
+	nozzle_mesh.height = 0.14
+	nozzle_mesh.radial_segments = 16
+	var nozzle_mat = StandardMaterial3D.new()
+	nozzle_mat.albedo_color = Color(0.12, 0.13, 0.16, 1.0)
+	nozzle_mat.metallic = 0.95
+	nozzle_mat.roughness = 0.18
+	nozzle_mat.emission_enabled = true
+	nozzle_mat.emission = Color(0.25, 0.12, 0.03, 1.0)
+	nozzle_mat.emission_energy_multiplier = 0.6
+	nozzle_mesh.material = nozzle_mat
+	
+	var nozzle_inst = MeshInstance3D.new()
+	nozzle_inst.name = "NozzleL" if is_left else "NozzleR"
+	nozzle_inst.mesh = nozzle_mesh
+	nozzle_inst.position = Vector3(0, -0.21, 0)
+	root.add_child(nozzle_inst)
+	
+	return root
+
+func _setup_fluid_and_jetpack_particles() -> void:
+	var backpack = get_node_or_null("Visuals/Torso/BackpackPLSS")
+	if backpack:
+		# 0. Ensure Twin Jetpacks exist on Backpack
+		jetpack_left_mesh = backpack.get_node_or_null("JetpackLeft")
+		jetpack_right_mesh = backpack.get_node_or_null("JetpackRight")
+		if not jetpack_left_mesh:
+			jetpack_left_mesh = _create_jetpack_mesh_unit(true)
+			backpack.add_child(jetpack_left_mesh)
+		if not jetpack_right_mesh:
+			jetpack_right_mesh = _create_jetpack_mesh_unit(false)
+			backpack.add_child(jetpack_right_mesh)
+		
+		# Shared particle materials & textures
+		var circle_tex = LandingFXProfile.get_soft_circle_texture()
+		var smoke_tex = LandingFXProfile.get_soft_smoke_texture()
+		var flame_mat = LandingFXProfile.create_billboard_mat(circle_tex, true) # Additive blend
+		var smoke_mat = LandingFXProfile.create_billboard_mat(smoke_tex, false) # Alpha blend
+		var bubble_mat = LandingFXProfile.create_billboard_mat(circle_tex, false) # Alpha blend
+		
+		var flame_qmesh = QuadMesh.new()
+		flame_qmesh.size = Vector2(0.28, 0.28)
+		flame_qmesh.material = flame_mat
+		
+		var smoke_qmesh = QuadMesh.new()
+		smoke_qmesh.size = Vector2(0.35, 0.35)
+		smoke_qmesh.material = smoke_mat
+		
+		var bubble_qmesh = QuadMesh.new()
+		bubble_qmesh.size = Vector2(0.32, 0.32)
+		bubble_qmesh.material = bubble_mat
+		
+		var spark_qmesh = QuadMesh.new()
+		spark_qmesh.size = Vector2(0.22, 0.22)
+		spark_qmesh.material = flame_mat
+		
+		var nozzle_l_pos = Vector3(-0.28, -0.36, 0.06)
+		var nozzle_r_pos = Vector3(0.28, -0.36, 0.06)
+		
+		# 1. Twin Supersonic Jetpack Flame Emitters (Left & Right)
+		flame_particles_left = _create_flame_emitter("FlameLeft", flame_qmesh, nozzle_l_pos)
+		flame_particles_right = _create_flame_emitter("FlameRight", flame_qmesh, nozzle_r_pos)
+		backpack.add_child(flame_particles_left)
+		backpack.add_child(flame_particles_right)
+		flame_particles = flame_particles_left
+		
+		# 2. Twin Wispy Flame Smoke Emitters (Left & Right)
+		flame_smoke_left = _create_smoke_emitter("SmokeLeft", smoke_qmesh, nozzle_l_pos)
+		flame_smoke_right = _create_smoke_emitter("SmokeRight", smoke_qmesh, nozzle_r_pos)
+		backpack.add_child(flame_smoke_left)
+		backpack.add_child(flame_smoke_right)
+		
+		# 3. Twin Underwater Cavitation Bubble Emitters (Left & Right)
+		bubble_particles_left = _create_bubble_emitter("BubblesLeft", bubble_qmesh, nozzle_l_pos)
+		bubble_particles_right = _create_bubble_emitter("BubblesRight", bubble_qmesh, nozzle_r_pos)
+		backpack.add_child(bubble_particles_left)
+		backpack.add_child(bubble_particles_right)
+		bubble_particles = bubble_particles_left # Preserves compatibility
+		
+		# 4. Twin Emergency Flint Spark Emitters (Left & Right)
+		spark_particles_left = _create_spark_emitter("SparksLeft", spark_qmesh, nozzle_l_pos)
+		spark_particles_right = _create_spark_emitter("SparksRight", spark_qmesh, nozzle_r_pos)
+		backpack.add_child(spark_particles_left)
+		backpack.add_child(spark_particles_right)
+		spark_particles = spark_particles_left # Preserves compatibility
+		
+		# 5. Dynamic Jetpack Thruster OmniLight3D
+		jetpack_light = OmniLight3D.new()
+		jetpack_light.name = "JetpackLight"
+		jetpack_light.light_color = Color(1.0, 0.65, 0.22)
+		jetpack_light.omni_range = 3.8
+		jetpack_light.light_energy = 0.0
+		jetpack_light.visible = false
+		jetpack_light.position = Vector3(0, -0.38, 0.08)
+		backpack.add_child(jetpack_light)
+
+	# 6. Liquid Entry / Breach Splash
+	if visuals:
+		splash_particles = CPUParticles3D.new()
+		splash_particles.name = "LiquidSplash"
+		splash_particles.emitting = false
+		splash_particles.one_shot = true
+		splash_particles.explosiveness = 0.88
+		splash_particles.amount = 26
+		splash_particles.lifetime = 0.55
+		splash_particles.direction = Vector3(0, 1, 0)
+		splash_particles.spread = 75.0
+		splash_particles.gravity = Vector3(0, -12.0, 0)
+		splash_particles.initial_velocity_min = 4.0
+		splash_particles.initial_velocity_max = 8.5
+		splash_particles.scale_amount_min = 0.3
+		splash_particles.scale_amount_max = 0.8
+		var sp_mesh = QuadMesh.new()
+		sp_mesh.size = Vector2(0.45, 0.45)
+		var sp_mat = StandardMaterial3D.new()
+		sp_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		sp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sp_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		sp_mat.vertex_color_use_as_albedo = true
+		sp_mat.albedo_texture = LandingFXProfile.get_soft_circle_texture()
+		splash_particles.mesh = sp_mesh
+		splash_particles.position = Vector3(0, 0.2, 0)
+		visuals.add_child(splash_particles)
+
+func _create_flame_emitter(p_name: String, p_mesh: Mesh, p_pos: Vector3) -> CPUParticles3D:
+	var p = CPUParticles3D.new()
+	p.name = p_name
+	p.emitting = false
+	p.amount = 32
+	p.lifetime = 0.16
+	p.direction = Vector3(0, -1, 0.04)
+	p.spread = 9.0
+	p.gravity = Vector3(0, -2.5, 0)
+	p.initial_velocity_min = 4.8
+	p.initial_velocity_max = 8.8
+	p.color = Color(1.0, 0.65, 0.15, 0.95)
+	p.scale_amount_min = 0.18
+	p.scale_amount_max = 0.42
+	p.mesh = p_mesh
+	p.position = p_pos
+	return p
+
+func _create_smoke_emitter(p_name: String, p_mesh: Mesh, p_pos: Vector3) -> CPUParticles3D:
+	var p = CPUParticles3D.new()
+	p.name = p_name
+	p.emitting = false
+	p.amount = 14
+	p.lifetime = 0.32
+	p.direction = Vector3(0, -1, 0.15)
+	p.spread = 22.0
+	p.gravity = Vector3(0, 0.6, 0)
+	p.initial_velocity_min = 1.0
+	p.initial_velocity_max = 2.4
+	p.color = Color(0.70, 0.70, 0.75, 0.22)
+	p.scale_amount_min = 0.15
+	p.scale_amount_max = 0.38
+	p.mesh = p_mesh
+	p.position = p_pos
+	return p
+
+func _create_bubble_emitter(p_name: String, p_mesh: Mesh, p_pos: Vector3) -> CPUParticles3D:
+	var p = CPUParticles3D.new()
+	p.name = p_name
+	p.emitting = false
+	p.amount = 24
+	p.lifetime = 0.72
+	p.direction = Vector3(0, -1, 0.1)
+	p.spread = 28.0
+	p.gravity = Vector3(0, 4.5, 0) # Upward buoyancy
+	p.initial_velocity_min = 1.6
+	p.initial_velocity_max = 3.6
+	p.color = Color(0.85, 0.95, 1.0, 0.85)
+	p.scale_amount_min = 0.16
+	p.scale_amount_max = 0.46
+	p.mesh = p_mesh
+	p.position = p_pos
+	return p
+
+func _create_spark_emitter(p_name: String, p_mesh: Mesh, p_pos: Vector3) -> CPUParticles3D:
+	var p = CPUParticles3D.new()
+	p.name = p_name
+	p.emitting = false
+	p.one_shot = true
+	p.explosiveness = 0.95
+	p.amount = 14
+	p.lifetime = 0.28
+	p.direction = Vector3(0, -1, 0)
+	p.spread = 45.0
+	p.gravity = Vector3(0, -8.0, 0)
+	p.initial_velocity_min = 3.2
+	p.initial_velocity_max = 7.2
+	p.color = Color(1.0, 0.72, 0.25, 1.0)
+	p.scale_amount_min = 0.14
+	p.scale_amount_max = 0.32
+	p.mesh = p_mesh
+	p.position = p_pos
+	return p
+
+func _set_jetpack_flames(active: bool) -> void:
+	if flame_particles_left: flame_particles_left.emitting = active
+	if flame_particles_right: flame_particles_right.emitting = active
+	if flame_smoke_left: flame_smoke_left.emitting = active
+	if flame_smoke_right: flame_smoke_right.emitting = active
+	if jetpack_light:
+		jetpack_light.visible = active
+		jetpack_light.light_energy = 2.4 if active else 0.0
+
+func _set_jetpack_bubbles(active: bool) -> void:
+	if bubble_particles_left: bubble_particles_left.emitting = active
+	if bubble_particles_right: bubble_particles_right.emitting = active
+	if bubble_particles and bubble_particles != bubble_particles_left:
+		bubble_particles.emitting = active
+
+func _trigger_emergency_sparks() -> void:
+	if spark_particles_left: spark_particles_left.restart()
+	if spark_particles_right: spark_particles_right.restart()
+	if spark_particles and spark_particles != spark_particles_left:
+		spark_particles.restart()
+
+func _trigger_liquid_splash(planet_params: Dictionary) -> void:
+	AudioManager.play("splash", 1.0, 1.5)
+	if splash_particles:
+		var water_stat = str(planet_params.get("water_status", ""))
+		var chem = str(planet_params.get("ocean_chemical", ""))
+		var splash_col = Color(0.80, 0.95, 1.0, 0.85) # default water
+		if water_stat == "Lava Fundida" or chem == "magma" or planet_params.get("is_molten", false):
+			splash_col = Color(1.0, 0.40, 0.08, 0.95) # molten lava splash
+		elif water_stat == "Vapor Tóxico" or chem == "sulfuric_acid":
+			splash_col = Color(0.60, 0.85, 0.15, 0.90) # acid splash
+		elif water_stat == "Hielo Criogénico" or chem == "methane":
+			splash_col = Color(0.40, 0.85, 1.0, 0.85) # liquid methane splash
+		elif chem == "hycean":
+			splash_col = Color(0.20, 0.55, 0.90, 0.85)
+		splash_particles.color = splash_col
+		splash_particles.restart()
+
+func _update_suit_thermal_and_fluid_reactions(delta: float, planet_params: Dictionary) -> void:
+	if not active_suit_material:
+		return
+		
+	var water_stat = str(planet_params.get("water_status", ""))
+	var chem = str(planet_params.get("ocean_chemical", ""))
+	var is_molten = planet_params.get("is_molten", false) or water_stat == "Lava Fundida" or chem == "magma"
+	var is_acid = water_stat == "Vapor Tóxico" or chem == "sulfuric_acid"
+	var is_cryo = water_stat == "Hielo Criogénico" or chem == "methane"
+	
+	var target_albedo = Color(0.92, 0.94, 0.97)
+	var target_roughness = 0.40
+	var target_metallic = 0.10
+	var target_emission = Color.BLACK
+	var target_emission_energy = 0.0
+	
+	if is_in_liquid:
+		suit_effect_intensity = minf(suit_effect_intensity + delta * 1.6, 1.0)
+		if is_molten:
+			# Lava: Charred black suit with glowing orange thermal fissures
+			target_albedo = Color(0.16, 0.12, 0.10)
+			target_roughness = 0.95
+			target_metallic = 0.05
+			target_emission = Color(1.0, 0.35, 0.05)
+			target_emission_energy = 2.2 * suit_effect_intensity
+		elif is_acid:
+			# Sulfuric acid: Corrosive yellow-green etching
+			target_albedo = Color(0.62, 0.72, 0.22)
+			target_roughness = 0.98
+			target_metallic = 0.08
+			target_emission = Color(0.45, 0.65, 0.10)
+			target_emission_energy = 0.5 * suit_effect_intensity
+		elif is_cryo:
+			# Cryogenic methane: Frost glaze & icy crystalline reflection
+			target_albedo = Color(0.85, 0.95, 1.0)
+			target_roughness = 0.12
+			target_metallic = 0.65
+		else:
+			# Water / Hycean: Glossy wet look with darker fabric
+			target_albedo = Color(0.68, 0.74, 0.82)
+			target_roughness = 0.14
+			target_metallic = 0.25
+	else:
+		# Gradually dry off and cool down after leaving the fluid
+		suit_effect_intensity = maxf(suit_effect_intensity - delta * 0.20, 0.0)
+		if suit_effect_intensity > 0.01:
+			if is_molten:
+				# Residual charred soot and cooling embers
+				target_albedo = Color(0.92, 0.94, 0.97).lerp(Color(0.25, 0.20, 0.18), suit_effect_intensity * 0.7)
+				target_roughness = lerpf(0.40, 0.85, suit_effect_intensity)
+				target_emission = Color(1.0, 0.30, 0.05)
+				target_emission_energy = 0.8 * suit_effect_intensity
+			elif is_acid:
+				target_albedo = Color(0.92, 0.94, 0.97).lerp(Color(0.72, 0.78, 0.35), suit_effect_intensity * 0.6)
+				target_roughness = lerpf(0.40, 0.85, suit_effect_intensity)
+			elif is_cryo:
+				target_albedo = Color(0.92, 0.94, 0.97).lerp(Color(0.88, 0.96, 1.0), suit_effect_intensity * 0.5)
+				target_roughness = lerpf(0.40, 0.20, suit_effect_intensity)
+			else:
+				# Drying water
+				target_albedo = Color(0.92, 0.94, 0.97).lerp(Color(0.72, 0.78, 0.86), suit_effect_intensity * 0.5)
+				target_roughness = lerpf(0.40, 0.22, suit_effect_intensity)
+				
+	active_suit_material.albedo_color = active_suit_material.albedo_color.lerp(target_albedo, delta * 5.0)
+	active_suit_material.roughness = lerpf(active_suit_material.roughness, target_roughness, delta * 5.0)
+	active_suit_material.metallic = lerpf(active_suit_material.metallic, target_metallic, delta * 5.0)
+	if target_emission_energy > 0.01:
+		active_suit_material.emission_enabled = true
+		active_suit_material.emission = target_emission
+		active_suit_material.emission_energy_multiplier = target_emission_energy
+	elif active_suit_material.emission_enabled:
+		active_suit_material.emission_energy_multiplier = lerpf(active_suit_material.emission_energy_multiplier, 0.0, delta * 3.0)
+		if active_suit_material.emission_energy_multiplier < 0.02:
+			active_suit_material.emission_enabled = false

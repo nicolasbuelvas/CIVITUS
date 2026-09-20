@@ -2,18 +2,18 @@ import numpy as np
 import wave
 
 sample_rate = 44100
-duration = 16.0
+duration = 17.0
 total_samples = int(sample_rate * duration)
 
 left_audio = np.zeros(total_samples, dtype=np.float32)
 right_audio = np.zeros(total_samples, dtype=np.float32)
 
 # ==============================================================================
-# 1. PURE MECHANICAL TYPING (0.0s to 6.5s) - PURE SILENCE IN BACKGROUND
+# 1. PURE MECHANICAL TYPING (0.0s to 5.5s) - ABSOLUTE SILENCE IN BACKGROUND
 # ==============================================================================
-num_clicks = 150
+num_clicks = 130
 typing_start = 0.15
-typing_end = 6.35
+typing_end = 5.35
 click_times = np.linspace(typing_start, typing_end, num_clicks)
 
 for i, ct in enumerate(click_times):
@@ -39,69 +39,67 @@ def add_enter_click(t_pos):
 
 def add_error_buzz(t_pos):
     idx = int(sample_rate * t_pos)
-    n = int(sample_rate * 0.28)
-    te = np.linspace(0, 0.28, n)
+    n = int(sample_rate * 0.30)
+    te = np.linspace(0, 0.30, n)
     buzz = (np.sin(2 * np.pi * 320.0 * te) + np.sin(2 * np.pi * 360.0 * te)) * np.exp(-te * 7.0) * 0.32
     left_audio[idx : idx + n] += buzz
     right_audio[idx : idx + n] += buzz
 
-# Step 1 Enter & Error (6.5s to 8.2s)
-add_enter_click(6.6)
-add_error_buzz(7.3)
+# Execution start (5.6s)
+add_enter_click(5.6)
 
-# Step 2 Enter & Error (8.2s to 9.8s)
-add_enter_click(8.3)
-add_error_buzz(9.0)
+# Error 1 (6.4s)
+add_error_buzz(6.4)
 
-# Step 3 Enter & Stream Calculation Riser (9.8s to 11.2s)
-add_enter_click(9.9)
-idx_inf = int(sample_rate * 10.1)
-n_inf = int(sample_rate * 1.1)
-t_inf = np.linspace(0, 1.1, n_inf)
+# Error 2 (7.5s)
+add_error_buzz(7.5)
+
+# Distance stream riser (8.6s to 11.0s)
+idx_inf = int(sample_rate * 8.8)
+n_inf = int(sample_rate * 2.2)
+t_inf = np.linspace(0, 2.2, n_inf)
 freq_sweep = 440.0 * (2600.0 / 440.0) ** (t_inf ** 1.6)
 phase_inf = 2 * np.pi * np.cumsum(freq_sweep) / sample_rate
 flutter_inf = 0.5 + 0.5 * np.sin(2 * np.pi * 60.0 * t_inf)
-data_stream = np.sin(phase_inf) * flutter_inf * (t_inf / 1.1) * 0.40
+data_stream = np.sin(phase_inf) * flutter_inf * (t_inf / 2.2) * 0.38
 left_audio[idx_inf : idx_inf + n_inf] += data_stream
 right_audio[idx_inf : idx_inf + n_inf] += data_stream
 
-# KERNEL PANIC GLITCH & SYSTEM HALT SHOCK (11.2s to 12.0s)
-idx_panic = int(sample_rate * 11.2)
-n_panic = int(sample_rate * 0.7)
-tp = np.linspace(0, 0.7, n_panic)
-glitch = (
-    np.random.uniform(-0.5, 0.5, n_panic) * np.exp(-tp * 8.0) * 0.45 +
-    np.sin(2 * np.pi * 180.0 * tp) * np.exp(-tp * 5.0) * 0.40 +
-    np.sin(2 * np.pi * 60.0 * tp) * 0.25
-)
-left_audio[idx_panic : idx_panic + n_panic] += glitch
-right_audio[idx_panic : idx_panic + n_panic] += glitch
+# Transient to Black Hole (11.0s)
+idx_glitch = int(sample_rate * 10.98)
+n_glitch = int(sample_rate * 0.05)
+t_g = np.linspace(0, 0.05, n_glitch)
+g_sound = np.random.uniform(-0.4, 0.4, n_glitch) * np.exp(-t_g * 60.0)
+left_audio[idx_glitch : idx_glitch + n_glitch] += g_sound
+right_audio[idx_glitch : idx_glitch + n_glitch] += g_sound
 
 # ==============================================================================
-# 2. BLACK HOLE VISTA (12.0s to 14.0s) - EXACTLY 2.0 SECONDS
+# 2. BLACK HOLE VISTA (11.0s to 13.0s) - EXACTLY 2.0 SECONDS
 # ==============================================================================
-idx_bh = int(sample_rate * 12.0)
+idx_bh = int(sample_rate * 11.0)
 n_bh = int(sample_rate * 2.0)
 tb = np.linspace(0, 2.0, n_bh)
 bh_env = np.sin(np.pi * np.clip(tb / 2.0, 0, 1)) ** 0.6
 bh_drone = (
     0.60 * np.sin(2 * np.pi * 50.0 * tb) +
     0.38 * np.sin(2 * np.pi * 100.0 * tb) +
-    0.22 * np.sin(2 * np.pi * 150.0 * tb) +
-    0.15 * np.sin(2 * np.pi * 75.0 * tb)
+    0.22 * np.sin(2 * np.pi * 150.0 * tb)
 ) * bh_env
 left_audio[idx_bh : idx_bh + n_bh] += bh_drone * 0.88
 right_audio[idx_bh : idx_bh + n_bh] += bh_drone * 0.88
 
 # ==============================================================================
-# 3. FAST WINDOW FLIGHT TO SUN & TITLE (14.0s to 16.0s) - EXACTLY 2.0 SECONDS
+# 3. WINDOW FLIGHT TO SUN & EXTENDED TITLE (13.0s to 17.0s) - EXACTLY 4.0 SECONDS
 # ==============================================================================
-idx_win = int(sample_rate * 14.0)
+idx_win = int(sample_rate * 13.0)
 n_win = total_samples - idx_win
-twin = np.linspace(0, 2.0, n_win)
-win_env = np.sin(np.pi * np.clip(twin / 2.0, 0, 1)) ** 0.9
+twin = np.linspace(0, 4.0, n_win)
+win_env = np.sin(np.pi * np.clip(twin / 4.0, 0, 1)) ** 0.9
 
-# Fast cinematic forward whoosh & orchestral resolve
+# Fast whoosh forward (13.0s to 14.5s)
+whoosh = np.sin(2 * np.pi * 50.0 * twin) * np.exp(-twin * 2.0) * 0.65
+
+# Full cinematic orchestral chord sustaining through 17.0s
 title_chord = (
     0.55 * np.sin(2 * np.pi * 73.42 * twin) +
     0.45 * np.sin(2 * np.pi * 110.0 * twin) +
@@ -110,9 +108,9 @@ title_chord = (
     0.26 * np.sin(2 * np.pi * 220.0 * twin)
 ) * win_env * 0.92
 
-boom = np.sin(2 * np.pi * 50.0 * twin) * np.exp(-twin * 3.5) * 0.65
-left_audio[idx_win : idx_win + n_win] += (title_chord + boom) * 0.85
-right_audio[idx_win : idx_win + n_win] += (title_chord + boom) * 0.85
+boom = np.sin(2 * np.pi * 45.0 * twin) * np.exp(-twin * 2.5) * 0.65
+left_audio[idx_win : idx_win + n_win] += (title_chord + whoosh + boom) * 0.85
+right_audio[idx_win : idx_win + n_win] += (title_chord + whoosh + boom) * 0.85
 
 # Normalize
 max_val = max(np.max(np.abs(left_audio)), np.max(np.abs(right_audio)))

@@ -71,6 +71,11 @@ var last_drag_pos: Vector2 = Vector2.ZERO
 var camera_dist: float = 11.5
 var target_camera_dist: float = 11.5
 
+# Multi-touch pinch-to-zoom tracking
+var active_touches: Dictionary = {}
+var last_pinch_dist: float = 0.0
+var is_pinching: bool = false
+
 # Active State Colors
 var current_surface_color: Color = Color(0.20, 0.55, 0.26) # Forest Green default
 var current_atmo_color: Color = Color(0.30, 0.70, 1.0)     # Cyan Rayleigh default
@@ -190,13 +195,40 @@ func _on_drag_area_gui_input(event: InputEvent) -> void:
 
 	elif event is InputEventScreenTouch:
 		if event.pressed:
-			is_dragging = true
-			last_drag_pos = event.position
+			active_touches[event.index] = event.position
+			if active_touches.size() == 1:
+				is_dragging = true
+				last_drag_pos = event.position
+				is_pinching = false
+			elif active_touches.size() >= 2:
+				is_pinching = true
+				is_dragging = false
+				var keys = active_touches.keys()
+				last_pinch_dist = active_touches[keys[0]].distance_to(active_touches[keys[1]])
 		else:
-			is_dragging = false
+			active_touches.erase(event.index)
+			if active_touches.size() == 1:
+				is_pinching = false
+				is_dragging = true
+				var remaining_key = active_touches.keys()[0]
+				last_drag_pos = active_touches[remaining_key]
+			elif active_touches.size() == 0:
+				is_pinching = false
+				is_dragging = false
 
-	elif event is InputEventScreenDrag and is_dragging:
-		_apply_free_drag(event.relative)
+	elif event is InputEventScreenDrag:
+		active_touches[event.index] = event.position
+		if active_touches.size() >= 2:
+			is_pinching = true
+			is_dragging = false
+			var keys = active_touches.keys()
+			var current_dist = active_touches[keys[0]].distance_to(active_touches[keys[1]])
+			if last_pinch_dist > 0.0:
+				var pinch_delta = current_dist - last_pinch_dist
+				target_camera_dist = clampf(target_camera_dist - pinch_delta * 0.035, 5.5, 18.0)
+			last_pinch_dist = current_dist
+		elif is_dragging and not is_pinching:
+			_apply_free_drag(event.relative)
 
 func _apply_free_drag(delta_pos: Vector2) -> void:
 	var rot_speed = 0.0055

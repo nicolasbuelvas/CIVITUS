@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://csphereplanet01"]
+[gd_scene load_steps=2 format=3 uid="uid://b4dc2s0tfpn3u"]
 
 [ext_resource type="Script" path="res://scripts/world/spherical_planet.gd" id="1_planet"]
 

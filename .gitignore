@@ -21,3 +21,5 @@ _bmad/
 android/version.txt
 screenshot_*.png
 screenshot_*.png.import
+test_*.png
+test_*.png.import

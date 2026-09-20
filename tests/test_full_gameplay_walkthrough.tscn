@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cplaythrough01"]
+
+[ext_resource type="Script" path="res://tests/test_full_gameplay_walkthrough.gd" id="1_test"]
+
+[node name="TestFullGameplayWalkthrough" type="Node"]
+script = ExtResource("1_test")

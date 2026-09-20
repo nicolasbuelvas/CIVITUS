@@ -1,4 +1,4 @@
-extends Control
+extends CanvasLayer
 
 # Spinner Screen Nodes
 @onready var spinner_container: Control = $SpinnerContainer
@@ -29,15 +29,28 @@ extends Control
 @onready var right_rcs_btn: BaseButton = $MinigameContainer/MobileControls/RightRcsBtn
 @onready var main_burn_btn: BaseButton = $MinigameContainer/MobileControls/MainBurnBtn
 
-# State & Thresholds
-const MIN_LOADING_TIME: float = 5.0 # Exact 5-second mandatory world preparation period
+# State & Sub-Processes Configuration
+const TOTAL_SUBSTEPS: int = 40
+const MINIGAME_TRIGGER_TIME: float = 7.0 # Only activate minigame if slow device takes > 7s
+
 var minigame_activated: bool = false
 var elapsed_time: float = 0.0
 
-var target_scene_path: String = "res://scenes/world/world.tscn"
+var current_step_name: String = ""
+var current_step_index: int = 1
+
+var io_packages: Array = [
+	{ "path": "res://scenes/world/world.tscn", "msg_key": "io_sub_1" },
+	{ "path": "res://scenes/entities/spaceship_3d.tscn", "msg_key": "io_sub_2" },
+	{ "path": "res://scenes/entities/character_3d.tscn", "msg_key": "io_sub_3" },
+	{ "path": "res://scenes/entities/paper_tree.tscn", "msg_key": "io_sub_4" },
+	{ "path": "res://scenes/entities/resource_chunk.tscn", "msg_key": "io_sub_5" },
+	{ "path": "res://scenes/ui/hud.tscn", "msg_key": "io_sub_6" }
+]
+var loaded_packages: Dictionary = {}
+
 var is_loading_complete: bool = false
 var is_world_ready: bool = false
-var loaded_resource: PackedScene = null
 var world_instance: Node = null
 var has_launched: bool = false
 
@@ -59,15 +72,17 @@ var is_main_burn: bool = false
 
 var screen_shake_intensity: float = 0.0
 var thruster_sound_timer: float = 0.0
-var sync_fallback_attempted: bool = false
 
 func _ready() -> void:
+	layer = 100 # High layer guarantees zero leaks of 3D or 2D objects behind loader
+	
 	# Localized texts
 	status_label.text = GameManager.loc("loading")
-	stage_label.text = "1/4 " + GameManager.loc("stage_1")
-	top_progress_label.text = GameManager.loc("loading")
+	current_step_name = GameManager.loc("io_sub_1")
+	stage_label.text = current_step_name
+	top_progress_label.text = current_step_name
 	pad_label.text = GameManager.loc("platform")
-	ready_btn.text = GameManager.loc("ready_to_land") # "Presionar aquí para empezar"
+	ready_btn.text = GameManager.loc("ready_to_land")
 	ready_btn.visible = false
 	skin_hint_label.text = GameManager.loc("points_skins_hint")
 	
@@ -85,19 +100,14 @@ func _ready() -> void:
 	
 	_reset_lander()
 	
-	# Start background thread loading (file reading only - NO premature SceneTree adding!)
-	ResourceLoader.load_threaded_request(target_scene_path)
-	
-	# Ambient Audio
-	AudioManager.play("reentry", 1.0, -8.0)
-	if AudioManager.has_method("play_gameplay_music"):
-		AudioManager.play_gameplay_music(1.2)
+	# Execute asynchronous multi-process I/O pipeline (Process 1: 6 sub-steps)
+	_start_io_pipeline()
 
 func _on_viewport_size_changed() -> void:
 	_update_layout()
 
 func _update_layout() -> void:
-	var vp_sz = get_viewport_rect().size
+	var vp_sz = get_viewport().get_visible_rect().size
 	var screen_w = max(1280.0, vp_sz.x)
 	var screen_h = max(720.0, vp_sz.y)
 	
@@ -105,119 +115,112 @@ func _update_layout() -> void:
 		target_pad.position = Vector2((screen_w - target_pad.size.x) * 0.5, screen_h - 110.0)
 
 func _reset_lander() -> void:
-	var vp_sz = get_viewport_rect().size
+	var vp_sz = get_viewport().get_visible_rect().size
 	var screen_w = max(1280.0, vp_sz.x)
 	lander_pos = Vector2(randf_range(screen_w * 0.25, screen_w * 0.75), 85.0)
 	lander_vel = Vector2(randf_range(-25.0, 25.0), randf_range(10.0, 35.0))
 	lander_rot = randf_range(-0.25, 0.25)
 	lander_fuel = 100.0
 
-func _process(delta: float) -> void:
-	elapsed_time += delta
-	_poll_loading_progress()
-	
-	if not minigame_activated:
-		# Spinner 5-second progress bar
-		var time_ratio = clamp(elapsed_time / MIN_LOADING_TIME, 0.0, 1.0)
-		var simulated_p = time_ratio * 100.0
-		if is_world_ready and elapsed_time >= MIN_LOADING_TIME:
-			simulated_p = 100.0
-		spinner_progress_bar.value = simulated_p
+func _start_io_pipeline() -> void:
+	# Load each package asynchronously, yielding frames so cold installs never lock up
+	for idx in range(io_packages.size()):
+		var pkg = io_packages[idx]
+		var sub_step = idx + 1 # 1..6
+		current_step_index = sub_step
+		current_step_name = GameManager.loc(pkg.msg_key)
+		_update_ui_progress(sub_step, current_step_name)
 		
-		# Telemetry stages
-		if simulated_p < 25.0:
-			stage_label.text = "1/4 " + GameManager.loc("stage_1")
-		elif simulated_p < 50.0:
-			stage_label.text = "2/4 " + GameManager.loc("stage_2")
-		elif simulated_p < 75.0:
-			stage_label.text = "3/4 " + GameManager.loc("stage_3")
-		else:
-			stage_label.text = "4/4 " + GameManager.loc("stage_4")
+		if is_inside_tree():
+			await get_tree().process_frame
 			
-		# At 5.0 seconds threshold:
-		if elapsed_time >= MIN_LOADING_TIME:
-			if is_world_ready:
-				# Seamless 0-freeze launch into pre-warmed world!
-				if not has_launched:
-					has_launched = true
-					_launch_gameplay()
+		ResourceLoader.load_threaded_request(pkg.path)
+		
+		var wait_ticks = 0
+		while ResourceLoader.load_threaded_get_status(pkg.path) != ResourceLoader.THREAD_LOAD_LOADED:
+			if is_inside_tree():
+				await get_tree().process_frame
 			else:
-				# Slower mobile load: Activate minigame to entertain player while background loading finishes
-				_activate_minigame()
-	else:
-		_update_minigame_physics(delta)
-		_update_minigame_ui()
-		_update_screen_shake(delta)
+				OS.delay_msec(2)
+			wait_ticks += 1
+			# Safety fallback after 180 frames (~3s)
+			if wait_ticks > 180:
+				break
+				
+		var res = ResourceLoader.load_threaded_get(pkg.path)
+		if res == null:
+			res = load(pkg.path)
+		loaded_packages[pkg.path] = res
 		
-		# Pulsing glow effect on start button
-		if ready_btn and ready_btn.visible:
-			var pulse = (sin(elapsed_time * 5.0) + 1.0) * 0.5
-			ready_btn.modulate = Color(1.0, 1.0, 1.0).lerp(Color(0.85, 1.2, 0.95), pulse)
+		if is_inside_tree():
+			await get_tree().process_frame
 
-func _activate_minigame() -> void:
-	minigame_activated = true
-	spinner_container.visible = false
-	minigame_container.visible = true
-	
-	if is_world_ready:
-		_on_load_finished()
+	is_loading_complete = true
+	_spawn_preloaded_world()
 
-func _poll_loading_progress() -> void:
-	if is_loading_complete:
+func _spawn_preloaded_world() -> void:
+	var world_res: PackedScene = loaded_packages.get("res://scenes/world/world.tscn", null)
+	if not world_res:
+		world_res = load("res://scenes/world/world.tscn")
+	if not world_res:
 		return
 		
-	var progress: Array = []
-	var status = ResourceLoader.load_threaded_get_status(target_scene_path, progress)
+	world_instance = world_res.instantiate()
 	
-	var raw_percent: float = 0.0
-	if progress.size() > 0:
-		raw_percent = float(progress[0]) * 100.0
+	# Pass pre-loaded resource references into planet before adding to tree
+	var planet = world_instance.get_node_or_null("SphericalPlanet")
+	if planet:
+		planet.spaceship_scene = loaded_packages.get("res://scenes/entities/spaceship_3d.tscn")
+		planet.character_scene = loaded_packages.get("res://scenes/entities/character_3d.tscn")
+		planet.tree_scene = loaded_packages.get("res://scenes/entities/paper_tree.tscn")
+		planet.resource_scene = loaded_packages.get("res://scenes/entities/resource_chunk.tscn")
+		planet.hud_scene = loaded_packages.get("res://scenes/ui/hud.tscn")
 		
-	if status == ResourceLoader.THREAD_LOAD_LOADED:
-		is_loading_complete = true
-		loaded_resource = ResourceLoader.load_threaded_get(target_scene_path)
-		_spawn_world_behind_loader()
-	elif status == ResourceLoader.THREAD_LOAD_FAILED or (elapsed_time >= 7.5 and not sync_fallback_attempted):
-		sync_fallback_attempted = true
-		print("[CIVITUS] Fallback synchronous load for: ", target_scene_path)
-		loaded_resource = load(target_scene_path)
-		if loaded_resource != null:
-			is_loading_complete = true
-			_spawn_world_behind_loader()
-			
-	if minigame_activated and not is_world_ready:
-		top_progress_bar.value = raw_percent
-		top_progress_label.text = "%s %d%%" % [GameManager.loc("loading_dots"), int(raw_percent)]
-
-func _spawn_world_behind_loader() -> void:
-	if world_instance != null or loaded_resource == null:
-		return
-		
-	world_instance = loaded_resource.instantiate()
+		planet.generation_step_changed.connect(_on_planet_step_changed)
+		planet.planet_ready.connect(_on_planet_generation_finished)
 	
 	if is_inside_tree():
 		get_tree().root.add_child(world_instance)
 		if get_parent() == get_tree().root:
 			get_tree().root.move_child(self, get_tree().root.get_child_count() - 1)
 			
-	# Ensure player stays dormant after entering tree until launch
-	var player = world_instance.get_node_or_null("Character3D")
-	if player:
-		player.set_physics_process(false)
-		player.set_process(false)
-		
-	var planet = world_instance.get_node_or_null("SphericalPlanet")
-	if planet and planet.has_signal("planet_ready"):
-		planet.planet_ready.connect(_on_planet_generation_finished)
-	else:
+	if not planet:
 		_on_planet_generation_finished()
+
+func _on_planet_step_changed(step_idx: int, tot_steps: int, step_desc: String) -> void:
+	current_step_index = step_idx
+	current_step_name = step_desc
+	_update_ui_progress(step_idx, step_desc)
+	
+	# Mobile GPU Alpha 0.99 Pre-Rasterization Trick:
+	# Forces mobile TBDR GPUs to render the 3D world, shaders, and shadows behind the loader
+	if step_idx >= 39:
+		var bg = get_node_or_null("Background")
+		if bg:
+			bg.modulate.a = 0.99
+
+func _update_ui_progress(sub_step: int, desc: String) -> void:
+	if stage_label:
+		stage_label.text = desc
+	if top_progress_label and not is_world_ready:
+		top_progress_label.text = desc
+	var p_val = clamp(float(sub_step) / float(TOTAL_SUBSTEPS) * 100.0, 0.0, 100.0)
+	if spinner_progress_bar:
+		spinner_progress_bar.value = p_val
+	if top_progress_bar and not is_world_ready:
+		top_progress_bar.value = p_val
 
 func _on_planet_generation_finished() -> void:
 	is_world_ready = true
+	current_step_name = GameManager.loc("thread_step_ready")
+	_update_ui_progress(TOTAL_SUBSTEPS, current_step_name)
+	if spinner_progress_bar: spinner_progress_bar.value = 100.0
+	if top_progress_bar: top_progress_bar.value = 100.0
+	
 	if minigame_activated:
 		_on_load_finished()
-	elif elapsed_time >= MIN_LOADING_TIME and not has_launched:
-		has_launched = true
+	else:
+		# Auto-launch cleanly into gameplay
 		_launch_gameplay()
 
 func _on_load_finished() -> void:
@@ -225,20 +228,58 @@ func _on_load_finished() -> void:
 		return
 		
 	top_progress_bar.value = 100.0
-	top_progress_label.visible = false
-	ready_btn.text = GameManager.loc("ready_to_land") # "Presionar aquí para empezar"
+	top_progress_label.text = GameManager.loc("thread_step_ready")
+	ready_btn.text = GameManager.loc("ready_to_land")
 	ready_btn.visible = true
 	AudioManager.play("docking", 1.1, -4.0)
+	
+	# Auto launch after 1.2s so player is never trapped
+	var timer = get_tree().create_timer(1.2)
+	timer.timeout.connect(func():
+		if is_world_ready and not has_launched:
+			_launch_gameplay()
+	)
+
+func _process(delta: float) -> void:
+	elapsed_time += delta
+	
+	if not minigame_activated:
+		if is_world_ready and not has_launched:
+			_launch_gameplay()
+		elif elapsed_time >= MINIGAME_TRIGGER_TIME and not is_world_ready:
+			_activate_minigame()
+	else:
+		_update_minigame_physics(delta)
+		_update_minigame_ui()
+		_update_screen_shake(delta)
+		
+		if ready_btn and ready_btn.visible:
+			var pulse = (sin(elapsed_time * 5.0) + 1.0) * 0.5
+			ready_btn.modulate = Color(1.0, 1.0, 1.0).lerp(Color(0.85, 1.2, 0.95), pulse)
+			
+	# Watchdog: Under no circumstance stay in loading > 10s
+	if elapsed_time >= 10.0 and not has_launched:
+		print("[CIVITUS] Loading safety watchdog triggered - executing gameplay launch")
+		_launch_gameplay()
+
+func _activate_minigame() -> void:
+	if minigame_activated:
+		return
+	minigame_activated = true
+	spinner_container.visible = false
+	minigame_container.visible = true
+	
+	if is_world_ready:
+		_on_load_finished()
 
 func _update_minigame_physics(delta: float) -> void:
-	var vp_sz = get_viewport_rect().size
+	var vp_sz = get_viewport().get_visible_rect().size
 	var screen_w = max(1280.0, vp_sz.x)
 	
 	var left = is_left_rcs or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT)
 	var right = is_right_rcs or Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT)
 	var burn = is_main_burn or Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_SPACE)
 
-	# RCS torque
 	if left and lander_fuel > 0.0:
 		lander_rot -= rcs_torque * delta
 		lander_fuel = max(0.0, lander_fuel - 7.0 * delta)
@@ -253,7 +294,6 @@ func _update_minigame_physics(delta: float) -> void:
 		if lander_node.has_method("set_rcs"):
 			lander_node.set_rcs(false, false)
 
-	# Main burn
 	if burn and lander_fuel > 0.0:
 		var thrust_dir = Vector2(sin(lander_rot), -cos(lander_rot))
 		lander_vel += thrust_dir * main_thrust_power * delta
@@ -269,14 +309,10 @@ func _update_minigame_physics(delta: float) -> void:
 		if lander_node.has_method("set_thrust"):
 			lander_node.set_thrust(false)
 
-	# Gravity and position
 	lander_vel.y += gravity * delta
 	lander_pos += lander_vel * delta
-
-	# Boundaries
 	lander_pos.x = clamp(lander_pos.x, 35.0, screen_w - 35.0)
 
-	# Landing pad check
 	var pad_y = target_pad.position.y
 	var pad_center_x = target_pad.position.x + target_pad.size.x * 0.5
 	var pad_half_w = target_pad.size.x * 0.5 + 24.0
@@ -292,7 +328,6 @@ func _update_minigame_physics(delta: float) -> void:
 			AudioManager.play("docking", 1.0)
 			
 			if is_world_ready and not has_launched:
-				has_launched = true
 				_launch_gameplay()
 				return
 				
@@ -353,7 +388,6 @@ func _on_main_burn_up() -> void: is_main_burn = false
 
 func _on_ready_btn_pressed() -> void:
 	if is_world_ready and not has_launched:
-		has_launched = true
 		AudioManager.play("click")
 		_launch_gameplay()
 
@@ -363,19 +397,55 @@ func _launch_gameplay() -> void:
 	has_launched = true
 	
 	if world_instance and is_instance_valid(world_instance) and world_instance.is_inside_tree():
+		var p_planet = world_instance.get_node_or_null("SphericalPlanet")
+		var is_cinematic_managed = false
+		if p_planet and p_planet.has_method("start_landing_cinematic"):
+			p_planet.start_landing_cinematic()
+			is_cinematic_managed = true
+			
 		var player = world_instance.get_node_or_null("Character3D")
-		if player:
+		if not player and p_planet:
+			player = p_planet.get_node_or_null("Character3D")
+		if not player and p_planet and "player_instance" in p_planet and is_instance_valid(p_planet.player_instance):
+			player = p_planet.player_instance
+				
+		if player and not is_cinematic_managed:
 			player.set_physics_process(true)
 			player.set_process(true)
 			
+		var hud = world_instance.get_node_or_null("HUD")
+		if hud and not is_cinematic_managed:
+			if hud.has_method("activate_hud"):
+				hud.activate_hud()
+			else:
+				hud.visible = true
+		elif hud and is_cinematic_managed:
+			hud.visible = false
+				
+		if AudioManager.has_method("play_gameplay_music"):
+			AudioManager.play_gameplay_music(1.0)
+			
 		get_tree().current_scene = world_instance
-		queue_free()
-	elif loaded_resource:
-		get_tree().change_scene_to_packed(loaded_resource)
+		
+		# Smooth alpha dissolve transition (100ms) - reveals already pre-warmed 60 FPS gameplay
+		var tw = create_tween().set_parallel(true)
+		if spinner_container: tw.tween_property(spinner_container, "modulate:a", 0.0, 0.10)
+		if minigame_container: tw.tween_property(minigame_container, "modulate:a", 0.0, 0.10)
+		var bg = get_node_or_null("Background")
+		if bg: tw.tween_property(bg, "modulate:a", 0.0, 0.10)
+		tw.chain().tween_callback(func():
+			# Instantly hide from display (0.0ms CPU destruction overhead during gameplay entry)
+			visible = false
+			# Lazy cleanup: defer garbage collection by 2.0 seconds so memory is freed
+			# quietly in the background without affecting gameplay FPS!
+			var timer = get_tree().create_timer(2.0)
+			timer.timeout.connect(queue_free)
+		)
 	else:
-		get_tree().change_scene_to_file(target_scene_path)
+		if AudioManager.has_method("play_gameplay_music"):
+			AudioManager.play_gameplay_music(1.0)
+		get_tree().change_scene_to_file("res://scenes/world/world.tscn")
 
 func _exit_tree() -> void:
-	# Clean up world instance if destroyed before launching (e.g., in headless tests or menu cancel)
 	if not has_launched and world_instance and is_instance_valid(world_instance) and world_instance.is_inside_tree():
 		world_instance.queue_free()

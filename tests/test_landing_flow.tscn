@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://testlandingflow01"]
+
+[ext_resource type="Script" path="res://tests/test_landing_flow.gd" id="1_test"]
+
+[node name="TestLandingFlow" type="Node3D"]
+script = ExtResource("1_test")

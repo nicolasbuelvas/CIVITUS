@@ -73,13 +73,8 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[node name="LoadingScreen" type="Control"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="LoadingScreen" type="CanvasLayer"]
+layer = 100
 script = ExtResource("1_load")
 
 [node name="Background" type="Panel" parent="."]
@@ -146,7 +141,7 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_colors/font_color = Color(0.45, 0.70, 0.95, 0.85)
 theme_override_font_sizes/font_size = 13
-text = "1/4 Sincronizando telemetría orbital..."
+text = "[Thread 1/7 I/O] Cargando paquetes de recursos del sector..."
 horizontal_alignment = 1
 
 [node name="ProgressBar" type="ProgressBar" parent="SpinnerContainer"]

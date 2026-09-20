@@ -1,10 +1,12 @@
 extends Control
 
+@onready var mobile_layer: Control = $MobileLayer
 @onready var virtual_joystick = $MobileLayer/VirtualJoystick
 @onready var touch_camera_zone: Control = $MobileLayer/TouchCameraZone
 @onready var jump_btn: TextureButton = $MobileLayer/ActionCluster/JumpBtn
 @onready var context_action_btn: Button = $MobileLayer/ActionCluster/ContextActionBtn
 @onready var sprint_btn: TextureButton = $MobileLayer/ActionCluster/SprintBtn
+@onready var cam_toggle_btn: Button = get_node_or_null("MobileLayer/ActionCluster/CamToggleBtn")
 
 @onready var o2_bar: ProgressBar = $TopLayer/VitalsPod/Margin/VBox/O2Row/O2Bar
 @onready var o2_val_label: Label = $TopLayer/VitalsPod/Margin/VBox/O2Row/Val
@@ -76,15 +78,20 @@ func _ready() -> void:
 	close_all_modals()
 	context_action_btn.visible = false
 	if top_layer:
-		top_layer.visible = true
+		top_layer.visible = visible
+	if mobile_layer:
+		mobile_layer.visible = visible
 	_update_header()
-	if player:
+	_update_localization()
+	
+	if cam_toggle_btn:
+		cam_toggle_btn.pressed.connect(_on_cam_toggle_pressed)
+	
+	if player and visible:
 		_on_first_person_toggled(player.is_first_person)
 	else:
-		if jarvis_overlay:
-			jarvis_overlay.visible = false
-		if vitals_pod:
-			vitals_pod.visible = false
+		if jarvis_overlay: jarvis_overlay.visible = false
+		if vitals_pod: vitals_pod.visible = false
 	
 	# Sliders initialization
 	if master_slider:
@@ -94,13 +101,74 @@ func _ready() -> void:
 		music_slider.value = GameManager.get_setting("music_volume", 70.0)
 		music_slider.value_changed.connect(_on_music_slider_changed)
 	
+	GameManager.language_changed.connect(func(_l): _update_localization())
 	GameManager.game_over.connect(_on_game_over)
 	GameManager.expedition_completed.connect(_on_expedition_completed)
 	GameManager.crafting.inventory_changed.connect(_update_crafting_ui)
-	GameManager.crafting.hyperdrive_repaired.connect(func(p): _update_hyperdrive_ui())
+	GameManager.crafting.hyperdrive_repaired.connect(func(_p): _update_hyperdrive_ui())
 	
 	_update_crafting_ui()
 	_update_hyperdrive_ui()
+
+func _update_localization() -> void:
+	_update_header()
+	
+	# Vitals Pod
+	var o2_lbl = get_node_or_null("TopLayer/VitalsPod/Margin/VBox/O2Row/Label")
+	if o2_lbl: o2_lbl.text = GameManager.loc("o2_label")
+	var fuel_lbl = get_node_or_null("TopLayer/VitalsPod/Margin/VBox/FuelRow/Label")
+	if fuel_lbl: fuel_lbl.text = GameManager.loc("fuel_label")
+	var hull_lbl = get_node_or_null("TopLayer/VitalsPod/Margin/VBox/HullRow/Label")
+	if hull_lbl: hull_lbl.text = GameManager.loc("hull_label")
+	
+	# Pause Modal
+	var pause_title = get_node_or_null("Modals/PauseModal/VBox/Title")
+	if pause_title: pause_title.text = GameManager.loc("pause_title")
+	if pause_resume_btn: pause_resume_btn.text = "▶ " + GameManager.loc("resume_btn")
+	if pause_settings_btn: pause_settings_btn.text = "⚙ " + GameManager.loc("settings")
+	if pause_menu_btn: pause_menu_btn.text = "⌂ " + GameManager.loc("return_menu")
+	
+	# Storage Modal
+	var storage_title = get_node_or_null("Modals/StorageModal/VBox/Title")
+	if storage_title: storage_title.text = GameManager.loc("storage_title")
+	if deposit_all_btn: deposit_all_btn.text = GameManager.loc("deposit_all")
+	if close_storage_btn: close_storage_btn.text = GameManager.loc("close_modal")
+	_update_storage_ui()
+	
+	# Crafting Modal
+	var craft_title = get_node_or_null("Modals/CraftingModal/VBox/Title")
+	if craft_title: craft_title.text = GameManager.loc("crafting_title")
+	var close_craft_btn = get_node_or_null("Modals/CraftingModal/VBox/CloseBtn")
+	if close_craft_btn: close_craft_btn.text = GameManager.loc("close_modal")
+	_update_crafting_ui()
+	
+	# Hyperdrive Modal
+	var hd_title = get_node_or_null("Modals/HyperdriveModal/VBox/Title")
+	if hd_title: hd_title.text = GameManager.loc("hyperdrive_title")
+	var close_hd_btn = get_node_or_null("Modals/HyperdriveModal/VBox/CloseBtn")
+	if close_hd_btn: close_hd_btn.text = GameManager.loc("close_modal")
+	if launch_btn: launch_btn.text = GameManager.loc("hyperdrive_activate")
+	_update_hyperdrive_ui()
+	
+	# Starmap Modal
+	var starmap_title = get_node_or_null("Modals/StarmapModal/VBox/Title")
+	if starmap_title: starmap_title.text = GameManager.loc("starmap_title")
+	var close_sm_btn = get_node_or_null("Modals/StarmapModal/VBox/CloseBtn")
+	if close_sm_btn: close_sm_btn.text = GameManager.loc("close_modal")
+	
+	# GameOver Modal
+	var go_title = get_node_or_null("Modals/GameOverModal/VBox/Title")
+	if go_title: go_title.text = GameManager.loc("game_over_title")
+	var retry_btn = get_node_or_null("Modals/GameOverModal/VBox/RetryBtn")
+	if retry_btn: retry_btn.text = "⟳ " + GameManager.loc("retry_btn")
+	var menu_btn = get_node_or_null("Modals/GameOverModal/VBox/MenuBtn")
+	if menu_btn: menu_btn.text = "⌂ " + GameManager.loc("return_menu")
+	
+	# Victory Modal
+	var vic_title = get_node_or_null("Modals/VictoryModal/VBox/Title")
+	if vic_title: vic_title.text = "★ " + GameManager.loc("victory_title")
+	var vic_menu_btn = get_node_or_null("Modals/VictoryModal/VBox/MenuBtn")
+	if vic_menu_btn: vic_menu_btn.text = "⌂ " + GameManager.loc("return_menu")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
@@ -130,17 +198,35 @@ func init_player(p: CharacterBody3D) -> void:
 	player.interaction_available.connect(_on_interaction_available)
 	player.interaction_lost.connect(_on_interaction_lost)
 	player.first_person_toggled.connect(_on_first_person_toggled)
-	_on_first_person_toggled(player.is_first_person)
+	if visible:
+		_on_first_person_toggled(player.is_first_person)
 
-func _on_first_person_toggled(is_fps: bool) -> void:
+func activate_hud() -> void:
+	visible = true
 	if top_layer:
 		top_layer.visible = true
-	# Indicators placed in First Person; Third Person kept clean!
+	if mobile_layer:
+		mobile_layer.visible = true
+	if player:
+		_on_first_person_toggled(player.is_first_person)
+
+func _on_cam_toggle_pressed() -> void:
+	AudioManager.play("click")
+	if player and player.has_method("toggle_first_person"):
+		player.toggle_first_person()
+
+func _on_first_person_toggled(is_fps: bool) -> void:
+	if not visible:
+		return
+	if top_layer:
+		top_layer.visible = true
 	if vitals_pod:
 		vitals_pod.visible = is_fps
+	if cam_toggle_btn:
+		cam_toggle_btn.text = "👤" if is_fps else "👁"
 	if jarvis_overlay:
 		jarvis_overlay.visible = is_fps
-		if is_fps:
+		if is_fps and visible:
 			AudioManager.play("jarvis", 1.0)
 			var tween = create_tween()
 			jarvis_overlay.modulate.a = 0.0
@@ -158,37 +244,39 @@ func _on_stats_changed(o2: float, fuel: float, hull: float) -> void:
 	if hull_bar: hull_bar.value = hull
 	if hull_val_label: hull_val_label.text = "%d%%" % int(hull)
 	
-	# In 3P: keep clean unless critical life support emergency
 	if player and not player.is_first_person and vitals_pod:
 		vitals_pod.visible = (o2 < 20.0 or hull < 25.0)
 
-# Smooth Touch Camera Orbit & Pinch Zoom (Right side of screen)
+# Multi-Touch Camera Drag & Two-Finger Pinch Zoom (Excluding Joystick)
 func _on_touch_camera_gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			touch_cam_touches[event.index] = event.position
 			if touch_cam_touches.size() == 1:
 				touch_cam_id = event.index
-			elif touch_cam_touches.size() == 2:
+			elif touch_cam_touches.size() >= 2:
+				touch_cam_id = -1 # Prevent accidental look while pinching!
 				var keys = touch_cam_touches.keys()
 				initial_pinch_dist = (touch_cam_touches[keys[0]] - touch_cam_touches[keys[1]]).length()
 		else:
 			touch_cam_touches.erase(event.index)
-			if event.index == touch_cam_id:
+			if touch_cam_touches.size() == 1:
+				touch_cam_id = touch_cam_touches.keys()[0]
+			else:
 				touch_cam_id = -1
 	elif event is InputEventScreenDrag:
 		touch_cam_touches[event.index] = event.position
-		if touch_cam_touches.size() == 1 and event.index == touch_cam_id:
-			if player and player.has_method("rotate_camera_by"):
-				player.rotate_camera_by(event.relative)
-		elif touch_cam_touches.size() >= 2:
+		if touch_cam_touches.size() >= 2:
 			var keys = touch_cam_touches.keys()
 			var cur_dist = (touch_cam_touches[keys[0]] - touch_cam_touches[keys[1]]).length()
-			if initial_pinch_dist > 10.0:
-				var pinch_delta = (initial_pinch_dist - cur_dist) * 0.03
+			if initial_pinch_dist > 15.0 and abs(cur_dist - initial_pinch_dist) > 2.0:
+				var pinch_delta = (initial_pinch_dist - cur_dist) * 0.05
 				if player and player.has_method("zoom_camera"):
 					player.zoom_camera(pinch_delta)
 			initial_pinch_dist = cur_dist
+		elif touch_cam_touches.size() == 1 and event.index == touch_cam_id:
+			if player and player.has_method("rotate_camera_by"):
+				player.rotate_camera_by(event.relative)
 	elif event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT or event.button_index == MOUSE_BUTTON_RIGHT:
 			is_mouse_looking = event.pressed
@@ -215,7 +303,7 @@ func _on_jump_down() -> void:
 func _on_jump_up() -> void:
 	Input.action_release("jump_thrust")
 
-# Pause Menu Implementation
+# Pause Menu
 func _on_pause_btn_pressed() -> void:
 	AudioManager.play("click")
 	pause_modal.visible = true
@@ -229,64 +317,64 @@ func _on_pause_resume_pressed() -> void:
 func _on_pause_settings_pressed() -> void:
 	AudioManager.play("click")
 	settings_modal.visible = true
-	if master_slider:
-		master_slider.value = GameManager.get_setting("master_volume", 85.0)
-	if music_slider:
-		music_slider.value = GameManager.get_setting("music_volume", 70.0)
 
-func _on_close_settings_pressed() -> void:
+func _on_pause_menu_pressed() -> void:
 	AudioManager.play("click")
-	settings_modal.visible = false
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/screens/main_menu.tscn")
 
-func _on_reset_settings_defaults_pressed() -> void:
-	AudioManager.play("click")
-	GameManager.reset_settings_to_default()
-	if master_slider: master_slider.value = 85.0
-	if music_slider: music_slider.value = 70.0
-	reset_defaults_btn.text = "¡RESTABLECIDO!"
-	var tween = create_tween()
-	tween.tween_interval(1.2)
-	tween.tween_callback(func():
-		if reset_defaults_btn: reset_defaults_btn.text = "Restablecer Valores Predeterminados"
-	)
-
+# Settings Menu
 func _on_master_slider_changed(val: float) -> void:
 	GameManager.update_setting("master_volume", val)
 
 func _on_music_slider_changed(val: float) -> void:
 	GameManager.update_setting("music_volume", val)
 
-func _on_pause_menu_pressed() -> void:
-	get_tree().paused = false
+func _on_reset_defaults_pressed() -> void:
 	AudioManager.play("click")
-	get_tree().change_scene_to_file("res://scenes/screens/main_menu.tscn")
+	GameManager.reset_settings_to_default()
+	master_slider.value = GameManager.master_volume
+	music_slider.value = GameManager.music_volume
 
-# Context-Sensitive Interaction
+func _on_close_settings_pressed() -> void:
+	AudioManager.play("click")
+	settings_modal.visible = false
+
+# Interaction & Context Button
 func _on_interaction_available(type: String, target: Node3D) -> void:
 	current_context_type = type
 	context_action_btn.visible = true
 	match type:
 		"open_hatch":
-			context_action_btn.text = "ABRIR ESCOTILLA"
+			context_action_btn.text = "🚪 " + GameManager.loc("context_open")
 			context_action_btn.modulate = Color(0.2, 0.85, 1.0)
 		"close_hatch":
-			context_action_btn.text = "CERRAR ESCOTILLA"
+			context_action_btn.text = "🚪 " + GameManager.loc("context_close")
 			context_action_btn.modulate = Color(1.0, 0.75, 0.2)
 		"mine":
-			context_action_btn.text = "MINAR"
+			context_action_btn.text = "⛏ " + GameManager.loc("context_mine")
 			context_action_btn.modulate = Color(0.2, 0.9, 1.0)
 		"fabricator":
-			context_action_btn.text = "FABRICAR"
+			context_action_btn.text = "⚙ " + GameManager.loc("context_craft")
 			context_action_btn.modulate = Color(0.3, 1.0, 0.4)
 		"hyperdrive":
-			context_action_btn.text = "HYPERDRIVE"
+			context_action_btn.text = "🚀 " + GameManager.loc("context_hyperdrive")
 			context_action_btn.modulate = Color(1.0, 0.8, 0.2)
 		"starmap":
-			context_action_btn.text = "MAPA ESTELAR"
+			context_action_btn.text = "🗺 " + GameManager.loc("context_starmap")
 			context_action_btn.modulate = Color(0.8, 0.5, 1.0)
+		"storage":
+			context_action_btn.text = "📦 " + GameManager.loc("context_storage")
+			context_action_btn.modulate = Color(0.4, 0.7, 1.0)
 		"repair":
-			context_action_btn.text = "REPARAR CASCO"
+			context_action_btn.text = "⚙ " + GameManager.loc("repair_btn")
 			context_action_btn.modulate = Color(1.0, 0.4, 0.2)
+		"attack":
+			context_action_btn.text = "⚔ " + ("ATACAR" if GameManager.current_language == "es" else "ATTACK")
+			context_action_btn.modulate = Color(1.0, 0.25, 0.25)
+		"feed":
+			context_action_btn.text = "🌿 " + ("ALIMENTAR" if GameManager.current_language == "es" else "FEED")
+			context_action_btn.modulate = Color(0.35, 1.0, 0.45)
 
 func _on_interaction_lost() -> void:
 	current_context_type = ""
@@ -296,6 +384,12 @@ func _on_interaction_lost() -> void:
 
 func _on_context_btn_down() -> void:
 	match current_context_type:
+		"attack":
+			if player and player.has_method("attack_nearest_target"):
+				player.attack_nearest_target()
+		"feed":
+			if player and is_instance_valid(player.nearby_interactable) and player.nearby_interactable.has_method("feed_creature"):
+				player.nearby_interactable.feed_creature()
 		"open_hatch":
 			var ship = get_tree().get_first_node_in_group("spaceship")
 			if ship and ship.has_method("open_hatch"):
@@ -317,6 +411,10 @@ func _on_context_btn_down() -> void:
 			starmap_modal.visible = true
 			_build_starmap_ui()
 			AudioManager.play("click")
+		"storage":
+			storage_modal.visible = true
+			_update_storage_ui()
+			AudioManager.play("click")
 		"repair":
 			var ship = get_tree().get_first_node_in_group("spaceship")
 			if ship and ship.has_method("repair_hull_modules"):
@@ -332,22 +430,22 @@ func _on_hyperdrive_badge_pressed() -> void:
 		_update_hyperdrive_ui()
 		AudioManager.play("click")
 
-# Storage / Cajón de Suministros
+# Storage / Cajón de Recursos
 func _update_storage_ui() -> void:
 	var inv = GameManager.crafting.inventory
-	if storage_iron_lbl: storage_iron_lbl.text = "Hierro: %d" % inv.get("iron", 0)
-	if storage_copper_lbl: storage_copper_lbl.text = "Cobre: %d" % inv.get("copper", 0)
-	if storage_silicon_lbl: storage_silicon_lbl.text = "Silicio: %d" % inv.get("silicon", 0)
-	if storage_uranium_lbl: storage_uranium_lbl.text = "Uranio: %d" % inv.get("uranium", 0)
+	if storage_iron_lbl: storage_iron_lbl.text = "%s: %d" % [GameManager.loc("iron"), inv.get("iron", 0)]
+	if storage_copper_lbl: storage_copper_lbl.text = "%s: %d" % [GameManager.loc("copper"), inv.get("copper", 0)]
+	if storage_silicon_lbl: storage_silicon_lbl.text = "%s: %d" % [GameManager.loc("silicon"), inv.get("silicon", 0)]
+	if storage_uranium_lbl: storage_uranium_lbl.text = "%s: %d" % [GameManager.loc("uranium"), inv.get("uranium", 0)]
 
 func _on_deposit_all_pressed() -> void:
 	AudioManager.play("crafting", 1.0)
 	_update_storage_ui()
-	deposit_all_btn.text = "¡SUMINISTROS ASEGURADOS!"
+	deposit_all_btn.text = "✓ " + GameManager.loc("deposit_all")
 	var tween = create_tween()
 	tween.tween_interval(1.2)
 	tween.tween_callback(func():
-		if deposit_all_btn: deposit_all_btn.text = "Depositar Minerales Recolectados"
+		if deposit_all_btn: deposit_all_btn.text = GameManager.loc("deposit_all")
 	)
 
 func _on_close_storage_pressed() -> void:
@@ -357,10 +455,10 @@ func _on_close_storage_pressed() -> void:
 # Crafting
 func _update_crafting_ui() -> void:
 	var inv = GameManager.crafting.inventory
-	if inv_iron_label: inv_iron_label.text = "Hierro: %d" % inv.get("iron", 0)
-	if inv_copper_label: inv_copper_label.text = "Cobre: %d" % inv.get("copper", 0)
-	if inv_silicon_label: inv_silicon_label.text = "Silicio: %d" % inv.get("silicon", 0)
-	if inv_uranium_label: inv_uranium_label.text = "Uranio: %d" % inv.get("uranium", 0)
+	if inv_iron_label: inv_iron_label.text = "%s: %d" % [GameManager.loc("iron"), inv.get("iron", 0)]
+	if inv_copper_label: inv_copper_label.text = "%s: %d" % [GameManager.loc("copper"), inv.get("copper", 0)]
+	if inv_silicon_label: inv_silicon_label.text = "%s: %d" % [GameManager.loc("silicon"), inv.get("silicon", 0)]
+	if inv_uranium_label: inv_uranium_label.text = "%s: %d" % [GameManager.loc("uranium"), inv.get("uranium", 0)]
 
 func _on_craft_item_pressed(item_name: String) -> void:
 	if GameManager.crafting.craft(item_name):
@@ -371,13 +469,13 @@ func _on_craft_item_pressed(item_name: String) -> void:
 # Hyperdrive
 func _update_hyperdrive_ui() -> void:
 	var prog = GameManager.crafting.get_hyperdrive_progress()
-	hyperdrive_badge.text = "HYPERDRIVE %d%%" % int(prog * 100)
+	hyperdrive_badge.text = "%s %d%%" % [GameManager.loc("hyperdrive_title"), int(prog * 100)]
 	
 	if GameManager.crafting.is_hyperdrive_complete():
-		hyperdrive_status_label.text = "¡HYPERDRIVE 100% OPERATIVO! LISTO PARA SALTO"
+		hyperdrive_status_label.text = GameManager.loc("hyperdrive_status_ok")
 		launch_btn.visible = true
 	else:
-		hyperdrive_status_label.text = "ESTADO: DAÑADO - PIEZAS REQUERIDAS:"
+		hyperdrive_status_label.text = GameManager.loc("hyperdrive_status_dmg")
 		launch_btn.visible = false
 		
 	for child in hyperdrive_list_container.get_children():
@@ -392,13 +490,13 @@ func _update_hyperdrive_ui() -> void:
 		var lbl = Label.new()
 		var needed = reqs[part]
 		var cur = installed.get(part, 0)
-		lbl.text = "%s: %d / %d (Mochila: %d)" % [part.capitalize(), cur, needed, inv.get(part, 0)]
+		lbl.text = "%s: %d / %d" % [part.capitalize(), cur, needed]
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lbl)
 		
 		if cur < needed:
 			var btn = Button.new()
-			btn.text = "Instalar"
+			btn.text = GameManager.loc("craft_action")
 			btn.disabled = inv.get(part, 0) <= 0
 			btn.pressed.connect(func():
 				GameManager.crafting.install_part(part)
@@ -421,17 +519,44 @@ func _build_starmap_ui() -> void:
 		
 	var sys = GameManager.current_solar_system
 	var planets = sys.get("planets", [])
+	var cur_p = GameManager.current_planet
 	for p in planets:
 		var card = PanelContainer.new()
 		var vbox = VBoxContainer.new()
+		var is_current = (p.get("name") == cur_p.get("name"))
+		
 		var title = Label.new()
-		title.text = "%s [%s]" % [p["name"], p["type"]]
+		title.text = ("📍 " if is_current else "🪐 ") + ("%s [%s]" % [p["name"], p["type"]])
+		if is_current:
+			title.modulate = Color(0.3, 0.9, 1.0)
 		var coords = Label.new()
-		coords.text = "%s | Órbita: %.2f AU" % [p["coords_str"], p["orbit_au"]]
+		var dist_au = GameManager.calc_transit_distance_au(cur_p, p)
+		var fuel_cost = GameManager.calc_transit_fuel_cost(dist_au)
+		coords.text = "%s: %.2f AU | %s: -%.0f%% FUEL" % [GameManager.loc("orbit"), p["orbit_au"], ("Combustible" if GameManager.current_language == "es" else "Fuel"), fuel_cost]
+		
 		vbox.add_child(title)
 		vbox.add_child(coords)
+		
+		if not is_current:
+			var btn = Button.new()
+			btn.text = "🚀 " + ("DESPEGAR Y VIAJAR" if GameManager.current_language == "es" else "LAUNCH & FLY")
+			btn.pressed.connect(func():
+				_launch_transit_to(p, fuel_cost)
+			)
+			vbox.add_child(btn)
+			
 		card.add_child(vbox)
 		starmap_list.add_child(card)
+
+func _launch_transit_to(target_p: Dictionary, fuel_cost: float) -> void:
+	starmap_modal.visible = false
+	if GameManager.player_stats.fuel < fuel_cost:
+		AudioManager.play("click")
+		return
+	GameManager.player_stats.fuel -= fuel_cost
+	AudioManager.play("thruster", 1.0, 2.0)
+	GameManager.start_interplanetary_transit(target_p)
+	get_tree().change_scene_to_file("res://scenes/screens/loading_screen.tscn")
 
 # Close Modals
 func _on_close_crafting_pressed() -> void: crafting_modal.visible = false
@@ -446,13 +571,22 @@ func _on_game_over(reason: String) -> void:
 
 func _on_expedition_completed(summary: Dictionary) -> void:
 	victory_modal.visible = true
+	var reward_points = GameManager.award_hyperdrive_victory(int(GameManager.current_difficulty))
 	var lbl = $Modals/VictoryModal/VBox/SummaryLabel
-	if lbl: lbl.text = "¡Salto Hiperespacial Exitoso!\nPlaneta: %s\nNivel: %s\nHyperdrive: %s" % [
-		summary.get("planet", ""), str(summary.get("difficulty", 0)), summary.get("hyperdrive", "")
+	if lbl: lbl.text = "%s\n%s: %s\n%s: %s\n\n✨ +%d LUNA POINTS" % [
+		GameManager.loc("victory_title"),
+		GameManager.loc("planet_label"), summary.get("planet", ""),
+		GameManager.loc("hazard"), str(summary.get("difficulty", 0)),
+		reward_points
 	]
 
 func _on_retry_pressed() -> void:
-	get_tree().reload_current_scene()
+	AudioManager.play("click")
+	get_tree().paused = false
+	GameManager.reset_player_stats()
+	game_over_modal.visible = false
+	get_tree().change_scene_to_file("res://scenes/screens/loading_screen.tscn")
 
 func _on_return_menu_pressed() -> void:
+	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/screens/main_menu.tscn")

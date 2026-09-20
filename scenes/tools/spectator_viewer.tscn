@@ -1,0 +1,42 @@
+[gd_scene load_steps=8 format=3 uid="uid://cspectatorviewer01"]
+
+[ext_resource type="Script" uid="uid://cesekwnkbv8px" path="res://scripts/world/world.gd" id="1_world"]
+[ext_resource type="PackedScene" uid="uid://b4dc2s0tfpn3u" path="res://scenes/world/spherical_planet.tscn" id="2_planet"]
+[ext_resource type="Script" path="res://scripts/tools/spectator_camera.gd" id="3_camera"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_top_color = Color(0.06, 0.12, 0.24, 1)
+sky_horizon_color = Color(0.25, 0.38, 0.55, 1)
+sky_curve = 0.15
+ground_bottom_color = Color(0.04, 0.06, 0.12, 1)
+ground_horizon_color = Color(0.2, 0.3, 0.45, 1)
+ground_curve = 0.15
+sun_angle_max = 35.0
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+ambient_light_source = 2
+ambient_light_color = Color(0.65, 0.7, 0.8, 1)
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.4
+
+[node name="SpectatorWorld" type="Node3D"]
+script = ExtResource("1_world")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="SunLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 250, 0)
+light_energy = 1.3
+shadow_enabled = true
+
+[node name="SphericalPlanet" parent="." instance=ExtResource("2_planet")]
+
+[node name="SpectatorCamera3D" type="Camera3D" parent="."]
+script = ExtResource("3_camera")

@@ -1,8 +1,60 @@
-[gd_scene load_steps=22 format=3 uid="uid://cship3d01"]
+[gd_scene format=3 uid="uid://cship3d01"]
 
-[ext_resource type="Script" path="res://scripts/entities/spaceship_3d.gd" id="1_ship"]
+[ext_resource type="Script" uid="uid://c81q0drkqdu4d" path="res://scripts/entities/spaceship_3d.gd" id="1_ship"]
 [ext_resource type="PackedScene" uid="uid://m5hibsyawylq" path="res://assets/models/satelliteDish_detailed.glb" id="2_sat"]
 [ext_resource type="PackedScene" uid="uid://ok6aoyaunm20" path="res://assets/models/rocket_topA.glb" id="3_rtop"]
+[ext_resource type="Shader" uid="uid://cg8rucob25eun" path="res://assets/shaders/rocket_flame.gdshader" id="5_flame_shader"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_DarkTrim"]
+albedo_color = Color(0.14, 0.16, 0.2, 1)
+metallic = 0.7
+roughness = 0.5
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_HeatShield"]
+material = SubResource("Mat_DarkTrim")
+top_radius = 3.7
+bottom_radius = 3.8
+height = 0.4
+radial_segments = 24
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_BaseShield"]
+height = 0.3
+radius = 3.6
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_CabinFloor"]
+size = Vector3(6.2, 0.25, 5.4)
+
+[sub_resource type="StandardMaterial3D" id="Mat_EngineNozzle"]
+albedo_color = Color(0.18, 0.19, 0.22, 1)
+metallic = 0.85
+roughness = 0.35
+emission_enabled = true
+emission = Color(0.95, 0.45, 0.08, 1)
+emission_energy_multiplier = 0.4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_Nozzle"]
+material = SubResource("Mat_EngineNozzle")
+top_radius = 0.85
+bottom_radius = 1.45
+height = 0.7
+radial_segments = 20
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_Flame"]
+render_priority = 0
+shader = ExtResource("5_flame_shader")
+shader_parameter/core_color = Color(1, 0.98, 0.92, 1)
+shader_parameter/flame_color = Color(1, 0.52, 0.08, 0.9)
+shader_parameter/rim_color = Color(0.2, 0.6, 1, 0.5)
+shader_parameter/shock_diamond_freq = 18.0
+shader_parameter/flame_speed = 28.0
+shader_parameter/expansion_power = 1.3
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_Flame"]
+material = SubResource("ShaderMaterial_Flame")
+top_radius = 0.45
+bottom_radius = 1.65
+height = 5.0
+radial_segments = 16
 
 [sub_resource type="StandardMaterial3D" id="Mat_CapsuleWhite"]
 resource_local_to_scene = true
@@ -15,53 +67,16 @@ albedo_color = Color(0.95, 0.42, 0.08, 1)
 metallic = 0.4
 roughness = 0.45
 
-[sub_resource type="StandardMaterial3D" id="Mat_DarkTrim"]
-albedo_color = Color(0.14, 0.16, 0.2, 1)
-metallic = 0.7
-roughness = 0.5
-
-[sub_resource type="StandardMaterial3D" id="Mat_ScorchedCrater"]
-albedo_color = Color(0.1, 0.08, 0.07, 1)
-roughness = 0.95
-metallic = 0.1
-
-[sub_resource type="StandardMaterial3D" id="Mat_EnergyShield"]
-albedo_color = Color(0.15, 0.8, 1, 0.35)
-metallic = 0.1
-roughness = 0.1
-emission_enabled = true
-emission = Color(0.1, 0.6, 0.9, 1)
-emission_energy_multiplier = 1.2
-transparency = 1
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_Crater"]
-material = SubResource("Mat_ScorchedCrater")
-top_radius = 6.8
-bottom_radius = 7.2
-height = 0.08
-radial_segments = 32
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_HeatShield"]
-material = SubResource("Mat_DarkTrim")
-top_radius = 3.7
-bottom_radius = 3.8
-height = 0.4
-radial_segments = 24
-
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_HeatShield"]
-radius = 3.7
-height = 0.4
-
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_RoofCap"]
-radius = 3.7
-height = 0.7
-
 [sub_resource type="CylinderMesh" id="CylinderMesh_RoofCap"]
 material = SubResource("Mat_RescueOrange")
 top_radius = 2.4
 bottom_radius = 3.7
 height = 0.7
 radial_segments = 24
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_RoofCap"]
+height = 0.7
+radius = 3.7
 
 [sub_resource type="BoxMesh" id="BoxMesh_ArchJamb"]
 material = SubResource("Mat_RescueOrange")
@@ -72,11 +87,16 @@ material = SubResource("Mat_RescueOrange")
 size = Vector3(2.4, 0.35, 0.4)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_HatchDoor"]
-size = Vector3(1.9, 2.4, 0.2)
+size = Vector3(2.1, 2.32, 0.24)
+
+[sub_resource type="StandardMaterial3D" id="Mat_AirlockHatch"]
+albedo_color = Color(0.18, 0.2, 0.24, 1)
+metallic = 0.75
+roughness = 0.45
 
 [sub_resource type="BoxMesh" id="BoxMesh_HatchPanel"]
-material = SubResource("Mat_CapsuleWhite")
-size = Vector3(1.85, 2.35, 0.16)
+material = SubResource("Mat_AirlockHatch")
+size = Vector3(2.08, 2.3, 0.22)
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_PortholeRim"]
 material = SubResource("Mat_DarkTrim")
@@ -84,6 +104,15 @@ top_radius = 0.32
 bottom_radius = 0.32
 height = 0.2
 radial_segments = 24
+
+[sub_resource type="StandardMaterial3D" id="Mat_EnergyShield"]
+transparency = 1
+albedo_color = Color(0.15, 0.8, 1, 0.35)
+metallic = 0.1
+roughness = 0.1
+emission_enabled = true
+emission = Color(0.1, 0.6, 0.9, 1)
+emission_energy_multiplier = 1.2
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_PortholeGlass"]
 material = SubResource("Mat_EnergyShield")
@@ -96,60 +125,99 @@ radial_segments = 24
 material = SubResource("Mat_RescueOrange")
 size = Vector3(0.12, 0.5, 0.15)
 
+[sub_resource type="BoxMesh" id="BoxMesh_ThresholdSill"]
+material = SubResource("Mat_DarkTrim")
+size = Vector3(2.08, 0.08, 0.4)
+
 [sub_resource type="BoxMesh" id="BoxMesh_Ramp"]
 material = SubResource("Mat_DarkTrim")
-size = Vector3(2.0, 0.15, 2.8)
+size = Vector3(2, 0.1, 2.85)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_Ramp"]
-size = Vector3(2.0, 0.15, 2.8)
+size = Vector3(2, 0.12, 2.85)
 
-[sub_resource type="BoxMesh" id="BoxMesh_Strut"]
+[sub_resource type="CylinderMesh" id="CylinderMesh_Strut"]
 material = SubResource("Mat_DarkTrim")
-size = Vector3(0.4, 2.4, 0.4)
+top_radius = 0.12
+bottom_radius = 0.15
+height = 1.48
+radial_segments = 12
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_Pad"]
 material = SubResource("Mat_DarkTrim")
-top_radius = 0.55
-bottom_radius = 0.65
+top_radius = 0.65
+bottom_radius = 0.75
 height = 0.2
+radial_segments = 16
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_LegPad"]
+height = 0.25
+radius = 0.75
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_CabinArea"]
 size = Vector3(7.4, 4.4, 7.4)
 
-[node name="Spaceship3D" type="Node3D" groups=["interactable", "spaceship"]]
+[node name="Spaceship3D" type="Node3D" unique_id=688928734 groups=["interactable", "spaceship"]]
 script = ExtResource("1_ship")
 
-[node name="ImpactCrater" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.02, 0)
-mesh = SubResource("CylinderMesh_Crater")
+[node name="HullStructure" type="Node3D" parent="." unique_id=1251000775]
 
-[node name="HullStructure" type="Node3D" parent="."]
-
-[node name="HeatShield" type="StaticBody3D" parent="HullStructure"]
+[node name="HeatShield" type="StaticBody3D" parent="HullStructure" unique_id=1242435180]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/HeatShield"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/HeatShield" unique_id=484916968]
 mesh = SubResource("CylinderMesh_HeatShield")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/HeatShield"]
-shape = SubResource("CylinderShape3D_HeatShield")
+[node name="CollisionShape3D_Base" type="CollisionShape3D" parent="HullStructure/HeatShield" unique_id=1934612365]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("CylinderShape3D_BaseShield")
 
-[node name="CapsuleHull" type="CSGCombiner3D" parent="HullStructure"]
+[node name="CollisionShape3D_Floor" type="CollisionShape3D" parent="HullStructure/HeatShield" unique_id=1028133409]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, -0.3)
+shape = SubResource("BoxShape3D_CabinFloor")
+
+[node name="MainRocketEngine" type="MeshInstance3D" parent="HullStructure" unique_id=1305370895]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
+mesh = SubResource("CylinderMesh_Nozzle")
+
+[node name="FlamePivot" type="Node3D" parent="HullStructure/MainRocketEngine" unique_id=586628921]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.35, 0)
+visible = false
+
+[node name="FlamePlume" type="MeshInstance3D" parent="HullStructure/MainRocketEngine/FlamePivot" unique_id=1115813382]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2.5, 0)
+mesh = SubResource("CylinderMesh_Flame")
+
+[node name="EngineLight" type="OmniLight3D" parent="HullStructure/MainRocketEngine/FlamePivot" unique_id=1847350255]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2.5, 0)
+light_color = Color(1, 0.62, 0.18, 1)
+light_energy = 6.0
+omni_range = 38.0
+
+[node name="RocketSparks" type="CPUParticles3D" parent="HullStructure/MainRocketEngine/FlamePivot" unique_id=1460576457]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0)
+emitting = false
+amount = 45
+lifetime = 0.65
+direction = Vector3(0, -1, 0)
+spread = 15.0
+initial_velocity_min = 18.0
+initial_velocity_max = 32.0
+color = Color(1, 0.75, 0.25, 1)
+
+[node name="CapsuleHull" type="CSGCombiner3D" parent="HullStructure" unique_id=871911159]
 use_collision = true
-collision_layer = 1
 collision_mask = 0
 
-[node name="OuterCylinder" type="CSGCylinder3D" parent="HullStructure/CapsuleHull"]
+[node name="OuterCylinder" type="CSGCylinder3D" parent="HullStructure/CapsuleHull" unique_id=1805797756]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
 radius = 3.6
 height = 3.2
 sides = 24
-cone = false
 material = SubResource("Mat_CapsuleWhite")
 
-[node name="InnerHollow" type="CSGCylinder3D" parent="HullStructure/CapsuleHull"]
+[node name="InnerHollow" type="CSGCylinder3D" parent="HullStructure/CapsuleHull" unique_id=1808121488]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
 operation = 2
 radius = 3.2
@@ -157,130 +225,166 @@ height = 3.25
 sides = 24
 material = SubResource("Mat_DarkTrim")
 
-[node name="DoorCutout" type="CSGBox3D" parent="HullStructure/CapsuleHull"]
+[node name="DoorCutout" type="CSGBox3D" parent="HullStructure/CapsuleHull" unique_id=1659304181]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.35, 3.3)
 operation = 2
-size = Vector3(2.0, 2.5, 2.0)
+size = Vector3(2, 2.4, 2)
 
-[node name="WindowCutout" type="CSGBox3D" parent="HullStructure/CapsuleHull"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, -3.4)
+[node name="WindowCutout" type="CSGBox3D" parent="HullStructure/CapsuleHull" unique_id=732940658]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -3.4)
 operation = 2
 size = Vector3(2.4, 1.2, 1.5)
 
-[node name="RoofCap" type="StaticBody3D" parent="HullStructure"]
+[node name="RoofCap" type="StaticBody3D" parent="HullStructure" unique_id=1180474571]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
-collision_layer = 1
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/RoofCap"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/RoofCap" unique_id=494841685]
 mesh = SubResource("CylinderMesh_RoofCap")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/RoofCap"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/RoofCap" unique_id=2058179188]
 shape = SubResource("CylinderShape3D_RoofCap")
 
-[node name="RocketTop" parent="HullStructure" instance=ExtResource("3_rtop")]
-transform = Transform3D(2.5, 0, 0, 0, 2.5, 0, 0, 0, 2.5, -5.0, 3.65, -3.75)
+[node name="RocketTop" parent="HullStructure" unique_id=1456930906 instance=ExtResource("3_rtop")]
+transform = Transform3D(2.5, 0, 0, 0, 2.5, 0, 0, 0, 2.5, -5, 3.65, -3.75)
 
-[node name="SatelliteDish" parent="HullStructure" instance=ExtResource("2_sat")]
-transform = Transform3D(1.5, 0, 0, 0, 1.5, 0, 0, 0, 1.5, -3.0, 5.5, -2.25)
+[node name="SatelliteDish" parent="HullStructure" unique_id=375204672 instance=ExtResource("2_sat")]
+transform = Transform3D(1.5, 0, 0, 0, 1.5, 0, 0, 0, 1.5, -3, 5.5, -2.25)
 
-[node name="BeaconLight" type="OmniLight3D" parent="HullStructure"]
+[node name="BeaconLight" type="OmniLight3D" parent="HullStructure" unique_id=1951534627]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.8, 0)
 light_color = Color(1, 0.55, 0.1, 1)
-light_energy = 4.5
-omni_range = 16.0
+light_energy = 2.5
+omni_range = 14.0
 
-[node name="ArchJambLeft" type="MeshInstance3D" parent="HullStructure"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.05, 1.35, 3.4)
+[node name="ArchJambLeft" type="MeshInstance3D" parent="HullStructure" unique_id=63737398]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.15, 1.35, 3.4)
 mesh = SubResource("BoxMesh_ArchJamb")
 
-[node name="ArchJambRight" type="MeshInstance3D" parent="HullStructure"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 1.35, 3.4)
+[node name="ArchJambRight" type="MeshInstance3D" parent="HullStructure" unique_id=988145259]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.15, 1.35, 3.4)
 mesh = SubResource("BoxMesh_ArchJamb")
 
-[node name="ArchLintel" type="MeshInstance3D" parent="HullStructure"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.6, 3.4)
+[node name="ArchLintel" type="MeshInstance3D" parent="HullStructure" unique_id=1072904192]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.55, 3.4)
 mesh = SubResource("BoxMesh_ArchLintel")
 
-[node name="ApolloHatch" type="AnimatableBody3D" parent="HullStructure"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 1.35, 3.35)
-collision_layer = 1
+[node name="ApolloHatch" type="Node3D" parent="HullStructure" unique_id=1194085434]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.04, 1.35, 3.4)
+
+[node name="HatchCollider" type="StaticBody3D" parent="HullStructure/ApolloHatch" unique_id=1636195866]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.04, 0, 0)
 collision_mask = 0
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/ApolloHatch"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0, 0)
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/ApolloHatch/HatchCollider" unique_id=97279651]
 shape = SubResource("BoxShape3D_HatchDoor")
 
-[node name="HatchPanel" type="MeshInstance3D" parent="HullStructure/ApolloHatch"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0, 0)
+[node name="HatchPanel" type="MeshInstance3D" parent="HullStructure/ApolloHatch" unique_id=150353974]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.04, 0, 0)
 mesh = SubResource("BoxMesh_HatchPanel")
 
-[node name="PortholeRim" type="MeshInstance3D" parent="HullStructure/ApolloHatch"]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0.95, 0.25, 0)
+[node name="PortholeRim" type="MeshInstance3D" parent="HullStructure/ApolloHatch" unique_id=1213913850]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 1.04, 0.25, 0)
 mesh = SubResource("CylinderMesh_PortholeRim")
 
-[node name="PortholeGlass" type="MeshInstance3D" parent="HullStructure/ApolloHatch"]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0.95, 0.25, 0)
+[node name="PortholeGlass" type="MeshInstance3D" parent="HullStructure/ApolloHatch" unique_id=21694294]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 1.04, 0.25, 0)
 mesh = SubResource("CylinderMesh_PortholeGlass")
 
-[node name="LatchHandle" type="MeshInstance3D" parent="HullStructure/ApolloHatch"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.55, -0.15, 0.08)
+[node name="LatchHandle" type="MeshInstance3D" parent="HullStructure/ApolloHatch" unique_id=822929730]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.85, -0.15, 0.12)
 mesh = SubResource("BoxMesh_HatchHandle")
 
-[node name="BoardingRamp" type="StaticBody3D" parent="HullStructure"]
-transform = Transform3D(1, 0, 0, 0, 0.984808, 0.173648, 0, -0.173648, 0.984808, 0, -0.05, 4.5)
-collision_layer = 1
+[node name="ThresholdSill" type="MeshInstance3D" parent="HullStructure" unique_id=400175988]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.14, 3.45)
+mesh = SubResource("BoxMesh_ThresholdSill")
+
+[node name="BoardingRamp" type="StaticBody3D" parent="HullStructure" unique_id=1424288304]
+transform = Transform3D(1, 0, 0, 0, 0.925417, 0.378949, 0, -0.378949, 0.925417, 0, 0.14, 3.45)
 collision_mask = 0
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/BoardingRamp"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/BoardingRamp" unique_id=1412421850]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 1.425)
 mesh = SubResource("BoxMesh_Ramp")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/BoardingRamp"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/BoardingRamp" unique_id=1449204357]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 1.425)
 shape = SubResource("BoxShape3D_Ramp")
 
-[node name="LegFL" type="MeshInstance3D" parent="HullStructure"]
-transform = Transform3D(0.707107, 0.353553, 0.612372, 0, 0.866025, -0.5, -0.707107, 0.353553, 0.612372, -3.2, 0.2, 2.4)
-mesh = SubResource("BoxMesh_Strut")
+[node name="LandingGear_FL" type="Node3D" parent="HullStructure" unique_id=1834729666]
 
-[node name="Pad" type="MeshInstance3D" parent="HullStructure/LegFL"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.2, 0)
+[node name="Strut" type="MeshInstance3D" parent="HullStructure/LandingGear_FL" unique_id=996459110]
+transform = Transform3D(0.707107, -0.475399, 0.523446, 0, -0.740264, -0.672316, 0.707107, 0.475399, -0.523446, -2.9, -0.295, 2.9)
+mesh = SubResource("CylinderMesh_Strut")
+
+[node name="Pad" type="StaticBody3D" parent="HullStructure/LandingGear_FL" unique_id=1899192688]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.25, -0.84, 3.25)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/LandingGear_FL/Pad" unique_id=1465702793]
 mesh = SubResource("CylinderMesh_Pad")
 
-[node name="LegFR" type="MeshInstance3D" parent="HullStructure"]
-transform = Transform3D(0.707107, -0.353553, -0.612372, 0, 0.866025, -0.5, 0.707107, 0.353553, 0.612372, 3.2, 0.2, 2.4)
-mesh = SubResource("BoxMesh_Strut")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/LandingGear_FL/Pad" unique_id=264143351]
+shape = SubResource("CylinderShape3D_LegPad")
 
-[node name="Pad" type="MeshInstance3D" parent="HullStructure/LegFR"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.2, 0)
+[node name="LandingGear_FR" type="Node3D" parent="HullStructure" unique_id=1966461038]
+
+[node name="Strut" type="MeshInstance3D" parent="HullStructure/LandingGear_FR" unique_id=1715581734]
+transform = Transform3D(0.707107, 0.475399, -0.523446, 0, -0.740264, -0.672316, -0.707107, 0.475399, -0.523446, 2.9, -0.295, 2.9)
+mesh = SubResource("CylinderMesh_Strut")
+
+[node name="Pad" type="StaticBody3D" parent="HullStructure/LandingGear_FR" unique_id=1491910443]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.25, -0.84, 3.25)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/LandingGear_FR/Pad" unique_id=1724824051]
 mesh = SubResource("CylinderMesh_Pad")
 
-[node name="LegRL" type="MeshInstance3D" parent="HullStructure"]
-transform = Transform3D(-0.707107, 0.353553, 0.612372, 0, 0.866025, 0.5, 0.707107, 0.353553, 0.612372, -3.2, 0.2, -2.4)
-mesh = SubResource("BoxMesh_Strut")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/LandingGear_FR/Pad" unique_id=2038507723]
+shape = SubResource("CylinderShape3D_LegPad")
 
-[node name="Pad" type="MeshInstance3D" parent="HullStructure/LegRL"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.2, 0)
+[node name="LandingGear_RL" type="Node3D" parent="HullStructure" unique_id=827302336]
+
+[node name="Strut" type="MeshInstance3D" parent="HullStructure/LandingGear_RL" unique_id=1215887523]
+transform = Transform3D(-0.707107, -0.475399, 0.523446, 0, -0.740264, -0.672316, 0.707107, -0.475399, 0.523446, -2.9, -0.295, -2.9)
+mesh = SubResource("CylinderMesh_Strut")
+
+[node name="Pad" type="StaticBody3D" parent="HullStructure/LandingGear_RL" unique_id=1543527344]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.25, -0.84, -3.25)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/LandingGear_RL/Pad" unique_id=1780506912]
 mesh = SubResource("CylinderMesh_Pad")
 
-[node name="LegRR" type="MeshInstance3D" parent="HullStructure"]
-transform = Transform3D(-0.707107, -0.353553, -0.612372, 0, 0.866025, 0.5, -0.707107, 0.353553, 0.612372, 3.2, 0.2, -2.4)
-mesh = SubResource("BoxMesh_Strut")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/LandingGear_RL/Pad" unique_id=46787478]
+shape = SubResource("CylinderShape3D_LegPad")
 
-[node name="Pad" type="MeshInstance3D" parent="HullStructure/LegRR"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.2, 0)
+[node name="LandingGear_RR" type="Node3D" parent="HullStructure" unique_id=2097361606]
+
+[node name="Strut" type="MeshInstance3D" parent="HullStructure/LandingGear_RR" unique_id=1549201159]
+transform = Transform3D(-0.707107, 0.475399, -0.523446, 0, -0.740264, -0.672316, -0.707107, -0.475399, 0.523446, 2.9, -0.295, -2.9)
+mesh = SubResource("CylinderMesh_Strut")
+
+[node name="Pad" type="StaticBody3D" parent="HullStructure/LandingGear_RR" unique_id=899172259]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.25, -0.84, -3.25)
+collision_mask = 0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="HullStructure/LandingGear_RR/Pad" unique_id=1399164723]
 mesh = SubResource("CylinderMesh_Pad")
 
-[node name="CabinInterior" type="Node3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HullStructure/LandingGear_RR/Pad" unique_id=907148368]
+shape = SubResource("CylinderShape3D_LegPad")
 
-[node name="InteriorArea" type="Area3D" parent="CabinInterior"]
+[node name="CabinInterior" type="Node3D" parent="." unique_id=1606002010]
+
+[node name="InteriorArea" type="Area3D" parent="CabinInterior" unique_id=60014834]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
 collision_layer = 0
-collision_mask = 1
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="CabinInterior/InteriorArea"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="CabinInterior/InteriorArea" unique_id=143425588]
 shape = SubResource("BoxShape3D_CabinArea")
 
-[node name="InteriorLight" type="OmniLight3D" parent="CabinInterior"]
+[node name="InteriorLight" type="OmniLight3D" parent="CabinInterior" unique_id=524222481]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
 light_color = Color(0.94, 0.96, 1, 1)
 light_energy = 2.0

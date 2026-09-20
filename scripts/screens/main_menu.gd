@@ -131,6 +131,11 @@ var is_dragging: bool = false
 var last_drag_pos: Vector2 = Vector2.ZERO
 var drag_travel: float = 0.0
 
+# Multi-touch pinch-to-zoom tracking
+var active_touches: Dictionary = {}
+var last_pinch_dist: float = 0.0
+var is_pinching: bool = false
+
 var camera_dist: float = 11.5
 var target_camera_dist: float = 11.5
 var current_focal_point: Vector3 = Vector3.ZERO
@@ -146,11 +151,23 @@ var cached_master: float = 0.85
 var cached_music: float = 0.70
 var cached_sfx: float = 0.90
 var cached_lang: String = "es"
+var luna_badge_label: Label = null
 
 func _ready() -> void:
 	# Hide modals
 	settings_modal.visible = false
 	store_modal.visible = false
+	
+	# Luna Points Top Badge
+	luna_badge_label = Label.new()
+	luna_badge_label.name = "LunaPointsBadge"
+	luna_badge_label.position = Vector2(35, 25)
+	luna_badge_label.modulate = Color(1.0, 0.88, 0.35)
+	var root_layer = get_node_or_null("MenuLayer/RootLayer")
+	if root_layer:
+		root_layer.add_child(luna_badge_label)
+	_update_luna_points_ui()
+	GameManager.luna_points_changed.connect(func(_new_pts): _update_luna_points_ui())
 	
 	# Connect Root Menu buttons
 	play_btn.pressed.connect(_on_play_pressed)
@@ -359,17 +376,47 @@ func _gui_input(event: InputEvent) -> void:
 		
 	elif event is InputEventScreenTouch:
 		if event.pressed:
-			is_dragging = true
-			last_drag_pos = event.position
-			drag_travel = 0.0
+			active_touches[event.index] = event.position
+			if active_touches.size() == 1:
+				is_dragging = true
+				last_drag_pos = event.position
+				drag_travel = 0.0
+				is_pinching = false
+			elif active_touches.size() >= 2:
+				is_pinching = true
+				is_dragging = false
+				var keys = active_touches.keys()
+				last_pinch_dist = active_touches[keys[0]].distance_to(active_touches[keys[1]])
 		else:
-			is_dragging = false
-			if drag_travel < 14.0 and active_info_tab == "system":
-				_check_screen_tap_planet(event.position)
+			active_touches.erase(event.index)
+			if active_touches.size() == 1:
+				is_pinching = false
+				is_dragging = true
+				var remaining_key = active_touches.keys()[0]
+				last_drag_pos = active_touches[remaining_key]
+			elif active_touches.size() == 0:
+				is_pinching = false
+				is_dragging = false
+				if drag_travel < 14.0 and active_info_tab == "system":
+					_check_screen_tap_planet(event.position)
 			
-	elif event is InputEventScreenDrag and is_dragging:
-		drag_travel += event.relative.length()
-		_apply_free_drag(event.relative)
+	elif event is InputEventScreenDrag:
+		active_touches[event.index] = event.position
+		if active_touches.size() >= 2:
+			is_pinching = true
+			is_dragging = false
+			var keys = active_touches.keys()
+			var current_dist = active_touches[keys[0]].distance_to(active_touches[keys[1]])
+			if last_pinch_dist > 0.0:
+				var pinch_delta = current_dist - last_pinch_dist
+				if active_info_tab == "planet":
+					target_camera_dist = clamp(target_camera_dist - pinch_delta * 0.035, 5.5, 20.0)
+				else:
+					target_camera_dist = clamp(target_camera_dist - pinch_delta * 0.14, 18.0, 95.0)
+			last_pinch_dist = current_dist
+		elif is_dragging and not is_pinching:
+			drag_travel += event.relative.length()
+			_apply_free_drag(event.relative)
 
 func _check_screen_tap_planet(tap_pos: Vector2) -> void:
 	if not camera_3d or not orbits_view:
@@ -637,6 +684,7 @@ func _apply_planet_to_3d_mesh(p: Dictionary) -> void:
 	mat.set_shader_parameter("cloud_density", p.get("cloud_density", 0.52))
 	mat.set_shader_parameter("cloud_speed", p.get("cloud_speed", 0.03))
 	mat.set_shader_parameter("noise_scale", p.get("noise_scale", 2.4))
+	mat.set_shader_parameter("seed_offset", float(int(p.get("seed", 1337)) % 1000))
 	
 	# Planetary Rings
 	if rings_mesh:
@@ -766,8 +814,6 @@ func _on_launch_pressed() -> void:
 		open_store_modal(GameManager.loc("pro_sector_locked"), GameManager.loc("pro_sector_desc"))
 		return
 		
-	if AudioManager.has_method("play_gameplay_music"):
-		AudioManager.play_gameplay_music()
 	GameManager.start_expedition()
 
 # ----------------- Settings & Store Modals (Mutual Exclusivity) -----------------
@@ -885,9 +931,13 @@ func _on_store_pressed() -> void:
 	settings_modal.visible = false
 	open_store_modal(GameManager.loc("pro_sector_locked"), GameManager.loc("pro_sector_desc"), false)
 
+func _update_luna_points_ui() -> void:
+	if luna_badge_label:
+		luna_badge_label.text = "🌙 %d LUNA POINTS" % GameManager.luna_points
+
 func open_store_modal(title: String, desc: String, highlight_editor: bool = false) -> void:
 	store_title.text = title
-	store_desc.text = desc
+	store_desc.text = "%s\n\n[ 🌙 Saldo actual: %d Luna Points ]" % [desc, GameManager.luna_points]
 	store_modal.visible = true
 	if store_status_label:
 		store_status_label.visible = false

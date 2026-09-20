@@ -1,0 +1,114 @@
+[gd_scene load_steps=12 format=3 uid="uid://caliencreature01"]
+
+[ext_resource type="Script" path="res://scripts/entities/alien_creature.gd" id="1_alien"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_Col"]
+size = Vector3(1.2, 0.9, 1.6)
+
+[sub_resource type="StandardMaterial3D" id="Mat_Carapace"]
+albedo_color = Color(0.32, 0.75, 0.42, 1)
+metallic = 0.35
+roughness = 0.55
+
+[sub_resource type="BoxMesh" id="BoxMesh_Thorax"]
+material = SubResource("Mat_Carapace")
+size = Vector3(0.75, 0.5, 1.2)
+
+[sub_resource type="StandardMaterial3D" id="Mat_DarkChitin"]
+albedo_color = Color(0.15, 0.2, 0.18, 1)
+metallic = 0.5
+roughness = 0.4
+
+[sub_resource type="PrismMesh" id="PrismMesh_Ridge"]
+material = SubResource("Mat_DarkChitin")
+size = Vector3(0.35, 0.35, 0.9)
+
+[sub_resource type="BoxMesh" id="BoxMesh_Head"]
+material = SubResource("Mat_Carapace")
+size = Vector3(0.55, 0.45, 0.6)
+
+[sub_resource type="StandardMaterial3D" id="Mat_Eyes"]
+albedo_color = Color(0.1, 0.1, 0.1, 1)
+emission_enabled = true
+emission = Color(1, 0.85, 0.1, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_Eye"]
+material = SubResource("Mat_Eyes")
+radius = 0.1
+height = 0.18
+
+[sub_resource type="PrismMesh" id="PrismMesh_Mandible"]
+material = SubResource("Mat_DarkChitin")
+size = Vector3(0.12, 0.35, 0.15)
+
+[sub_resource type="BoxMesh" id="BoxMesh_Leg"]
+material = SubResource("Mat_DarkChitin")
+size = Vector3(0.16, 0.65, 0.16)
+
+[node name="AlienCreature" type="CharacterBody3D"]
+collision_layer = 4
+collision_mask = 1
+script = ExtResource("1_alien")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("BoxShape3D_Col")
+
+[node name="Visuals" type="Node3D" parent="."]
+
+[node name="Thorax" type="MeshInstance3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("BoxMesh_Thorax")
+
+[node name="DorsalRidge" type="MeshInstance3D" parent="Visuals/Thorax"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, -0.05)
+mesh = SubResource("PrismMesh_Ridge")
+
+[node name="Head" type="MeshInstance3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.48, -0.75)
+mesh = SubResource("BoxMesh_Head")
+
+[node name="EyeL" type="MeshInstance3D" parent="Visuals/Head"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.22, 0.12, -0.22)
+mesh = SubResource("SphereMesh_Eye")
+
+[node name="EyeR" type="MeshInstance3D" parent="Visuals/Head"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22, 0.12, -0.22)
+mesh = SubResource("SphereMesh_Eye")
+
+[node name="MandibleL" type="MeshInstance3D" parent="Visuals/Head"]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -0.18, -0.15, -0.32)
+mesh = SubResource("PrismMesh_Mandible")
+
+[node name="MandibleR" type="MeshInstance3D" parent="Visuals/Head"]
+transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, 0.18, -0.15, -0.32)
+mesh = SubResource("PrismMesh_Mandible")
+
+[node name="LegFL" type="Node3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.45, -0.4)
+
+[node name="Mesh" type="MeshInstance3D" parent="Visuals/LegFL"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+mesh = SubResource("BoxMesh_Leg")
+
+[node name="LegFR" type="Node3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.45, -0.4)
+
+[node name="Mesh" type="MeshInstance3D" parent="Visuals/LegFR"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+mesh = SubResource("BoxMesh_Leg")
+
+[node name="LegRL" type="Node3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.45, 0.4)
+
+[node name="Mesh" type="MeshInstance3D" parent="Visuals/LegRL"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+mesh = SubResource("BoxMesh_Leg")
+
+[node name="LegRR" type="Node3D" parent="Visuals"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.45, 0.4)
+
+[node name="Mesh" type="MeshInstance3D" parent="Visuals/LegRR"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+mesh = SubResource("BoxMesh_Leg")

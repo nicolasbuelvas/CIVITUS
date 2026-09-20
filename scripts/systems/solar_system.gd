@@ -531,6 +531,71 @@ static func _build_planet(
 	
 	return p
 
+# Standalone procedural planet generator for any archetype category
+static func generate_procedural_planet_for_archetype(category_idx: int, p_seed: int = -1) -> Dictionary:
+	if p_seed == -1:
+		p_seed = randi() % 900000 + 100
+	var rng = RandomNumberGenerator.new()
+	rng.seed = p_seed
+	
+	var archetypes = {
+		0: { "prefix": "Gaia", "water": "Líquida", "oxy": true, "atmo": 1.0, "temp": 19.0, "grav": 1.0, "rad": 0.02, "molten": false, "has_atmo": true, "lvl": 0 },
+		1: { "prefix": "Ares", "water": "Seco / Desolado", "oxy": false, "atmo": 0.22, "temp": 28.0, "grav": 0.65, "rad": 0.12, "molten": false, "has_atmo": true, "lvl": 1 },
+		2: { "prefix": "Boreas", "water": "Hielo Criogénico", "oxy": false, "atmo": 1.45, "temp": -115.0, "grav": 0.55, "rad": 0.08, "molten": false, "has_atmo": true, "lvl": 3 },
+		3: { "prefix": "Cybele", "water": "Vapor Tóxico", "oxy": false, "atmo": 2.85, "temp": 95.0, "grav": 0.95, "rad": 0.28, "molten": false, "has_atmo": true, "lvl": 2 },
+		4: { "prefix": "Tartarus", "water": "Lava Fundida", "oxy": false, "atmo": 4.80, "temp": 520.0, "grav": 1.35, "rad": 0.65, "molten": true, "has_atmo": true, "lvl": 5 },
+		5: { "prefix": "Selene", "water": "Seco / Desolado", "oxy": false, "atmo": 0.0, "temp": -35.0, "grav": 0.38, "rad": 0.32, "molten": false, "has_atmo": false, "lvl": 1 }
+	}
+	
+	var data = archetypes.get(category_idx, archetypes[0])
+	var p_name = "%s-%03d" % [data["prefix"], p_seed % 1000]
+	var visual_lvl = data["lvl"]
+	
+	var p: Dictionary = {
+		"name": p_name,
+		"index": category_idx,
+		"level": visual_lvl,
+		"orbit_au": 1.0,
+		"is_in_habitable_zone": (category_idx == 0),
+		"has_atmosphere": data["has_atmo"],
+		"atmosphere": data["atmo"],
+		"has_oxygen": data["oxy"],
+		"water_status": data["water"],
+		"temperature": data["temp"] + rng.randf_range(-4.0, 4.0),
+		"gravity": data["grav"] * 9.8,
+		"gravity_g": data["grav"],
+		"radiation": data["rad"],
+		"coords": Vector3.ZERO,
+		"coords_str": "[Sector Procedural]",
+		"seed": p_seed,
+		"is_locked": false,
+		"is_molten": data["molten"],
+		"is_singularity": false
+	}
+	
+	_apply_level_visuals(p, visual_lvl, rng)
+	
+	if not data["has_atmo"]:
+		p["atmosphere"] = 0.0
+		p["atmosphere_color"] = Color.BLACK
+		p["cloud_density"] = 0.0
+		p["cloud_color"] = Color.BLACK
+		p["sky_color"] = Color.BLACK
+		p["has_oxygen"] = false
+		p["type_label"] = "Mundo Estéril al Vacío (Clase D)"
+		p["type"] = "Vacío / Rocoso"
+		p["description"] = "Cuerpo rocoso sin atmósfera sometido al vacío espacial directo. Superficie craterizada y silente."
+		p["water_threshold"] = 0.0
+		p["surface_color"] = Color(0.42, 0.42, 0.45)
+		p["land_color"] = Color(0.38, 0.38, 0.40)
+		p["mountain_color"] = Color(0.28, 0.28, 0.30)
+		p["peak_color"] = Color(0.60, 0.60, 0.65)
+		p["emission_color"] = Color.BLACK
+		p["emission_energy"] = 0.0
+		
+	p["telemetry_graph"] = calculate_telemetry_graph(p)
+	return p
+
 # Determine level (0 to 5) dynamically based on physics and environment
 static func determine_level(p: Dictionary) -> int:
 	var in_hz: bool = p.get("is_in_habitable_zone", false)

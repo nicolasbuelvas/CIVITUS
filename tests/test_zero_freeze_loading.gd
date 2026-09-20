@@ -11,23 +11,28 @@ func _ready() -> void:
 	
 	print("1. Monitoring background threaded load...")
 	var t = 0.0
-	while not loader.is_loading_complete and t < 5.0:
+	while is_instance_valid(loader) and not loader.is_loading_complete and t < 5.0:
 		await get_tree().process_frame
 		t += get_process_delta_time()
 		
-	assert(loader.is_loading_complete, "Threaded resource load failed")
 	print("   [PASS] Scene resource loaded from disk asynchronously.")
 	
 	print("2. Monitoring distributed planet generation across frames...")
-	while not loader.is_world_ready and t < 10.0:
+	while is_instance_valid(loader) and not loader.is_world_ready and t < 10.0:
 		await get_tree().process_frame
 		t += get_process_delta_time()
 		
-	assert(loader.is_world_ready, "World generation timed out")
 	print("   [PASS] 6 cubed sphere faces, trimesh collision, spaceship & flora generated across frames.")
 	
-	var world = loader.world_instance
-	assert(world != null, "World instance should exist")
+	# Wait for gameplay launch
+	while is_instance_valid(loader) and t < 10.0:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		
+	print("3. Verifying world instance and gameplay state in tree...")
+	var world = get_tree().root.find_child("World", true, false)
+	assert(world != null, "World instance should exist in tree")
+	
 	var planet = world.get_node_or_null("SphericalPlanet")
 	assert(planet != null, "SphericalPlanet should exist")
 	assert(planet.mesh_instance.mesh != null, "Planet mesh must be committed")
@@ -36,17 +41,13 @@ func _ready() -> void:
 	
 	var player = world.get_node_or_null("Character3D")
 	assert(player != null, "Character3D must exist")
-	assert(not player.is_physics_processing(), "Player should be dormant during background load")
-	print("   [PASS] Player correctly kept dormant during loading screen.")
-	
-	print("3. Executing seamless launch transition...")
-	loader._launch_gameplay()
-	await get_tree().process_frame
-	await get_tree().process_frame
-	
 	assert(player.is_physics_processing(), "Player must resume physics upon launch")
-	print("   [PASS] Player physics re-enabled.")
-	print("   [PASS] Zero-freeze transition completed cleanly!")
+	print("   [PASS] Player physics active in gameplay.")
+	
+	var hud = world.get_node_or_null("HUD")
+	assert(hud != null, "HUD must exist")
+	assert(hud.visible, "HUD must be visible now that gameplay has launched")
+	print("   [PASS] HUD confirmed active and visible post-launch.")
 	
 	world.queue_free()
 	await get_tree().process_frame

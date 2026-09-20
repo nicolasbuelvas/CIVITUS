@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://basaltcol001"]
+
+[ext_resource type="Script" path="res://scripts/entities/basalt_column.gd" id="1_basalt"]
+
+[node name="BasaltColumnFormation" type="Node3D"]
+script = ExtResource("1_basalt")

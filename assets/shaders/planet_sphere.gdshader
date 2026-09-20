@@ -22,6 +22,7 @@ uniform float rotation_speed : hint_range(-0.5, 0.5) = 0.02;
 uniform float emission_energy : hint_range(0.0, 10.0) = 0.0;
 uniform float fresnel_intensity : hint_range(0.0, 5.0) = 1.6;
 uniform float noise_scale : hint_range(0.5, 8.0) = 2.4;
+uniform float seed_offset = 0.0;
 
 varying vec3 v_normal;
 varying vec3 v_pos;
@@ -84,7 +85,8 @@ void fragment() {
 		vec3(0.0, 1.0, 0.0),
 		vec3(-sin(rot_angle), 0.0, cos(rot_angle))
 	);
-	vec3 p = rot_mat * normalize(v_pos) * noise_scale;
+	vec3 seed_shift = vec3(sin(seed_offset * 0.17), cos(seed_offset * 0.23), sin(seed_offset * 0.31)) * 32.0;
+	vec3 p = (rot_mat * normalize(v_pos) + seed_shift) * noise_scale;
 	
 	// Base continental elevation
 	float elev = fbm(p, 5);

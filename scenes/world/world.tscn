@@ -1,8 +1,7 @@
-[gd_scene load_steps=8 format=3 uid="uid://cworld01"]
+[gd_scene load_steps=6 format=3 uid="uid://cworld01"]
 
-[ext_resource type="PackedScene" uid="uid://csphereplanet01" path="res://scenes/world/spherical_planet.tscn" id="1_planet"]
-[ext_resource type="PackedScene" uid="uid://cchar3d01" path="res://scenes/entities/character_3d.tscn" id="2_char3d"]
-[ext_resource type="PackedScene" uid="uid://chud01" path="res://scenes/ui/hud.tscn" id="3_hud"]
+[ext_resource type="Script" uid="uid://cesekwnkbv8px" path="res://scripts/world/world.gd" id="1_world"]
+[ext_resource type="PackedScene" uid="uid://b4dc2s0tfpn3u" path="res://scenes/world/spherical_planet.tscn" id="2_planet"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.06, 0.12, 0.24, 1)
@@ -25,6 +24,7 @@ tonemap_mode = 2
 glow_enabled = false
 
 [node name="World" type="Node3D"]
+script = ExtResource("1_world")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_1")
@@ -34,9 +34,4 @@ transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.43
 light_energy = 1.2
 shadow_enabled = true
 
-[node name="SphericalPlanet" parent="." instance=ExtResource("1_planet")]
-
-[node name="Character3D" parent="." instance=ExtResource("2_char3d")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 39, 0)
-
-[node name="HUD" parent="." instance=ExtResource("3_hud")]
+[node name="SphericalPlanet" parent="." instance=ExtResource("2_planet")]

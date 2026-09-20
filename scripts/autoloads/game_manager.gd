@@ -68,6 +68,53 @@ const LOCALIZATION: Dictionary = {
 		"system_label": "SISTEMA SOLAR",
 		"loading": "Cargando coordenadas planetarias...",
 		"loading_dots": "Cargando",
+		"thread_step_1": "[Thread 1/7 I/O] Cargando paquetes de recursos del sector...",
+		"thread_step_2": "[Thread 2/7 CPU] Sintetizando topología y relieve planetario...",
+		"thread_step_3": "[Thread 3/7 Malla] Construyendo geometría y normales de superficie...",
+		"thread_step_4": "[Thread 4/7 Física] Compilando matriz de colisión trimesh...",
+		"thread_step_5": "[Thread 5/7 Sector] Alineando módulo de aterrizaje y hábitat...",
+		"thread_step_6": "[Thread 6/7 Biosfera] Sembrando yacimientos minerales y biosfera...",
+		"thread_step_7": "[Pipeline GPU 7/7] Precalentando sombreadores y canal gráfico...",
+		"thread_step_ready": "[Listo] Desplegando astronauta y telemetría de soporte vital...",
+		"io_sub_1": "[Thread 1/7 I/O] (1/6) Desempaquetando entorno orbital y cielo...",
+		"io_sub_2": "[Thread 1/7 I/O] (2/6) Desempaquetando módulo Apolo y geometría 3D...",
+		"io_sub_3": "[Thread 1/7 I/O] (3/6) Desempaquetando cinemática EVA de astronauta...",
+		"io_sub_4": "[Thread 1/7 I/O] (4/6) Desempaquetando catálogo de flora planetaria...",
+		"io_sub_5": "[Thread 1/7 I/O] (5/6) Desempaquetando física de yacimientos minerales...",
+		"io_sub_6": "[Thread 1/7 I/O] (6/6) Desempaquetando interfaz táctica HUD...",
+		"cpu_sub_1": "[Thread 2/7 CPU] (Cara 1/6) Sintetizando relieve Cenit (Polo Norte)...",
+		"cpu_sub_2": "[Thread 2/7 CPU] (Cara 2/6) Sintetizando relieve Nadir (Polo Sur)...",
+		"cpu_sub_3": "[Thread 2/7 CPU] (Cara 3/6) Sintetizando relieve Hemisferio Occidental...",
+		"cpu_sub_4": "[Thread 2/7 CPU] (Cara 4/6) Sintetizando relieve Hemisferio Oriental...",
+		"cpu_sub_5": "[Thread 2/7 CPU] (Cara 5/6) Sintetizando relieve Meridiano Frontal...",
+		"cpu_sub_6": "[Thread 2/7 CPU] (Cara 6/6) Sintetizando relieve Meridiano Posterior...",
+		"mesh_sub_1": "[Thread 3/7 Malla] (1/3) Ensamblando búferes de geometría y UVs...",
+		"mesh_sub_2": "[Thread 3/7 Malla] (2/3) Calculando normales facetadas por producto cruz...",
+		"mesh_sub_3": "[Thread 3/7 Malla] (3/3) Compilando ArrayMesh y sombreadores...",
+		"phys_sub_1": "[Thread 4/7 Física] (1/2) Compilando árbol de colisión BVH esférico...",
+		"phys_sub_2": "[Thread 4/7 Física] (2/2) Vinculando matriz trimesh a gravedad radial...",
+		"sect_sub_1": "[Thread 5/7 Sector] (1/3) Mapeando meseta de aterrizaje en el Polo Norte...",
+		"sect_sub_2": "[Thread 5/7 Sector] (2/3) Ensamblando módulo de aterrizaje Apolo...",
+		"sect_sub_3": "[Thread 5/7 Sector] (3/3) Alineando compuerta estanca a la normal polar...",
+		"bio_sub_1": "[Thread 6/7 Biosfera] (1/6) Sembrando vegetación polar y templada...",
+		"bio_sub_2": "[Thread 6/7 Biosfera] (2/6) Sembrando flora de valles y cañones...",
+		"bio_sub_3": "[Thread 6/7 Biosfera] (3/6) Sembrando yacimientos de hierro y cobre...",
+		"bio_sub_4": "[Thread 6/7 Biosfera] (4/6) Sembrando yacimientos de silicio y uranio...",
+		"bio_sub_5": "[Thread 6/7 Biosfera] (5/6) Sembrando gemas y recursos exóticos...",
+		"bio_sub_6": "[Thread 6/7 Biosfera] (6/6) Validando zonas de despeje y colisiones...",
+		"shader_sub_1": "[Pipeline GPU 7/7] (1/13) Precalentando atmósfera y cielo procedural...",
+		"shader_sub_2": "[Pipeline GPU 7/7] (2/13) Precalentando sombreador de relieve planetario...",
+		"shader_sub_3": "[Pipeline GPU 7/7] (3/13) Precalentando sombras dinámicas de luz solar...",
+		"shader_sub_4": "[Pipeline GPU 7/7] (4/13) Precalentando materiales metálicos PBR de nave...",
+		"shader_sub_5": "[Pipeline GPU 7/7] (5/13) Precalentando yacimientos de hierro y cobre...",
+		"shader_sub_6": "[Pipeline GPU 7/7] (6/13) Precalentando yacimientos de silicio y uranio...",
+		"shader_sub_7": "[Pipeline GPU 7/7] (7/13) Precalentando sombreadores de biosfera vegetal...",
+		"shader_sub_8": "[Pipeline GPU 7/7] (8/13) Precalentando cinemática y traje de astronauta...",
+		"shader_sub_9": "[Pipeline GPU 7/7] (9/13) Activando cámara orbital 3D en segundo plano...",
+		"shader_sub_10": "[Pipeline GPU 7/7] (10/13) Pre-activando matriz de física y colisión...",
+		"shader_sub_11": "[Pipeline GPU 7/7] (11/13) Ensamblando telemetría táctica de soporte vital...",
+		"shader_sub_12": "[Pipeline GPU 7/7] (12/13) Pre-renderizando sombreadores de visor y HUD...",
+		"shader_sub_13": "[Pipeline GPU 7/7] (13/13) Sincronizando búferes finales a 60 FPS...",
 		"stage_1": "Sincronizando telemetría orbital...",
 		"stage_2": "Mapeando relieve y topografía...",
 		"stage_3": "Calibrando composición atmosférica...",
@@ -163,7 +210,40 @@ const LOCALIZATION: Dictionary = {
 		"rings_dust": "Polvo Áureo",
 		"rings_obsidian": "Obsidiana Oscura",
 		"rings_plasma": "Plasma Cuántico",
-		"editor_custom_desc": "Mundo terraformado diseñado a medida en el Modo Arquitecto."
+		"editor_custom_desc": "Mundo terraformado diseñado a medida en el Modo Arquitecto.",
+		"o2_label": "O₂",
+		"fuel_label": "PROPULSIÓN",
+		"hull_label": "BLINDAJE",
+		"pause_title": "MISIÓN PAUSADA",
+		"resume_btn": "CONTINUAR",
+		"storage_title": "CAJÓN DE RECURSOS",
+		"deposit_all": "DEPOSITAR RECURSOS",
+		"crafting_title": "FABRICADOR DE CABINA",
+		"hyperdrive_title": "NÚCLEO DE HIPERIMPULSO",
+		"hyperdrive_status_dmg": "ESTADO: DAÑADO",
+		"hyperdrive_status_ok": "ESTADO: OPERATIVO",
+		"hyperdrive_activate": "🚀 ACTIVAR SALTO HIPERESPACIAL 🚀",
+		"starmap_title": "MAPA ESTELAR",
+		"game_over_title": "SOPORTE VITAL COMPROMETIDO",
+		"game_over_reason_o2": "Fallo crítico: Asfixia por falta de oxígeno.",
+		"game_over_reason_hull": "Ruptura de traje: Blindaje térmico destruido.",
+		"game_over_reason_hazard": "Ruptura de traje: Inmersión en fluido hostil.",
+		"retry_btn": "REINTENTAR",
+		"return_menu": "VOLVER AL MENÚ",
+		"close_modal": "CERRAR",
+		"craft_action": "Fabricar",
+		"craft_wrench": "Llave de Presión (2 Hierro)",
+		"craft_cables": "Cables Conductores x2 (1 Cobre)",
+		"craft_microchip": "Microprocesador (1 Silicio + 1 Cable)",
+		"craft_core": "Núcleo de Fisión (1 Uranio + 2 Hierro)",
+		"cam_mode": "CÁMARA",
+		"context_mine": "EXTRAER",
+		"context_open": "ABRIR ESCOTILLA",
+		"context_close": "CERRAR ESCOTILLA",
+		"context_storage": "ABRIR ALMACÉN",
+		"context_craft": "USAR FABRICADOR",
+		"context_hyperdrive": "NÚCLEO NAVE",
+		"context_starmap": "MAPA ESTELAR"
 	},
 	"en": {
 		"play": "PLAY",
@@ -178,6 +258,53 @@ const LOCALIZATION: Dictionary = {
 		"system_label": "SOLAR SYSTEM",
 		"loading": "Loading planetary coordinates...",
 		"loading_dots": "Loading",
+		"thread_step_1": "[Thread 1/7 I/O] Loading sector resource packages...",
+		"thread_step_2": "[Thread 2/7 CPU] Synthesizing planetary topology and relief...",
+		"thread_step_3": "[Thread 3/7 Mesh] Constructing surface geometry and normals...",
+		"thread_step_4": "[Thread 4/7 Physics] Compiling trimesh collision matrix...",
+		"thread_step_5": "[Thread 5/7 Sector] Aligning descent module and habitat...",
+		"thread_step_6": "[Thread 6/7 Biosphere] Seeding mineral deposits and biosphere...",
+		"thread_step_7": "[GPU Pipeline 7/7] Pre-warming shaders and render pipeline...",
+		"thread_step_ready": "[Ready] Deploying astronaut and life support telemetry...",
+		"io_sub_1": "[Thread 1/7 I/O] (1/6) Unpacking orbital environment and sky...",
+		"io_sub_2": "[Thread 1/7 I/O] (2/6) Unpacking Apollo module and 3D geometry...",
+		"io_sub_3": "[Thread 1/7 I/O] (3/6) Unpacking astronaut EVA kinematics...",
+		"io_sub_4": "[Thread 1/7 I/O] (4/6) Unpacking planetary biosphere catalog...",
+		"io_sub_5": "[Thread 1/7 I/O] (5/6) Unpacking mineral deposits physics...",
+		"io_sub_6": "[Thread 1/7 I/O] (6/6) Unpacking tactical HUD telemetry...",
+		"cpu_sub_1": "[Thread 2/7 CPU] (Face 1/6) Synthesizing Zenith terrain (North Pole)...",
+		"cpu_sub_2": "[Thread 2/7 CPU] (Face 2/6) Synthesizing Nadir terrain (South Pole)...",
+		"cpu_sub_3": "[Thread 2/7 CPU] (Face 3/6) Synthesizing Western Hemisphere terrain...",
+		"cpu_sub_4": "[Thread 2/7 CPU] (Face 4/6) Synthesizing Eastern Hemisphere terrain...",
+		"cpu_sub_5": "[Thread 2/7 CPU] (Face 5/6) Synthesizing Prime Meridian terrain...",
+		"cpu_sub_6": "[Thread 2/7 CPU] (Face 6/6) Synthesizing Antimeridian terrain...",
+		"mesh_sub_1": "[Thread 3/7 Mesh] (1/3) Binding geometry buffers and UVs...",
+		"mesh_sub_2": "[Thread 3/7 Mesh] (2/3) Computing cross-product faceted normals...",
+		"mesh_sub_3": "[Thread 3/7 Mesh] (3/3) Compiling ArrayMesh and shaders...",
+		"phys_sub_1": "[Thread 4/7 Physics] (1/2) Compiling spherical BVH collision tree...",
+		"phys_sub_2": "[Thread 4/7 Physics] (2/2) Binding trimesh collision to radial gravity...",
+		"sect_sub_1": "[Thread 5/7 Sector] (1/3) Mapping landing plateau at North Pole...",
+		"sect_sub_2": "[Thread 5/7 Sector] (2/3) Assembling Apollo descent module...",
+		"sect_sub_3": "[Thread 5/7 Sector] (3/3) Aligning airlock hatch to polar normal...",
+		"bio_sub_1": "[Thread 6/7 Biosphere] (1/6) Seeding polar & temperate flora...",
+		"bio_sub_2": "[Thread 6/7 Biosphere] (2/6) Seeding valley & canyon flora...",
+		"bio_sub_3": "[Thread 6/7 Biosphere] (3/6) Seeding iron and copper veins...",
+		"bio_sub_4": "[Thread 6/7 Biosphere] (4/6) Seeding silicon and uranium veins...",
+		"bio_sub_5": "[Thread 6/7 Biosphere] (5/6) Seeding gemstones and rare minerals...",
+		"bio_sub_6": "[Thread 6/7 Biosphere] (6/6) Validating clearance and collisions...",
+		"shader_sub_1": "[GPU Pipeline 7/7] (1/13) Pre-warming procedural sky and atmosphere...",
+		"shader_sub_2": "[GPU Pipeline 7/7] (2/13) Pre-warming planetary terrain shader...",
+		"shader_sub_3": "[GPU Pipeline 7/7] (3/13) Pre-warming dynamic sunlight shadow cascades...",
+		"shader_sub_4": "[GPU Pipeline 7/7] (4/13) Pre-warming spacecraft metallic PBR shaders...",
+		"shader_sub_5": "[GPU Pipeline 7/7] (5/13) Pre-warming iron and copper deposit materials...",
+		"shader_sub_6": "[GPU Pipeline 7/7] (6/13) Pre-warming silicon and uranium glow shaders...",
+		"shader_sub_7": "[GPU Pipeline 7/7] (7/13) Pre-warming planetary flora biosphere shaders...",
+		"shader_sub_8": "[GPU Pipeline 7/7] (8/13) Pre-warming astronaut EVA suit kinematics...",
+		"shader_sub_9": "[GPU Pipeline 7/7] (9/13) Activating 3D orbital camera in background...",
+		"shader_sub_10": "[GPU Pipeline 7/7] (10/13) Pre-activating physics matrix and contact...",
+		"shader_sub_11": "[GPU Pipeline 7/7] (11/13) Assembling tactical life-support telemetry...",
+		"shader_sub_12": "[GPU Pipeline 7/7] (12/13) Pre-rendering visor overlay and HUD shaders...",
+		"shader_sub_13": "[GPU Pipeline 7/7] (13/13) Synchronizing final buffers at 60 FPS...",
 		"stage_1": "Synchronizing orbital telemetry...",
 		"stage_2": "Mapping terrain topography...",
 		"stage_3": "Calibrating atmospheric density...",
@@ -273,7 +400,40 @@ const LOCALIZATION: Dictionary = {
 		"rings_dust": "Golden Dust",
 		"rings_obsidian": "Dark Obsidian",
 		"rings_plasma": "Quantum Plasma",
-		"editor_custom_desc": "Terraformed custom world crafted in Architect Mode."
+		"editor_custom_desc": "Terraformed custom world crafted in Architect Mode.",
+		"o2_label": "O₂",
+		"fuel_label": "THRUST",
+		"hull_label": "SUIT",
+		"pause_title": "MISSION PAUSED",
+		"resume_btn": "RESUME",
+		"storage_title": "STORAGE CRATE",
+		"deposit_all": "DEPOSIT ALL",
+		"crafting_title": "SHIP FABRICATOR",
+		"hyperdrive_title": "HYPERDRIVE CORE",
+		"hyperdrive_status_dmg": "STATUS: DAMAGED",
+		"hyperdrive_status_ok": "STATUS: OPERATIONAL",
+		"hyperdrive_activate": "🚀 ACTIVATE HYPERSPACE JUMP 🚀",
+		"starmap_title": "STAR MAP",
+		"game_over_title": "LIFE SUPPORT OFFLINE",
+		"game_over_reason_o2": "Critical failure: Asphyxiation from oxygen depletion.",
+		"game_over_reason_hull": "Suit breach: Thermal integrity destroyed.",
+		"game_over_reason_hazard": "Suit breach: Immersion in hostile fluid.",
+		"retry_btn": "RETRY",
+		"return_menu": "MAIN MENU",
+		"close_modal": "CLOSE",
+		"craft_action": "Craft",
+		"craft_wrench": "Pressure Wrench (2 Iron)",
+		"craft_cables": "Conductive Cables x2 (1 Copper)",
+		"craft_microchip": "Microprocessor (1 Silicon + 1 Cable)",
+		"craft_core": "Fission Core (1 Uranium + 2 Iron)",
+		"cam_mode": "CAMERA",
+		"context_mine": "MINE",
+		"context_open": "OPEN HATCH",
+		"context_close": "CLOSE HATCH",
+		"context_storage": "OPEN STORAGE",
+		"context_craft": "USE FABRICATOR",
+		"context_hyperdrive": "SHIP CORE",
+		"context_starmap": "STAR MAP"
 	}
 }
 
@@ -306,6 +466,23 @@ func generate_new_solar_system(custom_seed: int = -1) -> void:
 
 func select_planet(p_data: Dictionary) -> void:
 	current_planet = p_data.duplicate(true)
+	
+	# Ensure host star data is always coherent with the current solar system
+	if current_solar_system.has("star") and not current_planet.has("star"):
+		current_planet["star"] = current_solar_system["star"].duplicate(true)
+	elif not current_planet.has("star"):
+		# Scientific default host star (Class G Solar analogue)
+		current_planet["star"] = {
+			"name": "Sol-Prime",
+			"spectral_class": "G",
+			"label": "Enana Amarilla (Clase G)",
+			"temperature": 5778.0,
+			"luminosity": 1.0,
+			"color": Color(1.0, 0.96, 0.88),
+			"hz_inner_au": 0.95,
+			"hz_outer_au": 1.37
+		}
+		
 	current_difficulty = p_data.get("level", 0) as Difficulty
 	crafting.init_level_requirements(int(current_difficulty))
 	reset_player_stats()
@@ -316,6 +493,11 @@ func reset_player_stats() -> void:
 	player_stats.fuel = 100.0
 	player_stats.hull = 100.0
 	player_stats.temperature_suit = 22.0
+
+func start_new_game(diff_level: int = 0) -> void:
+	current_difficulty = diff_level as Difficulty
+	crafting.init_level_requirements(int(current_difficulty))
+	reset_player_stats()
 
 func start_expedition() -> void:
 	reset_player_stats()
@@ -406,4 +588,105 @@ func record_expedition_completed() -> bool:
 	var has_no_ads: bool = rcm.has_no_ads() if rcm else false
 	var should_show_ad: bool = (expeditions_completed % 2 == 0) and not has_no_ads
 	return should_show_ad
+
+# ----------------- Luna Points & Freemium Economy -----------------
+
+signal luna_points_changed(new_amount: int)
+signal hyperdrive_mission_completed(reward_points: int)
+signal interplanetary_transit_started(target_planet: Dictionary)
+signal interplanetary_transit_completed(target_planet: Dictionary)
+
+var luna_points: int = 0
+var unlocked_skins: Array = ["apollo_white"]
+var active_skin: String = "apollo_white"
+var unlocked_ship_paints: Array = ["capsule_white"]
+var active_ship_paint: String = "capsule_white"
+
+func add_luna_points(amount: int) -> void:
+	if amount <= 0:
+		return
+	luna_points += amount
+	luna_points_changed.emit(luna_points)
+	save_player_progression()
+
+func spend_luna_points(amount: int) -> bool:
+	if amount <= 0 or luna_points < amount:
+		return false
+	luna_points -= amount
+	luna_points_changed.emit(luna_points)
+	save_player_progression()
+	return true
+
+func award_hyperdrive_victory(difficulty_level: int) -> int:
+	var reward = 50
+	match difficulty_level:
+		0, 1: reward = 50
+		2: reward = 100
+		3: reward = 180
+		4: reward = 280
+		_: reward = 450
+		
+	add_luna_points(reward)
+	hyperdrive_mission_completed.emit(reward)
+	record_expedition_completed()
+	return reward
+
+func save_player_progression() -> void:
+	var cfg = ConfigFile.new()
+	cfg.set_value("economy", "luna_points", luna_points)
+	cfg.set_value("customization", "unlocked_skins", unlocked_skins)
+	cfg.set_value("customization", "active_skin", active_skin)
+	cfg.set_value("customization", "unlocked_ship_paints", unlocked_ship_paints)
+	cfg.set_value("customization", "active_ship_paint", active_ship_paint)
+	cfg.save("user://progression.cfg")
+
+func load_player_progression() -> void:
+	var cfg = ConfigFile.new()
+	if cfg.load("user://progression.cfg") == OK:
+		luna_points = cfg.get_value("economy", "luna_points", 0)
+		unlocked_skins = cfg.get_value("customization", "unlocked_skins", ["apollo_white"])
+		active_skin = cfg.get_value("customization", "active_skin", "apollo_white")
+		unlocked_ship_paints = cfg.get_value("customization", "unlocked_ship_paints", ["capsule_white"])
+		active_ship_paint = cfg.get_value("customization", "active_ship_paint", "capsule_white")
+
+# ----------------- Difficulty & Interplanetary Travel (Space Agency 2137) -----------------
+
+func get_planet_spawnable_ores(planet_data: Dictionary) -> Array:
+	var lvl = planet_data.get("level", 0)
+	var p_type = planet_data.get("type", "Habitable")
+	
+	# Easy / Level 0-1: Self-contained world with ALL ores to craft the hyperdrive directly
+	if lvl <= 1:
+		return ["iron", "copper", "silicon", "uranium"]
+		
+	# Higher Dificulty: Starting habitable planet lacks Uranium (forces planetary exploration)
+	if p_type.contains("Habitable") or p_type.contains("Tierra"):
+		return ["iron", "copper", "silicon"]
+		
+	# Extreme / Hostile Planets contain heavy reactor elements (Uranium)
+	if p_type.contains("Volcan") or p_type.contains("Lava") or p_type.contains("Toxic") or p_type.contains("Acido") or lvl >= 4:
+		return ["iron", "silicon", "uranium"]
+		
+	# Cryogenic / Cold worlds
+	if p_type.contains("Cryo") or p_type.contains("Hielo"):
+		return ["copper", "silicon", "uranium"]
+		
+	return ["iron", "copper", "silicon"]
+
+func calc_transit_distance_au(p1: Dictionary, p2: Dictionary) -> float:
+	var au1 = p1.get("orbit_au", 1.0)
+	var au2 = p2.get("orbit_au", 1.0)
+	return absf(au1 - au2)
+
+func calc_transit_fuel_cost(dist_au: float) -> float:
+	return clampf(20.0 + dist_au * 25.0, 20.0, 75.0)
+
+func calc_transit_flight_duration_s(dist_au: float) -> float:
+	return clampf(4.0 + dist_au * 4.0, 4.0, 12.0)
+
+func start_interplanetary_transit(target_planet: Dictionary) -> void:
+	interplanetary_transit_started.emit(target_planet)
+	select_planet(target_planet)
+	interplanetary_transit_completed.emit(target_planet)
+
 

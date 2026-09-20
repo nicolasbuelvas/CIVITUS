@@ -27,6 +27,8 @@ var is_in_space_suit: bool = true
 var is_mining: bool = false
 var is_first_person: bool = false
 var is_sprinting: bool = false
+var is_dead: bool = false
+var is_in_liquid: bool = false
 var nearby_interactable: Node3D = null
 var current_interactable_type: String = ""
 
@@ -192,11 +194,13 @@ func animate_take_off_helmet() -> void:
 		set_suit_mode(false)
 
 func rotate_camera_by(drag_offset: Vector2) -> void:
-	# In 3P, clamp pitch between -35 and +45 deg to prevent ground/sky clipping
-	var min_pitch = -35.0 if not is_first_person else -75.0
-	var max_pitch = 45.0 if not is_first_person else 75.0
-	target_yaw -= drag_offset.x * 0.005
-	target_pitch = clamp(target_pitch + drag_offset.y * 0.005, min_pitch, max_pitch)
+	if is_dead:
+		return
+	var min_pitch = -80.0 if is_first_person else -35.0
+	var max_pitch = 80.0 if is_first_person else 65.0
+	# Exact 1:1 angular speed: 1px drag = 0.2865 degrees in BOTH Yaw (0.005 rad) and Pitch (0.2865 deg)
+	target_yaw += drag_offset.x * 0.005
+	target_pitch = clamp(target_pitch - drag_offset.y * 0.2865, min_pitch, max_pitch)
 
 func toggle_first_person() -> void:
 	if is_first_person:
@@ -302,12 +306,10 @@ func _physics_process(delta: float) -> void:
 		# Mathematical Spherical Ground Floor: Camera can NEVER penetrate below planet surface
 		if camera:
 			var cam_pos = camera.global_position
-			var player_r = global_position.length()
-			var cam_r = cam_pos.length()
-			var min_surface_r = player_r + 0.35
-			if cam_r < min_surface_r:
-				var cam_ground_up = cam_pos.normalized()
-				camera.global_position = cam_pos + cam_ground_up * (min_surface_r - cam_r)
+			var cam_dir = cam_pos.normalized()
+			var min_surface_r = planet_radius + _calc_ground_elevation(cam_dir) + 0.85
+			if cam_pos.length() < min_surface_r:
+				camera.global_position = cam_dir * min_surface_r
 				
 		# Anti-clipping: hide head if 3P camera is pushed closer than 1.1m
 		if head:
@@ -317,7 +319,7 @@ func _physics_process(delta: float) -> void:
 	var input_vec = Vector2.ZERO
 	var input_fwd = 0.0
 	var input_str = 0.0
-	if not is_action_locked:
+	if not is_action_locked and not is_dead:
 		input_vec = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 		input_fwd = -input_vec.y # W/stick up gives forward (+1.0)
 		input_str = input_vec.length()
@@ -344,17 +346,47 @@ func _physics_process(delta: float) -> void:
 	var char_rt = up_dir.cross(char_back).normalized()
 	global_transform.basis = Basis(char_rt, up_dir, char_back).orthonormalized()
 
-	# 5. Survival Vitals & Oxygen
-	var is_sprint_active = is_sprinting or Input.is_key_pressed(KEY_SHIFT) or Input.is_action_pressed("sprint")
-	if is_in_space_suit:
-		if planet.get("has_oxygen", false):
-			GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 45.0 * delta)
+	# 5. Survival Vitals, Fluid Immersion & Death Condition
+	var is_sprint_active = (is_sprinting or Input.is_key_pressed(KEY_SHIFT) or Input.is_action_pressed("sprint")) and not is_dead
+	var planet_temp = planet.get("temperature", 22.0)
+	var has_oxygen_atmo = planet.get("has_oxygen", false)
+	
+	# Liquid Ocean / Hydro Basin Immersion
+	var ocean_surface_r = planet_radius
+	var dist_from_center = global_position.length()
+	is_in_liquid = (dist_from_center < ocean_surface_r)
+	
+	if is_in_liquid:
+		var submersion_depth = ocean_surface_r - dist_from_center
+		if has_oxygen_atmo:
+			# Water Swimming: Submerged oxygen drain
+			if submersion_depth > 1.1:
+				GameManager.player_stats.oxygen = max(0.0, GameManager.player_stats.oxygen - 2.5 * delta)
+		elif planet_temp > 70.0:
+			# Magma / Acid: Thermal burning of hull
+			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 35.0 * delta)
+		elif planet_temp < -60.0:
+			# Cryogenic Liquid Methane: Severe thermal freezing
+			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 22.0 * delta)
 		else:
+			GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 16.0 * delta)
+
+	if is_in_space_suit:
+		if has_oxygen_atmo and not is_in_liquid:
+			GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 45.0 * delta)
+		elif not is_in_liquid:
 			var o2_drain = 3.8 if (is_sprint_active and input_str > 0.1) else 1.2
 			GameManager.player_stats.oxygen = max(0.0, GameManager.player_stats.oxygen - o2_drain * delta)
 	
 	if GameManager.player_stats.oxygen <= 0.0:
-		GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 8.0 * delta)
+		GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - 12.0 * delta)
+
+	# Physical Death Sequence
+	if GameManager.player_stats.hull <= 0.0 and not is_dead:
+		var death_reason = GameManager.loc("game_over_reason_hazard") if is_in_liquid and not has_oxygen_atmo else (
+			GameManager.loc("game_over_reason_o2") if GameManager.player_stats.oxygen <= 0.0 else GameManager.loc("game_over_reason_hull")
+		)
+		_die(death_reason)
 
 	# 6. Horizontal Velocity & Procedural Character Facing
 	var current_speed = walk_speed * (1.85 if is_sprint_active else 1.0)
@@ -391,7 +423,16 @@ func _physics_process(delta: float) -> void:
 			helmet.rotation = HELMET_HELD_ROT
 			helmet.visible = true
 	elif is_in_space_suit and not is_action_locked:
-		if input_str > 0.05:
+		if is_in_liquid and input_str > 0.05:
+			# Swimming breaststroke / paddle arm animation
+			var stroke = sin(walk_time * 1.5)
+			if left_arm:
+				left_arm.rotation.x = stroke * 0.9
+				left_arm.rotation.z = deg_to_rad(25.0) + abs(stroke) * 0.35
+			if right_arm and not is_mining:
+				right_arm.rotation.x = -stroke * 0.9
+				right_arm.rotation.z = -deg_to_rad(25.0) - abs(stroke) * 0.35
+		elif input_str > 0.05:
 			var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
 			if left_arm: left_arm.rotation.x = -swing * 0.8
 			if left_arm: left_arm.rotation.z = lerp_angle(left_arm.rotation.z, 0.0, delta * 10.0)
@@ -401,8 +442,30 @@ func _physics_process(delta: float) -> void:
 			if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
 			if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
 
-	# 7. Vertical Velocity / Jetpack / Jump
-	if is_on_floor():
+	# 7. Vertical Velocity / Jetpack / Jump / Swimming
+	if is_in_liquid:
+		floor_snap_length = 0.0 # Crucial: Disable floor snap so water buoyancy lifts character off ocean bed
+		var dist_c = global_position.length()
+		var depth = ocean_surface_r - dist_c
+		
+		# Fluid Buoyancy: floats near surface (depth ~0.3m)
+		if depth > 0.35:
+			vertical_speed = lerpf(vertical_speed, 2.2, delta * 3.5)
+		else:
+			vertical_speed = lerpf(vertical_speed, 0.0, delta * 5.0)
+			
+		# Swimming actions
+		if not is_action_locked and (Input.is_action_pressed("jump_thrust") or Input.is_key_pressed(KEY_SPACE)):
+			# Swim upwards towards surface / breach shore
+			vertical_speed = 4.8
+			if fmod(walk_time, 0.45) < delta:
+				AudioManager.play("jump", 0.7, -4.0)
+		elif not is_action_locked and ((InputMap.has_action("crouch") and Input.is_action_pressed("crouch")) or Input.is_key_pressed(KEY_CTRL)):
+			vertical_speed = -3.5 # Dive down
+			
+		horizontal_vel *= 0.85 # Fluid drag
+	elif is_on_floor():
+		floor_snap_length = 0.85
 		vertical_speed = 0.0
 		if not is_action_locked and Input.is_action_just_pressed("jump_thrust"):
 			vertical_speed = jump_velocity
@@ -455,7 +518,7 @@ func check_nearby_interactables() -> void:
 				interaction_available.emit(h_state, ship)
 			return
 
-	# 2. Mineable Resource Chunks
+	# 2. Mineable Resource Chunks & Creatures
 	var space = get_world_3d().direct_space_state
 	var q = PhysicsShapeQueryParameters3D.new()
 	var sphere = SphereShape3D.new()
@@ -464,20 +527,55 @@ func check_nearby_interactables() -> void:
 	q.transform = global_transform
 	q.collision_mask = 2 | 4
 	
-	var hits = space.intersect_shape(q, 1)
+	var hits = space.intersect_shape(q, 4)
 	if hits.size() > 0:
-		var target = hits[0]["collider"]
-		if target and target.has_method("mine_tick"):
-			if nearby_interactable != target or current_interactable_type != "mine":
-				nearby_interactable = target
-				current_interactable_type = "mine"
-				interaction_available.emit("mine", target)
-			return
+		for hit in hits:
+			var target = hit.get("collider")
+			if not target:
+				continue
+			# Check creatures first
+			if target.is_in_group("creatures") and not target.get("is_dead"):
+				var act_type = "attack" if target.get("is_aggressive") else "feed"
+				if nearby_interactable != target or current_interactable_type != act_type:
+					nearby_interactable = target
+					current_interactable_type = act_type
+					interaction_available.emit(act_type, target)
+				return
+			# Check mineable ores
+			elif target.has_method("mine_tick"):
+				if nearby_interactable != target or current_interactable_type != "mine":
+					nearby_interactable = target
+					current_interactable_type = "mine"
+					interaction_available.emit("mine", target)
+				return
 
 	if nearby_interactable != null:
 		nearby_interactable = null
 		current_interactable_type = ""
 		interaction_lost.emit()
+
+func attack_nearest_target() -> void:
+	if is_action_locked:
+		return
+	AudioManager.play("thruster", 1.8, -2.0)
+	var forward = -global_transform.basis.z
+	var attack_origin = global_position + up_direction * 0.8
+	_draw_laser(attack_origin + forward * 3.0)
+	
+	var space = get_world_3d().direct_space_state
+	var q = PhysicsShapeQueryParameters3D.new()
+	var sphere = SphereShape3D.new()
+	sphere.radius = 3.6
+	q.shape = sphere
+	q.transform = Transform3D(Basis.IDENTITY, attack_origin + forward * 1.5)
+	q.collision_mask = 4 # Creature collision layer
+	
+	var hits = space.intersect_shape(q, 4)
+	for hit in hits:
+		var col = hit.get("collider")
+		if col and col.has_method("take_damage"):
+			col.take_damage(35.0)
+			break
 
 func _draw_laser(target_pos: Vector3) -> void:
 	laser_mesh.visible = true
@@ -491,3 +589,30 @@ func _draw_laser(target_pos: Vector3) -> void:
 	laser_immediate.surface_add_vertex(local_start)
 	laser_immediate.surface_add_vertex(local_end)
 	laser_immediate.surface_end()
+
+func _calc_ground_elevation(dir: Vector3) -> float:
+	var planet_node = get_parent().get_node_or_null("SphericalPlanet") if get_parent() else null
+	if planet_node and planet_node.has_method("_get_elevation"):
+		return planet_node._get_elevation(dir)
+	return 0.5
+
+func _die(reason: String) -> void:
+	is_dead = true
+	is_action_locked = true
+	velocity = Vector3.ZERO
+	AudioManager.play("click", 0.5, 4.0)
+	
+	# Ragdoll fall animation
+	if visuals:
+		var tw = create_tween().set_parallel(true)
+		tw.tween_property(visuals, "rotation:z", deg_to_rad(85.0), 0.7).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+		tw.tween_property(visuals, "position:y", -0.75, 0.7)
+		if left_arm: tw.tween_property(left_arm, "rotation:x", -1.2, 0.5)
+		if right_arm: tw.tween_property(right_arm, "rotation:x", 1.4, 0.5)
+		if left_leg: tw.tween_property(left_leg, "rotation:x", 0.5, 0.5)
+		if right_leg: tw.tween_property(right_leg, "rotation:x", -0.4, 0.5)
+		
+	var timer = get_tree().create_timer(0.9)
+	timer.timeout.connect(func():
+		GameManager.game_over.emit(reason)
+	)

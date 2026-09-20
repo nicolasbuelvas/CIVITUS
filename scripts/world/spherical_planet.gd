@@ -900,22 +900,23 @@ func _deploy_landing_camera(ground_ship_pos: Vector3, north_dir: Vector3) -> voi
 						player_instance.helmet.position = Vector3(0, 1.6, 0)
 						player_instance.helmet.rotation = Vector3.ZERO
 
-				# 2. Smooth zoom in from exterior into spaceship cabin (Zoom in de antes)
+				# 2. Smooth zoom in from exterior into spaceship cabin continuously tracking astronaut
 				var p_head = player_instance.global_position + north_dir * 1.45 if is_instance_valid(player_instance) else spaceship_instance.global_position + north_dir * 1.6
 				var cabin_cam_pos = p_head + cur_exit * 1.60 + cur_rt * 0.45 + north_dir * 0.12
-				
-				# Aim camera toward the cabin entrance before starting zoom in
-				cam.look_at(p_head, north_dir)
+				var zoom_start_cam_pos = cam.global_position
 				
 				var tw_enter = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-				tw_enter.tween_property(cam, "global_position", cabin_cam_pos, 1.3)
+				tw_enter.tween_method(func(pos: Vector3):
+					if is_instance_valid(cam):
+						cam.global_position = pos
+						cam.look_at(p_head, north_dir)
+				, zoom_start_cam_pos, cabin_cam_pos, 1.3)
 				tw_enter.parallel().tween_property(cam, "fov", 62.0, 1.3)
 				
 				tw_enter.tween_callback(func():
 					if not is_instance_valid(cam):
 						return
 						
-					cam.look_at(p_head, north_dir)
 					AudioManager.play("click", 0.90, -4.0)
 					
 					# 3. Apenas se entra a la nave, solo se ve por 1 segundo el astronauta (sin zoom dentro de la cabeza)

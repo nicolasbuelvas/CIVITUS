@@ -42,24 +42,24 @@ func _ready() -> void:
 	assert(hud == null or hud.visible == false, "HUD must remain hidden immediately after landing!")
 	_save_viewport("screenshot_flow_2_landed_ramp.png")
 	
-	# 3. Wait through the 3.0s delay
-	print("[Test Landing Flow] Waiting through the 3-second post-landing window...")
-	await get_tree().create_timer(2.6).timeout
-	print("[Test Landing Flow] At 2.6s of wait: HUD visible (still false): ", hud.visible if hud else "no hud")
-	assert(hud == null or hud.visible == false, "HUD must remain hidden throughout 3s wait!")
+	# 3. Wait through the 2.0s delay
+	print("[Test Landing Flow] Waiting through the 2-second post-landing exterior window...")
+	await get_tree().create_timer(2.0).timeout
+	print("[Test Landing Flow] Exterior wait done, starting zoom into spaceship...")
 	
-	# Mid-zoom snapshot (0.6s into the 1.4s zoom transition) - verify NO headless astronaut
+	# Wait for zoom in to reach cabin (1.3s) + 0.4s into the 1-second astronaut showcase
+	await get_tree().create_timer(1.7).timeout
+	print("[Test Landing Flow] Astronaut 1-second showcase snapshot...")
+	_save_viewport("screenshot_flow_2b_astronaut_showcase.png")
+	
+	# 4. Wait for the remaining 0.6s of showcase + switch to first person
+	print("[Test Landing Flow] Waiting for switch to first person...")
 	await get_tree().create_timer(0.9).timeout
-	_save_viewport("screenshot_flow_2b_mid_zoom.png")
-	
-	# 4. Wait for zoom-in completion (remaining 1.0s zoom + buffer)
-	print("[Test Landing Flow] Waiting for zoom in to first person...")
-	await get_tree().create_timer(1.2).timeout
 	
 	var player = planet.player_instance
 	print("[Test Landing Flow] Player action locked: ", player.is_action_locked if player else "no player")
 	print("[Test Landing Flow] HUD visible (should now be true): ", hud.visible if hud else "no hud")
-	assert(hud != null and hud.visible == true, "HUD must be visible after zoom in!")
+	assert(hud != null and hud.visible == true, "HUD must be visible after transition to 1st person!")
 	assert(player != null and player.is_action_locked == false, "Player must be unlocked!")
 	_save_viewport("screenshot_flow_3_first_person_hud.png")
 	

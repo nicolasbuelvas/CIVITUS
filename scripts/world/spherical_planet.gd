@@ -45,6 +45,8 @@ var landing_up_dir: Vector3 = Vector3.UP
 var is_landing_sequence_running: bool = false
 var scorch_crater_mat: ShaderMaterial = null
 var scorch_crater_node: MeshInstance3D = null
+var ground_plume_dust: CPUParticles3D = null
+var ground_plume_sparks: CPUParticles3D = null
 
 # Global step tracking across 40 fine-grained micro-stages
 const TOTAL_SUBSTEPS: int = 40
@@ -74,13 +76,27 @@ func _process(delta: float) -> void:
 			cam.global_position = target_cam_pos
 			cam.look_at(ship_pos + landing_up_dir * -1.5, landing_up_dir)
 
-		# Smooth progressive ground scorch under descending rocket retro-thrusters
-		if scorch_crater_mat and is_instance_valid(spaceship_instance) and not cam.get_meta("is_zooming", false):
+		# Smooth progressive ground scorch and KSP-style surface plume blast under rocket
+		if is_instance_valid(spaceship_instance) and not cam.get_meta("is_zooming", false):
 			var dist = spaceship_instance.global_position.distance_to(landing_target_pos)
-			var burn_t = clampf(1.0 - (dist / 42.0), 0.0, 1.0)
-			var current_opacity = pow(burn_t, 1.4)
-			scorch_crater_mat.set_shader_parameter("scorch_opacity", current_opacity)
-			scorch_crater_mat.set_shader_parameter("heat_glow", current_opacity * 1.35)
+			if scorch_crater_mat:
+				var burn_t = clampf(1.0 - (dist / 42.0), 0.0, 1.0)
+				var current_opacity = pow(burn_t, 1.4)
+				scorch_crater_mat.set_shader_parameter("scorch_opacity", current_opacity)
+				scorch_crater_mat.set_shader_parameter("heat_glow", current_opacity * 1.35)
+				
+			# KSP Ground Blast: Rocket exhaust strikes surface when altitude < 28m
+			if dist <= 28.0:
+				var blast_intensity = clampf(1.0 - (dist / 28.0), 0.0, 1.0)
+				if ground_plume_dust:
+					ground_plume_dust.emitting = true
+					ground_plume_dust.initial_velocity_min = 8.0 + blast_intensity * 12.0
+					ground_plume_dust.initial_velocity_max = 16.0 + blast_intensity * 18.0
+				if ground_plume_sparks:
+					ground_plume_sparks.emitting = true
+			else:
+				if ground_plume_dust: ground_plume_dust.emitting = false
+				if ground_plume_sparks: ground_plume_sparks.emitting = false
 
 	# Procedural Meteor Streaks (Bloque F)
 	if not is_generating:
@@ -857,10 +873,10 @@ func _deploy_landing_camera(ground_ship_pos: Vector3, north_dir: Vector3) -> voi
 			var true_ground_pos = north_dir * (radius + north_elev)
 			_spawn_ground_impact_effects(true_ground_pos, north_dir)
 			
-			# 1. Stay in the wide exterior landed shot for 3.0 seconds (HUD hidden, astronaut loaded inside)
+			# 1. Stay in the wide exterior landed shot for 2.0 seconds (HUD hidden, astronaut loaded inside)
 			cam.set_meta("is_zooming", true)
 			var tw_wait = create_tween()
-			tw_wait.tween_interval(3.0)
+			tw_wait.tween_interval(2.0)
 			tw_wait.tween_callback(func():
 				if not is_instance_valid(cam):
 					return
@@ -884,32 +900,37 @@ func _deploy_landing_camera(ground_ship_pos: Vector3, north_dir: Vector3) -> voi
 						player_instance.helmet.position = Vector3(0, 1.6, 0)
 						player_instance.helmet.rotation = Vector3.ZERO
 
-				# 2. Cinematic Cockpit Reveal: 3/4 front view showcasing astronaut in full space suit & golden visor
+				# 2. Smooth zoom in from exterior into spaceship cabin (Zoom in de antes)
 				var p_head = player_instance.global_position + north_dir * 1.45 if is_instance_valid(player_instance) else spaceship_instance.global_position + north_dir * 1.6
-				var cabin_cam_start = p_head + cur_exit * 1.75 + cur_rt * 0.55 + north_dir * 0.15
-				var cabin_cam_drift = p_head + cur_exit * 1.40 + cur_rt * 0.30 + north_dir * 0.08
-				cam.global_position = cabin_cam_start
+				var cabin_cam_pos = p_head + cur_exit * 1.60 + cur_rt * 0.45 + north_dir * 0.12
+				
+				# Aim camera toward the cabin entrance before starting zoom in
 				cam.look_at(p_head, north_dir)
-				cam.fov = 62.0
 				
-				# Play subtle cockpit cabin confirmation sound
-				AudioManager.play("click", 0.90, -4.0)
+				var tw_enter = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+				tw_enter.tween_property(cam, "global_position", cabin_cam_pos, 1.3)
+				tw_enter.parallel().tween_property(cam, "fov", 62.0, 1.3)
 				
-				# Cinematic 1.0s showcase drift admiring astronaut inside cabin
-				var tw_drift = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-				tw_drift.tween_property(cam, "global_position", cabin_cam_drift, 1.0)
-				
-				tw_drift.tween_callback(func():
+				tw_enter.tween_callback(func():
 					if not is_instance_valid(cam):
 						return
 						
-					# 3. Smooth dramatic zoom-in into golden visor reflection (1.1s)
-					var eye_target = p_head + cur_exit * 0.06
-					var tw_zoom = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-					tw_zoom.tween_property(cam, "global_position", eye_target, 1.1)
-					tw_zoom.parallel().tween_property(cam, "fov", 80.0, 1.1)
+					cam.look_at(p_head, north_dir)
+					AudioManager.play("click", 0.90, -4.0)
 					
-					tw_zoom.tween_callback(func():
+					# 3. Apenas se entra a la nave, solo se ve por 1 segundo el astronauta (sin zoom dentro de la cabeza)
+					var tw_show = create_tween()
+					tw_show.tween_interval(1.0)
+					
+					# Astronaut subtle gesture during the 1-second showcase
+					if is_instance_valid(player_instance) and player_instance.head:
+						var tw_h = create_tween().set_trans(Tween.TRANS_SINE)
+						tw_h.tween_property(player_instance.head, "rotation:y", deg_to_rad(6.0), 0.4)
+						tw_h.tween_property(player_instance.head, "rotation:y", deg_to_rad(-4.0), 0.35)
+						tw_h.tween_property(player_instance.head, "rotation:y", 0.0, 0.25)
+						
+					tw_show.tween_callback(func():
+						# 4. Cambia directamente a primera persona (sin entrar en la cabeza) + interfaz aparece
 						AudioManager.play("click", 1.25, -1.0)
 						if is_instance_valid(player_instance):
 							var p_cam: Camera3D = player_instance.get_node_or_null("CameraPivot/Camera3D")
@@ -955,6 +976,75 @@ func _init_ground_scorch(pos: Vector3, up_dir: Vector3) -> void:
 	_align_node_to_up(crater_inst, up_dir)
 	add_child(crater_inst)
 	scorch_crater_node = crater_inst
+	
+	# Kerbal Space Program style Ground Plume Blast: dust & sparks matching planet biome
+	var planet_params = GameManager.current_planet if is_instance_valid(GameManager) else {}
+	var lvl: int = planet_params.get("level", 0)
+	var p_type: String = str(planet_params.get("type", ""))
+	var has_atmo: bool = planet_params.get("has_atmosphere", true)
+	
+	var dust_color = Color(0.68, 0.58, 0.44, 0.65) # Habitable: loam dust
+	var spark_color = Color(1.0, 0.65, 0.20, 1.0) # Golden thermal sparks
+	var blast_gravity = Vector3(0, -0.8, 0)
+	
+	if p_type.contains("Desert") or p_type.contains("Desierto") or lvl == 1:
+		dust_color = Color(0.85, 0.44, 0.22, 0.85) # Desert: red oxide sand
+		spark_color = Color(1.0, 0.52, 0.12, 1.0)
+		blast_gravity = Vector3(0, -1.2, 0)
+	elif p_type.contains("Toxic") or p_type.contains("Acido") or lvl == 2:
+		dust_color = Color(0.65, 0.82, 0.18, 0.75) # Toxic: sulfur cloud
+		spark_color = Color(0.85, 1.0, 0.25, 1.0)
+		blast_gravity = Vector3(0, -0.5, 0)
+	elif p_type.contains("Cryo") or p_type.contains("Hielo") or lvl == 3:
+		dust_color = Color(0.88, 0.95, 1.0, 0.85) # Cryo: ice vapor & frost
+		spark_color = Color(0.55, 0.88, 1.0, 1.0)
+		blast_gravity = Vector3(0, -0.6, 0)
+	elif p_type.contains("Volcan") or p_type.contains("Lava") or lvl >= 4:
+		dust_color = Color(0.22, 0.18, 0.16, 0.90) # Volcanic: dark ash
+		spark_color = Color(1.0, 0.38, 0.05, 1.0)
+		blast_gravity = Vector3(0, -1.5, 0)
+	elif not has_atmo or p_type.contains("Luna") or p_type.contains("Barren") or p_type.contains("Vacio"):
+		dust_color = Color(0.72, 0.72, 0.75, 0.60) # Lunar: grey regolith spray
+		spark_color = Color(1.0, 0.70, 0.30, 0.9)
+		blast_gravity = Vector3(0, -0.4, 0)
+		
+	# 1. Radial Ground Surface Plume (expanding outward along the surface)
+	ground_plume_dust = CPUParticles3D.new()
+	ground_plume_dust.name = "GroundPlumeDust"
+	ground_plume_dust.emitting = false
+	ground_plume_dust.amount = 55
+	ground_plume_dust.lifetime = 1.4
+	ground_plume_dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	ground_plume_dust.emission_ring_axis = Vector3(0, 1, 0)
+	ground_plume_dust.emission_ring_radius = 2.4
+	ground_plume_dust.emission_ring_inner_radius = 0.8
+	ground_plume_dust.direction = Vector3(0, 0.10, 0)
+	ground_plume_dust.spread = 90.0
+	ground_plume_dust.gravity = blast_gravity
+	ground_plume_dust.initial_velocity_min = 6.0
+	ground_plume_dust.initial_velocity_max = 15.0
+	ground_plume_dust.color = dust_color
+	ground_plume_dust.scale_amount_min = 0.8
+	ground_plume_dust.scale_amount_max = 2.4
+	crater_inst.add_child(ground_plume_dust)
+	
+	# 2. Impingement Thermal Sparks
+	ground_plume_sparks = CPUParticles3D.new()
+	ground_plume_sparks.name = "GroundPlumeSparks"
+	ground_plume_sparks.emitting = false
+	ground_plume_sparks.amount = 35
+	ground_plume_sparks.lifetime = 0.75
+	ground_plume_sparks.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	ground_plume_sparks.emission_ring_axis = Vector3(0, 1, 0)
+	ground_plume_sparks.emission_ring_radius = 1.4
+	ground_plume_sparks.emission_ring_inner_radius = 0.2
+	ground_plume_sparks.direction = Vector3(0, 0.35, 0)
+	ground_plume_sparks.spread = 75.0
+	ground_plume_sparks.gravity = Vector3(0, -9.8, 0)
+	ground_plume_sparks.initial_velocity_min = 10.0
+	ground_plume_sparks.initial_velocity_max = 20.0
+	ground_plume_sparks.color = spark_color
+	crater_inst.add_child(ground_plume_sparks)
 
 func _spawn_ground_impact_effects(pos: Vector3, up_dir: Vector3) -> void:
 	if not has_node("GroundImpactCrater"):
@@ -963,6 +1053,11 @@ func _spawn_ground_impact_effects(pos: Vector3, up_dir: Vector3) -> void:
 	if scorch_crater_mat:
 		scorch_crater_mat.set_shader_parameter("scorch_opacity", 1.0)
 		scorch_crater_mat.set_shader_parameter("heat_glow", 1.25)
+		
+	if ground_plume_dust:
+		ground_plume_dust.emitting = false
+	if ground_plume_sparks:
+		ground_plume_sparks.emitting = false
 		
 	var crater_inst = get_node_or_null("GroundImpactCrater")
 	if crater_inst and not crater_inst.has_node("ResidualSmoke"):

@@ -2,10 +2,23 @@ extends RefCounted
 class_name CraftingSystem
 
 signal inventory_changed()
+signal storage_changed()
 signal hyperdrive_repaired(part_name: String)
 signal hyperdrive_ready()
 
 var inventory: Dictionary = {
+	"iron": 0,
+	"copper": 0,
+	"silicon": 0,
+	"uranium": 0,
+	"wrench": 0,
+	"wire": 0,
+	"microchip": 0,
+	"reactor_cell": 0
+}
+
+# Ship Storage Bin (Waste of Space cargo container)
+var ship_storage: Dictionary = {
 	"iron": 0,
 	"copper": 0,
 	"silicon": 0,
@@ -126,3 +139,40 @@ func get_hyperdrive_progress() -> float:
 	if total_needed == 0:
 		return 1.0
 	return float(total_installed) / float(total_needed)
+
+# Storage Bin Cargo Management
+func deposit_item(item: String, amount: int = 1) -> bool:
+	if inventory.get(item, 0) < amount or amount <= 0:
+		return false
+	inventory[item] -= amount
+	ship_storage[item] = ship_storage.get(item, 0) + amount
+	inventory_changed.emit()
+	storage_changed.emit()
+	return true
+
+func withdraw_item(item: String, amount: int = 1) -> bool:
+	if ship_storage.get(item, 0) < amount or amount <= 0:
+		return false
+	ship_storage[item] -= amount
+	inventory[item] = inventory.get(item, 0) + amount
+	inventory_changed.emit()
+	storage_changed.emit()
+	return true
+
+func deposit_all_to_storage() -> void:
+	for k in inventory.keys():
+		var count = inventory[k]
+		if count > 0:
+			ship_storage[k] = ship_storage.get(k, 0) + count
+			inventory[k] = 0
+	inventory_changed.emit()
+	storage_changed.emit()
+
+func withdraw_all_from_storage() -> void:
+	for k in ship_storage.keys():
+		var count = ship_storage[k]
+		if count > 0:
+			inventory[k] = inventory.get(k, 0) + count
+			ship_storage[k] = 0
+	inventory_changed.emit()
+	storage_changed.emit()

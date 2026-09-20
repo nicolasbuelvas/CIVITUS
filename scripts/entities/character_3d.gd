@@ -915,8 +915,35 @@ func _physics_process(delta: float) -> void:
 	stats_changed.emit(GameManager.player_stats.oxygen, GameManager.player_stats.fuel, GameManager.player_stats.hull)
 
 func check_nearby_interactables() -> void:
-	# 1. Spaceship Hatch Interaction (Open / Close)
 	var ship = get_tree().get_first_node_in_group("spaceship")
+	
+	# 1. Inside Spaceship Cabin: Check Cabin Modules (Pilot Seat, Hyperdrive, O2, Gravity, Fabricator, Storage, Hatch)
+	if ship and bool(ship.get("is_player_in_cabin")):
+		if ship.has_method("get_cabin_module_interaction"):
+			var mod_info = ship.get_cabin_module_interaction(self)
+			if not mod_info.is_empty():
+				var act_type = mod_info.get("type", "")
+				if nearby_interactable != ship or current_interactable_type != act_type:
+					nearby_interactable = ship
+					current_interactable_type = act_type
+					interaction_available.emit(act_type, ship)
+				return
+		elif ship.has_method("get_hatch_interaction_state"):
+			var h_state = ship.get_hatch_interaction_state(self)
+			if h_state != "":
+				if nearby_interactable != ship or current_interactable_type != h_state:
+					nearby_interactable = ship
+					current_interactable_type = h_state
+					interaction_available.emit(h_state, ship)
+				return
+		# No module currently within interaction range in cabin
+		if nearby_interactable != null:
+			nearby_interactable = null
+			current_interactable_type = ""
+			interaction_lost.emit()
+		return
+
+	# 2. Outside Spaceship: Check Hatch from ramp/doorstep
 	if ship and ship.has_method("get_hatch_interaction_state"):
 		var h_state = ship.get_hatch_interaction_state(self)
 		if h_state != "":
@@ -926,7 +953,7 @@ func check_nearby_interactables() -> void:
 				interaction_available.emit(h_state, ship)
 			return
 
-	# 2. Mineable Resource Chunks & Creatures
+	# 3. Mineable Resource Chunks & Creatures
 	var space = get_world_3d().direct_space_state
 	var q = PhysicsShapeQueryParameters3D.new()
 	var sphere = SphereShape3D.new()

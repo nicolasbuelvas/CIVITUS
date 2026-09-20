@@ -109,6 +109,8 @@ func _ready() -> void:
 	GameManager.expedition_completed.connect(_on_expedition_completed)
 	GameManager.crafting.inventory_changed.connect(_update_crafting_ui)
 	GameManager.crafting.hyperdrive_repaired.connect(func(_p): _update_hyperdrive_ui())
+	GameManager.crafting.storage_changed.connect(_update_storage_ui)
+	_setup_backpack_btn()
 	
 	_update_crafting_ui()
 	_update_hyperdrive_ui()
@@ -361,6 +363,21 @@ func _on_interaction_available(type: String, target: Node3D) -> void:
 		"close_hatch":
 			context_action_btn.text = "🚪 " + GameManager.loc("context_close")
 			context_action_btn.modulate = Color(1.0, 0.75, 0.2)
+		"pilot_seat":
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			var is_seated = ship.get("is_player_seated") if ship else false
+			if is_seated:
+				context_action_btn.text = "🚶 " + ("LEVANTARSE" if GameManager.current_language == "es" else "STAND UP")
+				context_action_btn.modulate = Color(1.0, 0.6, 0.2)
+			else:
+				context_action_btn.text = "💺 " + ("CABINA DE MANDO" if GameManager.current_language == "es" else "PILOT SEAT")
+				context_action_btn.modulate = Color(0.3, 0.85, 1.0)
+		"oxygen_gen":
+			context_action_btn.text = "🫁 " + ("SOPORTE VITAL O2" if GameManager.current_language == "es" else "O2 GENERATOR")
+			context_action_btn.modulate = Color(0.2, 0.9, 0.85)
+		"gravity_device":
+			context_action_btn.text = "🌀 " + ("ESTABILIZADOR GRAVEDAD" if GameManager.current_language == "es" else "GRAVITY DEVICE")
+			context_action_btn.modulate = Color(0.75, 0.45, 1.0)
 		"mine":
 			context_action_btn.text = "⛏ " + GameManager.loc("context_mine")
 			context_action_btn.modulate = Color(0.2, 0.9, 1.0)
@@ -408,14 +425,28 @@ func _on_context_btn_down() -> void:
 			var ship = get_tree().get_first_node_in_group("spaceship")
 			if ship and ship.has_method("close_hatch"):
 				ship.close_hatch()
+		"pilot_seat":
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			if ship and ship.has_method("toggle_pilot_seat"):
+				ship.toggle_pilot_seat(player)
+		"oxygen_gen":
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			if ship and ship.has_method("activate_oxygen_generator"):
+				ship.activate_oxygen_generator(player)
+		"gravity_device":
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			if ship and ship.has_method("activate_gravity_device"):
+				ship.activate_gravity_device(player)
 		"mine":
 			if player:
 				player.is_mining = true
 		"fabricator":
 			crafting_modal.visible = true
+			_update_crafting_ui()
 			AudioManager.play("click")
 		"hyperdrive":
 			hyperdrive_modal.visible = true
+			_update_hyperdrive_ui()
 			AudioManager.play("click")
 		"starmap":
 			starmap_modal.visible = true
@@ -440,16 +471,96 @@ func _on_hyperdrive_badge_pressed() -> void:
 		_update_hyperdrive_ui()
 		AudioManager.play("click")
 
-# Storage / Cajón de Recursos
+# Storage / Cajón de Recursos & Mochila
+var active_toast_panel: PanelContainer = null
+
+func _setup_backpack_btn() -> void:
+	if not top_layer or top_layer.get_node_or_null("BackpackBtn"):
+		return
+	var bpack = Button.new()
+	bpack.name = "BackpackBtn"
+	bpack.text = "🎒 " + ("MOCHILA" if GameManager.current_language == "es" else "BACKPACK")
+	bpack.custom_minimum_size = Vector2(90, 36)
+	bpack.anchors_preset = Control.PRESET_TOP_RIGHT
+	bpack.anchor_left = 1.0
+	bpack.anchor_right = 1.0
+	bpack.offset_left = -285.0
+	bpack.offset_top = 14.0
+	bpack.offset_right = -195.0
+	bpack.offset_bottom = 50.0
+	bpack.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	bpack.pressed.connect(_on_backpack_btn_pressed)
+	top_layer.add_child(bpack)
+
+func _on_backpack_btn_pressed() -> void:
+	storage_modal.visible = not storage_modal.visible
+	if storage_modal.visible:
+		_update_storage_ui()
+		AudioManager.play("click")
+
+func show_status_toast(message: String, duration: float = 2.8) -> void:
+	if is_instance_valid(active_toast_panel):
+		active_toast_panel.queue_free()
+		
+	var toast = PanelContainer.new()
+	toast.name = "StatusToast"
+	toast.anchors_preset = Control.PRESET_CENTER_TOP
+	toast.anchor_left = 0.5
+	toast.anchor_right = 0.5
+	toast.offset_left = -280.0
+	toast.offset_top = 68.0
+	toast.offset_right = 280.0
+	toast.offset_bottom = 108.0
+	toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.08, 0.14, 0.92)
+	sb.border_color = Color(0.2, 0.85, 1.0, 0.85)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	toast.add_theme_stylebox_override("panel", sb)
+	
+	var lbl = Label.new()
+	lbl.text = message
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.add_theme_color_override("font_color", Color(0.92, 0.96, 1.0))
+	lbl.add_theme_font_size_override("font_size", 12)
+	toast.add_child(lbl)
+	
+	add_child(toast)
+	active_toast_panel = toast
+	
+	toast.modulate.a = 0.0
+	var tw = create_tween()
+	tw.tween_property(toast, "modulate:a", 1.0, 0.20)
+	tw.tween_interval(duration)
+	tw.tween_property(toast, "modulate:a", 0.0, 0.35)
+	tw.tween_callback(func():
+		if is_instance_valid(toast):
+			toast.queue_free()
+	)
+
 func _update_storage_ui() -> void:
 	var inv = GameManager.crafting.inventory
-	if storage_iron_lbl: storage_iron_lbl.text = "%s: %d" % [GameManager.loc("iron"), inv.get("iron", 0)]
-	if storage_copper_lbl: storage_copper_lbl.text = "%s: %d" % [GameManager.loc("copper"), inv.get("copper", 0)]
-	if storage_silicon_lbl: storage_silicon_lbl.text = "%s: %d" % [GameManager.loc("silicon"), inv.get("silicon", 0)]
-	if storage_uranium_lbl: storage_uranium_lbl.text = "%s: %d" % [GameManager.loc("uranium"), inv.get("uranium", 0)]
+	var store = GameManager.crafting.ship_storage
+	
+	if storage_iron_lbl:
+		storage_iron_lbl.text = "%s: %d [Nave: %d]" % [GameManager.loc("iron"), inv.get("iron", 0), store.get("iron", 0)]
+	if storage_copper_lbl:
+		storage_copper_lbl.text = "%s: %d [Nave: %d]" % [GameManager.loc("copper"), inv.get("copper", 0), store.get("copper", 0)]
+	if storage_silicon_lbl:
+		storage_silicon_lbl.text = "%s: %d [Nave: %d]" % [GameManager.loc("silicon"), inv.get("silicon", 0), store.get("silicon", 0)]
+	if storage_uranium_lbl:
+		storage_uranium_lbl.text = "%s: %d [Nave: %d]" % [GameManager.loc("uranium"), inv.get("uranium", 0), store.get("uranium", 0)]
 
 func _on_deposit_all_pressed() -> void:
-	AudioManager.play("crafting", 1.0)
+	AudioManager.play("craft", 1.0)
+	GameManager.crafting.deposit_all_to_storage()
 	_update_storage_ui()
 	deposit_all_btn.text = "✓ " + GameManager.loc("deposit_all")
 	var tween = create_tween()

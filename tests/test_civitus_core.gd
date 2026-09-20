@@ -36,6 +36,7 @@ func _ready() -> void:
 	test_swimming_underwater_walking_and_suit_reactions()
 	test_twin_jetpacks_realistic_fluid_and_breaststroke_swimming()
 	test_normal_jetpack_behavior_and_selective_jumping()
+	test_waste_of_space_cabin_modules_and_crafting_loop()
 	
 	print("\n==========================================")
 	print("TEST RESULTS: %d PASSED, %d FAILED" % [passed_count, failed_count])
@@ -1026,6 +1027,123 @@ func test_normal_jetpack_behavior_and_selective_jumping() -> void:
 	assert_almost_eq(ocean_spawn_h, 1.80, 0.01, "Ocean world north pole spawn is safely elevated at 1.80m above sea level")
 
 	player.free()
+
+# 26. Testing Waste of Space Cabin Modules & Crafting Loop
+func test_waste_of_space_cabin_modules_and_crafting_loop() -> void:
+	print("--- 26. Testing Waste of Space Cabin Modules & Crafting Loop ---")
+	
+	var ship_scene = load("res://scenes/entities/spaceship_3d.tscn")
+	var ship = ship_scene.instantiate()
+	add_child(ship)
+	
+	var interior = ship.get_node_or_null("CabinInterior")
+	assert_true(interior != null, "Spaceship contains CabinInterior node")
+	
+	# 1. Physical Cabin Modules Verification
+	var pilot_seat = interior.get_node_or_null("PilotSeat")
+	assert_true(pilot_seat != null, "Cabin contains PilotSeat module")
+	assert_true(pilot_seat.get_child_count() >= 3, "PilotSeat has physical chair & console meshes")
+	
+	var hyperdrive = interior.get_node_or_null("HyperdriveCore")
+	assert_true(hyperdrive != null, "Cabin contains HyperdriveCore module")
+	assert_true(ship.hyperdrive_plasma_core != null, "Hyperdrive contains glowing plasma rod core")
+	assert_true(ship.hyperdrive_light != null, "Hyperdrive contains dynamic pulsing omni light")
+	
+	var oxygen_gen = interior.get_node_or_null("OxygenGenerator")
+	assert_true(oxygen_gen != null, "Cabin contains OxygenGenerator module")
+	assert_true(oxygen_gen.get_child_count() >= 4, "OxygenGenerator contains twin pressurized gas cylinders")
+	
+	var gravity_dev = interior.get_node_or_null("GravityDevice")
+	assert_true(gravity_dev != null, "Cabin contains GravityDevice module")
+	assert_true(ship.grav_ring_outer != null, "GravityDevice contains rotating outer gimbal ring")
+	assert_true(ship.grav_ring_inner != null, "GravityDevice contains rotating inner gimbal ring")
+	assert_true(ship.grav_core_sphere != null, "GravityDevice contains hovering graviton sphere")
+	
+	var storage_bin = interior.get_node_or_null("StorageBin")
+	assert_true(storage_bin != null, "Cabin contains StorageBin module")
+	
+	var fabricator = interior.get_node_or_null("FabricatorWorkbench")
+	assert_true(fabricator != null, "Cabin contains FabricatorWorkbench module")
+	
+	# 2. Cabin Module Interaction Detection
+	var char_scene = load("res://scenes/entities/character_3d.tscn")
+	var player = char_scene.instantiate()
+	add_child(player)
+	ship.is_player_in_cabin = true
+	
+	# Near Pilot Seat (0.0, 0.2, -1.8)
+	player.global_position = ship.to_global(ship.pilot_seat_pos)
+	var interact_pilot = ship.get_cabin_module_interaction(player)
+	assert_true(interact_pilot.get("type", "") == "pilot_seat", "Player near pilot seat detects pilot_seat interaction")
+	
+	ship.sit_in_pilot_seat(player)
+	assert_true(ship.is_player_seated == true, "Astronaut sits down in pilot seat")
+	assert_true(player.is_action_locked == true, "Action locked while piloting")
+	
+	ship.stand_up_from_pilot_seat(player)
+	assert_true(ship.is_player_seated == false, "Astronaut stands up from pilot seat")
+	assert_true(player.is_action_locked == false, "Action restored when standing up")
+	
+	# Near Oxygen Generator (2.0, 0.2, -0.3)
+	player.global_position = ship.to_global(ship.oxygen_gen_pos)
+	var interact_o2 = ship.get_cabin_module_interaction(player)
+	assert_true(interact_o2.get("type", "") == "oxygen_gen", "Player near O2 generator detects oxygen_gen interaction")
+	
+	GameManager.player_stats.oxygen = 35.0
+	ship.activate_oxygen_generator(player)
+	assert_almost_eq(GameManager.player_stats.oxygen, 100.0, 0.1, "O2 generator refills astronaut oxygen to 100%")
+	
+	# Near Gravity Device (-2.0, 0.2, 0.3)
+	player.global_position = ship.to_global(ship.gravity_device_pos)
+	var interact_grav = ship.get_cabin_module_interaction(player)
+	assert_true(interact_grav.get("type", "") == "gravity_device", "Player near gravity device detects gravity_device interaction")
+	
+	# Near Hyperdrive (-1.8, 0.2, -1.4)
+	player.global_position = ship.to_global(ship.hyperdrive_pos)
+	var interact_hyper = ship.get_cabin_module_interaction(player)
+	assert_true(interact_hyper.get("type", "") == "hyperdrive", "Player near hyperdrive detects hyperdrive interaction")
+	
+	# Near Fabricator (1.8, 0.2, -1.4)
+	player.global_position = ship.to_global(ship.fabricator_pos)
+	var interact_fab = ship.get_cabin_module_interaction(player)
+	assert_true(interact_fab.get("type", "") == "fabricator", "Player near fabricator detects fabricator interaction")
+	
+	# Near Storage Bin (1.8, 0.2, 1.6)
+	player.global_position = ship.to_global(ship.storage_bin_pos)
+	var interact_store = ship.get_cabin_module_interaction(player)
+	assert_true(interact_store.get("type", "") == "storage", "Player near storage bin detects storage interaction")
+	
+	# 3. Cargo Storage & Deposit/Withdraw Loop
+	GameManager.crafting.inventory["iron"] = 12
+	GameManager.crafting.inventory["copper"] = 6
+	GameManager.crafting.deposit_all_to_storage()
+	assert_true(GameManager.crafting.inventory["iron"] == 0, "Player inventory iron deposited to 0")
+	assert_true(GameManager.crafting.ship_storage["iron"] == 12, "Ship storage received 12 iron")
+	assert_true(GameManager.crafting.ship_storage["copper"] == 6, "Ship storage received 6 copper")
+	
+	GameManager.crafting.withdraw_all_from_storage()
+	assert_true(GameManager.crafting.inventory["iron"] == 12, "Player withdrew all 12 iron from ship storage")
+	assert_true(GameManager.crafting.ship_storage["iron"] == 0, "Ship storage iron cleared after withdrawal")
+	
+	# 4. Crafting Loop with Harvested Resources
+	var initial_wrenches = GameManager.crafting.inventory.get("wrench", 0)
+	var can_craft_wrench = GameManager.crafting.can_craft("wrench")
+	assert_true(can_craft_wrench == true, "Can craft wrench with 12 iron (requires 2 iron)")
+	var craft_ok = GameManager.crafting.craft("wrench")
+	assert_true(craft_ok == true, "Craft wrench executed successfully")
+	assert_true(GameManager.crafting.inventory["iron"] == 10, "Iron consumed from 12 to 10")
+	assert_true(GameManager.crafting.inventory["wrench"] == initial_wrenches + 1, "Wrench added to inventory")
+	
+	# 5. HUD Status Toast Verification
+	var hud_scene = load("res://scenes/ui/hud.tscn")
+	var hud = hud_scene.instantiate()
+	add_child(hud)
+	hud.show_status_toast("PRUEBA TELEMETRÍA HUD", 1.5)
+	assert_true(hud.active_toast_panel != null, "HUD spawns active_toast_panel notification")
+	
+	hud.queue_free()
+	player.queue_free()
+	ship.queue_free()
 
 
 

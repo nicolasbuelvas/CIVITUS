@@ -30,6 +30,25 @@ var is_operating_hatch: bool = false
 var is_equalizing_pressure: bool = false
 var player_ref: CharacterBody3D = null
 
+# Cabin Modules & Systems (Waste of Space Architecture)
+const MODULE_INTERACT_RADIUS: float = 1.6
+
+var pilot_seat_pos: Vector3 = Vector3(0.0, 0.2, -1.8)
+var hyperdrive_pos: Vector3 = Vector3(-1.8, 0.2, -1.4)
+var oxygen_gen_pos: Vector3 = Vector3(2.0, 0.2, -0.3)
+var gravity_device_pos: Vector3 = Vector3(-2.0, 0.2, 0.3)
+var storage_bin_pos: Vector3 = Vector3(1.8, 0.2, 1.6)
+var fabricator_pos: Vector3 = Vector3(1.8, 0.2, -1.4)
+
+var is_player_seated: bool = false
+var grav_ring_outer: Node3D = null
+var grav_ring_inner: Node3D = null
+var grav_core_sphere: Node3D = null
+var hyperdrive_plasma_core: Node3D = null
+var hyperdrive_light: OmniLight3D = null
+var hyperdrive_status_light: OmniLight3D = null
+var cabin_modules_initialized: bool = false
+
 # Crash pod integrity & environmental weathering
 var capsule_hull_hp: float = 100.0
 var active_hull_material: StandardMaterial3D = null
@@ -50,8 +69,11 @@ var engine_fire_stream: CPUParticles3D = null
 var engine_light_ref: OmniLight3D = null
 
 func _ready() -> void:
+	add_to_group("spaceship")
+	add_to_group("interactable")
 	interior_area.body_entered.connect(_on_cabin_entered)
 	interior_area.body_exited.connect(_on_cabin_exited)
+	_setup_cabin_modules()
 	
 	if outer_cylinder and outer_cylinder.material:
 		active_hull_material = outer_cylinder.material.duplicate()
@@ -263,6 +285,17 @@ func _physics_process(delta: float) -> void:
 		boarding_ramp.rotation.x = ramp_current_angle
 
 func _process(delta: float) -> void:
+	# Dynamic cabin module animations (Waste of Space systems)
+	if is_instance_valid(grav_ring_outer):
+		grav_ring_outer.rotate_x(1.2 * delta)
+	if is_instance_valid(grav_ring_inner):
+		grav_ring_inner.rotate_z(-1.6 * delta)
+	if is_instance_valid(grav_core_sphere):
+		grav_core_sphere.position.y = 0.65 + sin(Time.get_ticks_msec() * 0.003) * 0.04
+	if is_instance_valid(hyperdrive_light):
+		var pulse = 0.75 + sin(Time.get_ticks_msec() * 0.005) * 0.25
+		hyperdrive_light.light_energy = 1.6 * pulse
+
 	# Supersonic combustion pulsation on the engine light during descent
 	if is_landing_intro_active and is_instance_valid(engine_light_ref):
 		var t_sec = Time.get_ticks_msec() / 1000.0
@@ -463,5 +496,410 @@ func _on_cabin_entered(body: Node3D) -> void:
 func _on_cabin_exited(body: Node3D) -> void:
 	if body.is_in_group("player"):
 		is_player_in_cabin = false
+		if is_player_seated and player_ref:
+			stand_up_from_pilot_seat(player_ref)
 		if player_ref and player_ref.has_method("set_suit_mode"):
 			player_ref.set_suit_mode(true)
+
+# Cabin Module Interaction & Management
+func get_cabin_module_interaction(p: CharacterBody3D) -> Dictionary:
+	if not is_player_in_cabin:
+		return {}
+	
+	var local_p = to_local(p.global_position)
+	# Check hatch threshold first if near door
+	if not is_hatch_open and local_p.z > 2.0 and local_p.z < 3.3:
+		return {"type": "open_hatch", "label": "🚪 " + GameManager.loc("context_open"), "target": self}
+	if is_hatch_open and local_p.z > 0.8 and local_p.z <= 2.2 and absf(local_p.x) < 1.2:
+		return {"type": "close_hatch", "label": "🚪 " + GameManager.loc("context_close"), "target": self}
+		
+	# Find the closest module within interaction radius
+	var p_2d = Vector2(local_p.x, local_p.z)
+	var modules = [
+		{"type": "pilot_seat", "pos": Vector2(pilot_seat_pos.x, pilot_seat_pos.z)},
+		{"type": "hyperdrive", "pos": Vector2(hyperdrive_pos.x, hyperdrive_pos.z)},
+		{"type": "oxygen_gen", "pos": Vector2(oxygen_gen_pos.x, oxygen_gen_pos.z)},
+		{"type": "gravity_device", "pos": Vector2(gravity_device_pos.x, gravity_device_pos.z)},
+		{"type": "fabricator", "pos": Vector2(fabricator_pos.x, fabricator_pos.z)},
+		{"type": "storage", "pos": Vector2(storage_bin_pos.x, storage_bin_pos.z)}
+	]
+	
+	var closest_mod: String = ""
+	var min_dist: float = MODULE_INTERACT_RADIUS
+	for m in modules:
+		var d = p_2d.distance_to(m["pos"])
+		if d < min_dist:
+			min_dist = d
+			closest_mod = m["type"]
+			
+	match closest_mod:
+		"pilot_seat":
+			var label = "💺 " + ("LEVANTARSE" if is_player_seated else "PILOTAR NAVE")
+			return {"type": "pilot_seat", "label": label, "target": self}
+		"hyperdrive":
+			var is_ready = GameManager.crafting.is_hyperdrive_complete()
+			var status = " [LISTO]" if is_ready else " [REPARAR]"
+			return {"type": "hyperdrive", "label": "🚀 HIPERDRIVE" + status, "target": self}
+		"oxygen_gen":
+			return {"type": "oxygen_gen", "label": "🫁 GENERADOR O2 [100%]", "target": self}
+		"gravity_device":
+			return {"type": "gravity_device", "label": "🌀 ESTABILIZADOR GRAVEDAD [1.0G]", "target": self}
+		"fabricator":
+			return {"type": "fabricator", "label": "⚙ FABRICADOR DE PIEZAS", "target": self}
+		"storage":
+			return {"type": "storage", "label": "📦 ALMACÉN DE NAVE", "target": self}
+		
+	return {}
+
+func toggle_pilot_seat(p: CharacterBody3D) -> void:
+	if not is_player_in_cabin or not is_instance_valid(p):
+		return
+	if not is_player_seated:
+		sit_in_pilot_seat(p)
+	else:
+		stand_up_from_pilot_seat(p)
+
+func sit_in_pilot_seat(p: CharacterBody3D) -> void:
+	is_player_seated = true
+	var seat_world_pos = to_global(pilot_seat_pos + Vector3(0.0, 0.25, 0.0))
+	p.global_position = seat_world_pos
+	p.velocity = Vector3.ZERO
+	p.is_action_locked = true
+	AudioManager.play("click", 0.9, -1.0)
+	
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("CABINA DE MANDO: Telemetría orbital y propulsores sincronizados.")
+
+func stand_up_from_pilot_seat(p: CharacterBody3D) -> void:
+	is_player_seated = false
+	p.is_action_locked = false
+	var stand_pos = to_global(pilot_seat_pos + Vector3(0.0, 0.0, 0.8))
+	p.global_position = stand_pos
+	AudioManager.play("click", 1.1, -1.0)
+
+func activate_oxygen_generator(p: CharacterBody3D) -> void:
+	AudioManager.play("airlock", 1.2, -3.0)
+	GameManager.player_stats.oxygen = 100.0
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("SOPORTE VITAL: Generador de O₂ activo. Cabina presurizada al 100%.")
+
+func activate_gravity_device(p: CharacterBody3D) -> void:
+	AudioManager.play("thruster", 1.8, -4.0)
+	if is_instance_valid(grav_core_sphere):
+		var mat = grav_core_sphere.get_active_material(0) as StandardMaterial3D
+		if mat:
+			mat.emission_energy_multiplier = 4.0
+			var tw = create_tween()
+			tw.tween_property(mat, "emission_energy_multiplier", 2.2, 1.2)
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("ESTABILIZADOR GRAVITACIONAL: Campo 1.0G Nominal. Inercia estabilizada.")
+
+func trigger_hyperjump() -> void:
+	if not GameManager.crafting.is_hyperdrive_complete():
+		return
+	AudioManager.play("hyperdrive", 1.0)
+	hyperdrive_launched.emit()
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("HIPERDRIVE INICIADO: Realizando salto estelar hacia el Nexo Sagital...")
+	var tw = create_tween()
+	tw.tween_interval(2.0)
+	tw.tween_callback(func():
+		GameManager.complete_expedition()
+	)
+
+func _setup_cabin_modules() -> void:
+	if cabin_modules_initialized:
+		return
+	var interior = get_node_or_null("CabinInterior")
+	if not interior:
+		return
+	cabin_modules_initialized = true
+	
+	# Common Materials
+	var dark_trim = StandardMaterial3D.new()
+	dark_trim.albedo_color = Color(0.12, 0.14, 0.18)
+	dark_trim.metallic = 0.8
+	dark_trim.roughness = 0.4
+	
+	var accent_orange = StandardMaterial3D.new()
+	accent_orange.albedo_color = Color(0.95, 0.45, 0.1)
+	accent_orange.metallic = 0.5
+	accent_orange.roughness = 0.35
+	
+	var cyan_glow = StandardMaterial3D.new()
+	cyan_glow.albedo_color = Color(0.1, 0.8, 1.0)
+	cyan_glow.emission_enabled = true
+	cyan_glow.emission = Color(0.15, 0.85, 1.0)
+	cyan_glow.emission_energy_multiplier = 2.0
+	
+	var magenta_glow = StandardMaterial3D.new()
+	magenta_glow.albedo_color = Color(0.85, 0.15, 0.95)
+	magenta_glow.emission_enabled = true
+	magenta_glow.emission = Color(0.9, 0.2, 1.0)
+	magenta_glow.emission_energy_multiplier = 2.5
+	
+	# 1. PILOT SEAT & CONSOLE
+	var pilot_seat_node = Node3D.new()
+	pilot_seat_node.name = "PilotSeat"
+	pilot_seat_node.position = pilot_seat_pos
+	pilot_seat_node.add_to_group("cabin_module")
+	interior.add_child(pilot_seat_node)
+	
+	var seat_base = MeshInstance3D.new()
+	var seat_base_mesh = BoxMesh.new()
+	seat_base_mesh.size = Vector3(0.7, 0.35, 0.7)
+	seat_base_mesh.material = dark_trim
+	seat_base.mesh = seat_base_mesh
+	seat_base.position = Vector3(0.0, 0.175, 0.0)
+	pilot_seat_node.add_child(seat_base)
+	
+	var seat_back = MeshInstance3D.new()
+	var seat_back_mesh = BoxMesh.new()
+	seat_back_mesh.size = Vector3(0.65, 0.85, 0.18)
+	seat_back_mesh.material = accent_orange
+	seat_back.mesh = seat_back_mesh
+	seat_back.position = Vector3(0.0, 0.7, 0.28)
+	seat_back.rotation.x = deg_to_rad(-8.0)
+	pilot_seat_node.add_child(seat_back)
+	
+	var seat_headrest = MeshInstance3D.new()
+	var head_mesh = BoxMesh.new()
+	head_mesh.size = Vector3(0.4, 0.22, 0.15)
+	head_mesh.material = dark_trim
+	seat_headrest.mesh = head_mesh
+	seat_headrest.position = Vector3(0.0, 1.2, 0.35)
+	pilot_seat_node.add_child(seat_headrest)
+	
+	var console = MeshInstance3D.new()
+	var console_mesh = BoxMesh.new()
+	console_mesh.size = Vector3(1.3, 0.65, 0.45)
+	console_mesh.material = dark_trim
+	console.mesh = console_mesh
+	console.position = Vector3(0.0, 0.35, -0.65)
+	pilot_seat_node.add_child(console)
+	
+	var screen = MeshInstance3D.new()
+	var screen_mesh = BoxMesh.new()
+	screen_mesh.size = Vector3(1.1, 0.32, 0.04)
+	screen_mesh.material = cyan_glow
+	screen.mesh = screen_mesh
+	screen.position = Vector3(0.0, 0.75, -0.55)
+	screen.rotation.x = deg_to_rad(-25.0)
+	pilot_seat_node.add_child(screen)
+	
+	# 2. HYPERDRIVE CORE
+	var hyper_node = Node3D.new()
+	hyper_node.name = "HyperdriveCore"
+	hyper_node.position = hyperdrive_pos
+	hyper_node.add_to_group("cabin_module")
+	interior.add_child(hyper_node)
+	
+	var hyper_base = MeshInstance3D.new()
+	var h_base_mesh = CylinderMesh.new()
+	h_base_mesh.top_radius = 0.55
+	h_base_mesh.bottom_radius = 0.65
+	h_base_mesh.height = 0.35
+	h_base_mesh.material = dark_trim
+	hyper_base.mesh = h_base_mesh
+	hyper_base.position = Vector3(0.0, 0.175, 0.0)
+	hyper_node.add_child(hyper_base)
+	
+	var hyper_top = MeshInstance3D.new()
+	var h_top_mesh = CylinderMesh.new()
+	h_top_mesh.top_radius = 0.6
+	h_top_mesh.bottom_radius = 0.5
+	h_top_mesh.height = 0.3
+	h_top_mesh.material = dark_trim
+	hyper_top.mesh = h_top_mesh
+	hyper_top.position = Vector3(0.0, 1.8, 0.0)
+	hyper_node.add_child(hyper_top)
+	
+	var plasma_rod = MeshInstance3D.new()
+	var rod_mesh = CylinderMesh.new()
+	rod_mesh.top_radius = 0.18
+	rod_mesh.bottom_radius = 0.18
+	rod_mesh.height = 1.35
+	rod_mesh.material = magenta_glow
+	plasma_rod.mesh = rod_mesh
+	plasma_rod.position = Vector3(0.0, 0.95, 0.0)
+	hyper_node.add_child(plasma_rod)
+	hyperdrive_plasma_core = plasma_rod
+	
+	hyperdrive_light = OmniLight3D.new()
+	hyperdrive_light.light_color = Color(0.9, 0.2, 1.0)
+	hyperdrive_light.light_energy = 1.6
+	hyperdrive_light.omni_range = 3.5
+	hyperdrive_light.position = Vector3(0.0, 1.0, 0.0)
+	hyper_node.add_child(hyperdrive_light)
+	
+	# 3. OXYGEN GENERATOR
+	var o2_node = Node3D.new()
+	o2_node.name = "OxygenGenerator"
+	o2_node.position = oxygen_gen_pos
+	o2_node.add_to_group("cabin_module")
+	interior.add_child(o2_node)
+	
+	var o2_base = MeshInstance3D.new()
+	var o2_base_mesh = BoxMesh.new()
+	o2_base_mesh.size = Vector3(0.75, 0.25, 1.1)
+	o2_base_mesh.material = dark_trim
+	o2_base.mesh = o2_base_mesh
+	o2_base.position = Vector3(0.0, 0.125, 0.0)
+	o2_node.add_child(o2_base)
+	
+	var o2_tank1 = MeshInstance3D.new()
+	var t1_mesh = CylinderMesh.new()
+	t1_mesh.top_radius = 0.20
+	t1_mesh.bottom_radius = 0.20
+	t1_mesh.height = 1.4
+	var tank_mat = StandardMaterial3D.new()
+	tank_mat.albedo_color = Color(0.9, 0.94, 0.96)
+	tank_mat.metallic = 0.6
+	tank_mat.roughness = 0.3
+	t1_mesh.material = tank_mat
+	o2_tank1.mesh = t1_mesh
+	o2_tank1.position = Vector3(0.0, 0.9, -0.26)
+	o2_node.add_child(o2_tank1)
+	
+	var o2_tank2 = MeshInstance3D.new()
+	o2_tank2.mesh = t1_mesh
+	o2_tank2.position = Vector3(0.0, 0.9, 0.26)
+	o2_node.add_child(o2_tank2)
+	
+	var o2_band = MeshInstance3D.new()
+	var b_mesh = CylinderMesh.new()
+	b_mesh.top_radius = 0.205
+	b_mesh.bottom_radius = 0.205
+	b_mesh.height = 0.15
+	b_mesh.material = cyan_glow
+	o2_band.mesh = b_mesh
+	o2_band.position = Vector3(0.0, 1.15, -0.26)
+	o2_node.add_child(o2_band)
+	
+	var o2_band2 = MeshInstance3D.new()
+	o2_band2.mesh = b_mesh
+	o2_band2.position = Vector3(0.0, 1.15, 0.26)
+	o2_node.add_child(o2_band2)
+	
+	var o2_light = OmniLight3D.new()
+	o2_light.light_color = Color(0.2, 0.9, 1.0)
+	o2_light.light_energy = 0.9
+	o2_light.omni_range = 2.4
+	o2_light.position = Vector3(0.0, 1.1, 0.0)
+	o2_node.add_child(o2_light)
+	
+	# 4. GRAVITY DEVICE
+	var grav_node = Node3D.new()
+	grav_node.name = "GravityDevice"
+	grav_node.position = gravity_device_pos
+	grav_node.add_to_group("cabin_module")
+	interior.add_child(grav_node)
+	
+	var grav_base = MeshInstance3D.new()
+	var g_base_mesh = CylinderMesh.new()
+	g_base_mesh.top_radius = 0.52
+	g_base_mesh.bottom_radius = 0.58
+	g_base_mesh.height = 0.25
+	g_base_mesh.radial_segments = 8
+	g_base_mesh.material = dark_trim
+	grav_base.mesh = g_base_mesh
+	grav_base.position = Vector3(0.0, 0.125, 0.0)
+	grav_node.add_child(grav_base)
+	
+	var outer_ring = MeshInstance3D.new()
+	var ring_mesh = TorusMesh.new()
+	ring_mesh.inner_radius = 0.38
+	ring_mesh.outer_radius = 0.46
+	ring_mesh.material = dark_trim
+	outer_ring.mesh = ring_mesh
+	outer_ring.position = Vector3(0.0, 0.65, 0.0)
+	grav_node.add_child(outer_ring)
+	grav_ring_outer = outer_ring
+	
+	var inner_ring = MeshInstance3D.new()
+	var inner_ring_mesh = TorusMesh.new()
+	inner_ring_mesh.inner_radius = 0.24
+	inner_ring_mesh.outer_radius = 0.32
+	inner_ring_mesh.material = accent_orange
+	inner_ring.mesh = inner_ring_mesh
+	inner_ring.position = Vector3(0.0, 0.65, 0.0)
+	grav_node.add_child(inner_ring)
+	grav_ring_inner = inner_ring
+	
+	var core_sphere = MeshInstance3D.new()
+	var s_mesh = SphereMesh.new()
+	s_mesh.radius = 0.14
+	s_mesh.height = 0.28
+	var sphere_mat = StandardMaterial3D.new()
+	sphere_mat.albedo_color = Color(0.65, 0.2, 1.0)
+	sphere_mat.emission_enabled = true
+	sphere_mat.emission = Color(0.7, 0.25, 1.0)
+	sphere_mat.emission_energy_multiplier = 2.2
+	s_mesh.material = sphere_mat
+	core_sphere.mesh = s_mesh
+	core_sphere.position = Vector3(0.0, 0.65, 0.0)
+	grav_node.add_child(core_sphere)
+	grav_core_sphere = core_sphere
+	
+	var grav_light = OmniLight3D.new()
+	grav_light.light_color = Color(0.7, 0.3, 1.0)
+	grav_light.light_energy = 1.3
+	grav_light.omni_range = 2.8
+	grav_light.position = Vector3(0.0, 0.7, 0.0)
+	grav_node.add_child(grav_light)
+	
+	# 5. STORAGE BIN
+	var bin_node = Node3D.new()
+	bin_node.name = "StorageBin"
+	bin_node.position = storage_bin_pos
+	bin_node.add_to_group("cabin_module")
+	interior.add_child(bin_node)
+	
+	var bin_mesh_inst = MeshInstance3D.new()
+	var b_box = BoxMesh.new()
+	b_box.size = Vector3(0.8, 0.65, 1.0)
+	var bin_mat = StandardMaterial3D.new()
+	bin_mat.albedo_color = Color(0.22, 0.25, 0.30)
+	bin_mat.metallic = 0.7
+	bin_mat.roughness = 0.4
+	b_box.material = bin_mat
+	bin_mesh_inst.mesh = b_box
+	bin_mesh_inst.position = Vector3(0.0, 0.325, 0.0)
+	bin_node.add_child(bin_mesh_inst)
+	
+	var bin_latch = MeshInstance3D.new()
+	var l_box = BoxMesh.new()
+	l_box.size = Vector3(0.82, 0.12, 0.25)
+	l_box.material = accent_orange
+	bin_latch.mesh = l_box
+	bin_latch.position = Vector3(0.0, 0.66, 0.0)
+	bin_node.add_child(bin_latch)
+	
+	# 6. FABRICATOR WORKBENCH
+	var fab_node = Node3D.new()
+	fab_node.name = "FabricatorWorkbench"
+	fab_node.position = fabricator_pos
+	fab_node.add_to_group("cabin_module")
+	interior.add_child(fab_node)
+	
+	var fab_table = MeshInstance3D.new()
+	var ft_mesh = BoxMesh.new()
+	ft_mesh.size = Vector3(0.8, 0.7, 1.1)
+	ft_mesh.material = dark_trim
+	fab_table.mesh = ft_mesh
+	fab_table.position = Vector3(0.0, 0.35, 0.0)
+	fab_node.add_child(fab_table)
+	
+	var holo_pad = MeshInstance3D.new()
+	var hp_mesh = CylinderMesh.new()
+	hp_mesh.top_radius = 0.26
+	hp_mesh.bottom_radius = 0.26
+	hp_mesh.height = 0.04
+	hp_mesh.material = cyan_glow
+	holo_pad.mesh = hp_mesh
+	holo_pad.position = Vector3(0.0, 0.72, 0.0)
+	fab_node.add_child(holo_pad)

@@ -43,6 +43,8 @@ var meteor_timer: float = 8.0
 var landing_target_pos: Vector3 = Vector3.ZERO
 var landing_up_dir: Vector3 = Vector3.UP
 var is_landing_sequence_running: bool = false
+var scorch_crater_mat: ShaderMaterial = null
+var scorch_crater_node: MeshInstance3D = null
 
 # Global step tracking across 40 fine-grained micro-stages
 const TOTAL_SUBSTEPS: int = 40
@@ -71,6 +73,14 @@ func _process(delta: float) -> void:
 			var target_cam_pos = ship_pos + landing_up_dir * 20.0 + ship_fwd * 18.0
 			cam.global_position = target_cam_pos
 			cam.look_at(ship_pos + landing_up_dir * -1.5, landing_up_dir)
+
+		# Smooth progressive ground scorch under descending rocket retro-thrusters
+		if scorch_crater_mat and is_instance_valid(spaceship_instance) and not cam.get_meta("is_zooming", false):
+			var dist = spaceship_instance.global_position.distance_to(landing_target_pos)
+			var burn_t = clampf(1.0 - (dist / 42.0), 0.0, 1.0)
+			var current_opacity = pow(burn_t, 1.4)
+			scorch_crater_mat.set_shader_parameter("scorch_opacity", current_opacity)
+			scorch_crater_mat.set_shader_parameter("heat_glow", current_opacity * 1.35)
 
 	# Procedural Meteor Streaks (Bloque F)
 	if not is_generating:
@@ -754,6 +764,9 @@ func start_landing_cinematic() -> void:
 		return
 	is_landing_sequence_running = true
 	
+	# Initialize progressive ground scorch (starts invisible, darkens as thrusters approach ground)
+	_init_ground_scorch(landing_target_pos - landing_up_dir * 0.94, landing_up_dir)
+	
 	if hud_instance:
 		hud_instance.visible = false
 		
@@ -849,55 +862,78 @@ func _deploy_landing_camera(ground_ship_pos: Vector3, north_dir: Vector3) -> voi
 			var tw_wait = create_tween()
 			tw_wait.tween_interval(3.0)
 			tw_wait.tween_callback(func():
-				# Prepare and position astronaut inside cabin (keep invisible to prevent headless 3P frame during zoom)
-				var cur_exit = Vector3.FORWARD
-				if is_instance_valid(spaceship_instance):
-					cur_exit = spaceship_instance.global_transform.basis.z.normalized()
-				if is_instance_valid(player_instance):
-					player_instance.visible = false
-					player_instance.global_position = spaceship_instance.global_position + north_dir * 0.35 + cur_exit * 0.2
-					player_instance.is_action_locked = true
-					if player_instance.has_method("zoom_camera"):
-						player_instance.zoom_camera(-16.0) # Pre-set 1st person mode
-						
 				if not is_instance_valid(cam):
 					return
 					
-				# 2. Smooth zoom in towards cabin and character first person view (1.4s)
-				var p_cam: Camera3D = player_instance.get_node_or_null("CameraPivot/Camera3D") if player_instance else null
-				var target_zoom_pos: Vector3
-				if p_cam:
-					target_zoom_pos = p_cam.global_position
-				else:
-					target_zoom_pos = spaceship_instance.global_position + north_dir * 1.6
+				var cur_exit = Vector3.FORWARD
+				var cur_rt = Vector3.RIGHT
+				if is_instance_valid(spaceship_instance):
+					cur_exit = spaceship_instance.global_transform.basis.z.normalized()
+					cur_rt = spaceship_instance.global_transform.basis.x.normalized()
 					
-				var tw_zoom = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT).set_parallel(true)
-				tw_zoom.tween_property(cam, "global_position", target_zoom_pos, 1.4)
-				# Align camera gaze forward towards cockpit hatch during zoom
-				var look_target = target_zoom_pos + cur_exit * 8.0
-				cam.look_at(look_target, north_dir)
+				if is_instance_valid(player_instance):
+					var p_pos = spaceship_instance.global_position + north_dir * 0.35 + cur_exit * 0.2
+					player_instance.global_position = p_pos
+					player_instance.visible = true
+					player_instance.is_action_locked = true
+					player_instance.is_first_person = false
+					player_instance.set_suit_mode(true)
+					if player_instance.head: player_instance.head.visible = true
+					if player_instance.helmet:
+						player_instance.helmet.visible = true
+						player_instance.helmet.position = Vector3(0, 1.6, 0)
+						player_instance.helmet.rotation = Vector3.ZERO
+
+				# 2. Cinematic Cockpit Reveal: 3/4 front view showcasing astronaut in full space suit & golden visor
+				var p_head = player_instance.global_position + north_dir * 1.45 if is_instance_valid(player_instance) else spaceship_instance.global_position + north_dir * 1.6
+				var cabin_cam_start = p_head + cur_exit * 1.75 + cur_rt * 0.55 + north_dir * 0.15
+				var cabin_cam_drift = p_head + cur_exit * 1.40 + cur_rt * 0.30 + north_dir * 0.08
+				cam.global_position = cabin_cam_start
+				cam.look_at(p_head, north_dir)
+				cam.fov = 62.0
 				
-				tw_zoom.chain().tween_callback(func():
-					if is_instance_valid(player_instance):
-						player_instance.visible = true
-						if p_cam:
-							p_cam.current = true
-						player_instance.set_physics_process(true)
-						player_instance.set_process(true)
-						player_instance.is_action_locked = false
+				# Play subtle cockpit cabin confirmation sound
+				AudioManager.play("click", 0.90, -4.0)
+				
+				# Cinematic 1.0s showcase drift admiring astronaut inside cabin
+				var tw_drift = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+				tw_drift.tween_property(cam, "global_position", cabin_cam_drift, 1.0)
+				
+				tw_drift.tween_callback(func():
+					if not is_instance_valid(cam):
+						return
 						
-					if is_instance_valid(hud_instance):
-						hud_instance.visible = true
-						if hud_instance.has_method("activate_hud"):
-							hud_instance.activate_hud()
+					# 3. Smooth dramatic zoom-in into golden visor reflection (1.1s)
+					var eye_target = p_head + cur_exit * 0.06
+					var tw_zoom = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+					tw_zoom.tween_property(cam, "global_position", eye_target, 1.1)
+					tw_zoom.parallel().tween_property(cam, "fov", 80.0, 1.1)
+					
+					tw_zoom.tween_callback(func():
+						AudioManager.play("click", 1.25, -1.0)
+						if is_instance_valid(player_instance):
+							var p_cam: Camera3D = player_instance.get_node_or_null("CameraPivot/Camera3D")
+							if player_instance.has_method("zoom_camera"):
+								player_instance.zoom_camera(-16.0) # Switches to 1st person
+							if p_cam:
+								p_cam.current = true
+							player_instance.set_physics_process(true)
+							player_instance.set_process(true)
+							player_instance.is_action_locked = false
 							
-					if is_instance_valid(cam):
-						cam.queue_free()
+						if is_instance_valid(hud_instance):
+							hud_instance.visible = true
+							if hud_instance.has_method("activate_hud"):
+								hud_instance.activate_hud()
+								
+						if is_instance_valid(cam):
+							cam.queue_free()
+					)
 				)
 			)
 		)
 
-func _spawn_ground_impact_effects(pos: Vector3, up_dir: Vector3) -> void:
+func _init_ground_scorch(pos: Vector3, up_dir: Vector3) -> void:
 	if has_node("GroundImpactCrater"):
 		return
 	var crater_mesh = PlaneMesh.new()
@@ -908,32 +944,45 @@ func _spawn_ground_impact_effects(pos: Vector3, up_dir: Vector3) -> void:
 	
 	var shader = load("res://assets/shaders/scorch_crater.gdshader")
 	if shader:
-		var mat = ShaderMaterial.new()
-		mat.shader = shader
-		crater_inst.material_override = mat
+		scorch_crater_mat = ShaderMaterial.new()
+		scorch_crater_mat.shader = shader
+		scorch_crater_mat.set_shader_parameter("scorch_opacity", 0.0)
+		scorch_crater_mat.set_shader_parameter("heat_glow", 0.0)
+		crater_inst.material_override = scorch_crater_mat
 	
 	# Exactly 2cm above the ground surface so it decals onto the terrain
 	crater_inst.position = pos + up_dir * 0.02
 	_align_node_to_up(crater_inst, up_dir)
 	add_child(crater_inst)
-	
-	# Residual smoke gently drifts up from the ground
-	var smoke = CPUParticles3D.new()
-	smoke.name = "ResidualSmoke"
-	smoke.emitting = true
-	smoke.amount = 25
-	smoke.lifetime = 3.5
-	smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
-	smoke.emission_ring_axis = Vector3(0, 1, 0)
-	smoke.emission_ring_radius = 4.8
-	smoke.emission_ring_inner_radius = 2.6
-	smoke.direction = Vector3(0, 1, 0)
-	smoke.spread = 22.0
-	smoke.gravity = Vector3(0, 0.40, 0)
-	smoke.initial_velocity_min = 0.2
-	smoke.initial_velocity_max = 0.6
-	smoke.color = Color(0.65, 0.62, 0.58, 0.24)
-	crater_inst.add_child(smoke)
+	scorch_crater_node = crater_inst
+
+func _spawn_ground_impact_effects(pos: Vector3, up_dir: Vector3) -> void:
+	if not has_node("GroundImpactCrater"):
+		_init_ground_scorch(pos, up_dir)
+		
+	if scorch_crater_mat:
+		scorch_crater_mat.set_shader_parameter("scorch_opacity", 1.0)
+		scorch_crater_mat.set_shader_parameter("heat_glow", 1.25)
+		
+	var crater_inst = get_node_or_null("GroundImpactCrater")
+	if crater_inst and not crater_inst.has_node("ResidualSmoke"):
+		# Residual smoke gently drifts up from the ground
+		var smoke = CPUParticles3D.new()
+		smoke.name = "ResidualSmoke"
+		smoke.emitting = true
+		smoke.amount = 25
+		smoke.lifetime = 3.5
+		smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+		smoke.emission_ring_axis = Vector3(0, 1, 0)
+		smoke.emission_ring_radius = 4.8
+		smoke.emission_ring_inner_radius = 2.6
+		smoke.direction = Vector3(0, 1, 0)
+		smoke.spread = 22.0
+		smoke.gravity = Vector3(0, 0.40, 0)
+		smoke.initial_velocity_min = 0.2
+		smoke.initial_velocity_max = 0.6
+		smoke.color = Color(0.65, 0.62, 0.58, 0.24)
+		crater_inst.add_child(smoke)
 
 func _deploy_hud_node() -> void:
 	var parent_node = get_parent()

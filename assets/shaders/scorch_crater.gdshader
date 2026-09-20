@@ -15,6 +15,7 @@ uniform vec3 ember_color : source_color = vec3(1.0, 0.35, 0.05);
 uniform float crater_radius : hint_range(4.0, 12.0) = 8.2;
 uniform float inner_blast_radius : hint_range(1.0, 5.0) = 3.6;
 uniform float heat_glow : hint_range(0.0, 2.0) = 0.85;
+uniform float scorch_opacity : hint_range(0.0, 1.0) = 1.0;
 
 float hash21(vec2 p) {
 	p = fract(p * vec2(234.34, 435.345));
@@ -82,6 +83,6 @@ void fragment() {
 	METALLIC = 0.12;
 	SPECULAR = 0.25;
 	
-	EMISSION = ember_color * crack_mask * 1.8;
-	ALPHA = alpha_mask;
+	EMISSION = ember_color * crack_mask * 1.8 * scorch_opacity;
+	ALPHA = alpha_mask * scorch_opacity;
 }

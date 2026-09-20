@@ -656,8 +656,15 @@ func _physics_process(delta: float) -> void:
 	if is_in_liquid:
 		var liq_density = get_liquid_density()
 		var drag_factor = clampf(1.05 / sqrt(liq_density), 0.50, 1.20)
-		var seabed_speed = current_speed * 0.70 * drag_factor
+		var is_hopping = prefers_lunar_hopping()
+		# En fluidos donde conviene saltar, al correr los saltos más grandes cubren mayor distancia
+		var seabed_speed = current_speed * (0.82 if (is_hopping and is_sprint_active) else (0.70 if is_hopping else 0.45)) * drag_factor
 		horizontal_vel = move_tangent * (input_str * seabed_speed)
+	else:
+		# En tierra firme: en baja gravedad los saltitos ("lunar lope") brindan mayor velocidad y tracción
+		if is_on_floor() and prefers_lunar_hopping():
+			var lope_speed_mult = 1.25 if is_sprint_active else 1.08
+			horizontal_vel = move_tangent * (input_str * current_speed * lope_speed_mult)
 
 	# 7. Procedural Limb & Posture Animations (Air, Land, Underwater, Jetpack)
 	if not is_action_locked and visuals:
@@ -730,36 +737,47 @@ func _physics_process(delta: float) -> void:
 				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(deg_to_rad(14.0) + gentle_scull, 0, deg_to_rad(18.0)), delta * 5.0)
 				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(deg_to_rad(14.0) + gentle_scull, 0, -deg_to_rad(18.0)), delta * 5.0)
 			elif input_str > 0.05:
-				# Underwater Seabed Bounding Strides ("saltitos" proporcionales a la densidad del líquido)
 				var liq_density = get_liquid_density()
 				var density_t = clampf((liq_density - 0.45) / 2.2, 0.0, 1.0)
-				var hop_freq = lerpf(4.8, 2.4, density_t) * (1.25 if is_sprint_active else 1.0)
-				var hop_height = lerpf(0.24, 0.11, density_t)
 				
-				walk_time += delta * hop_freq
-				var hop_phase = fmod(walk_time, PI)
-				var hop_y = sin(hop_phase) * hop_height
-				visuals.position.y = hop_y
-				
-				# Inclinación sutil hacia adelante durante el saltito
-				var forward_lean = deg_to_rad(5.0) + (hop_y / maxf(0.01, hop_height)) * deg_to_rad(4.0)
-				visuals.rotation.x = lerp_angle(visuals.rotation.x, forward_lean, delta * 6.0)
-				visuals.rotation.z = -input_vec.x * 0.04
-				
-				# Zancada amplia y suspendida de saltito submarino
-				var stride = sin(walk_time) * (0.42 if is_sprint_active else 0.32)
-				if left_leg: left_leg.rotation.x = stride
-				if right_leg: right_leg.rotation.x = -stride
-				
-				# Brazos extendidos para estabilización hidrodinámica
-				var arm_spread = deg_to_rad(14.0) + sin(hop_phase) * deg_to_rad(6.0)
-				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(-deg_to_rad(10.0), 0, arm_spread), delta * 8.0)
-				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(-deg_to_rad(10.0), 0, -arm_spread), delta * 8.0)
-				
-				# Burbujas periódicas levantadas en cada saltito en el fondo
-				if hop_phase < delta * hop_freq:
-					if fmod(walk_time, TAU) < delta * hop_freq * 1.5:
-						AudioManager.play("bubbles", 0.75, -2.0)
+				if prefers_lunar_hopping():
+					# Saltitos submarinos elásticos ("lunar lope" subacuático)
+					# Al correr (sprint), saltos notablemente más grandes y zancada más amplia
+					var hop_freq = lerpf(4.4, 2.6, density_t) * (1.15 if is_sprint_active else 1.0)
+					var base_hop_h = lerpf(0.22, 0.12, density_t)
+					var hop_height = base_hop_h * (1.85 if is_sprint_active else 1.0) # Al correr saltos casi el doble de altos (~0.40m en agua/metano!)
+					
+					walk_time += delta * hop_freq
+					var hop_phase = fmod(walk_time, PI)
+					var hop_y = sin(hop_phase) * hop_height
+					visuals.position.y = hop_y
+					
+					var forward_lean = deg_to_rad(6.0 if is_sprint_active else 4.0) + (hop_y / maxf(0.01, hop_height)) * deg_to_rad(6.0 if is_sprint_active else 4.0)
+					visuals.rotation.x = lerp_angle(visuals.rotation.x, forward_lean, delta * 6.0)
+					visuals.rotation.z = -input_vec.x * 0.04
+					
+					var stride = sin(walk_time) * (0.54 if is_sprint_active else 0.35)
+					if left_leg: left_leg.rotation.x = stride
+					if right_leg: right_leg.rotation.x = -stride
+					
+					var arm_spread = deg_to_rad(14.0) + sin(hop_phase) * deg_to_rad(8.0 if is_sprint_active else 4.0)
+					if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(-deg_to_rad(10.0), 0, arm_spread), delta * 8.0)
+					if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(-deg_to_rad(10.0), 0, -arm_spread), delta * 8.0)
+					
+					# Burbujas periódicas levantadas en cada saltito en el fondo
+					if hop_phase < delta * hop_freq:
+						if fmod(walk_time, TAU) < delta * hop_freq * 1.5:
+							AudioManager.play("bubbles", 0.75, -2.0)
+				else:
+					# Magma hiper-denso: vadeo viscoso pesado sin saltitos
+					walk_time += delta * (4.5 if is_sprint_active else 2.8)
+					visuals.position.y = 0.0
+					visuals.rotation.x = lerp_angle(visuals.rotation.x, deg_to_rad(4.0), delta * 6.0)
+					var stride = sin(walk_time) * (0.35 if is_sprint_active else 0.22)
+					if left_leg: left_leg.rotation.x = stride
+					if right_leg: right_leg.rotation.x = -stride
+					if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(0.0, 0, deg_to_rad(10.0)), delta * 6.0)
+					if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(0.0, 0, -deg_to_rad(10.0)), delta * 6.0)
 			else:
 				# Upright standing still in fluid
 				walk_time += delta * 1.5
@@ -798,15 +816,44 @@ func _physics_process(delta: float) -> void:
 					helmet.rotation = HELMET_HELD_ROT
 					helmet.visible = true
 			elif input_str > 0.05:
-				walk_time += delta * (14.0 if is_sprint_active else 8.5)
-				var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
-				visuals.rotation.x = lerp_angle(visuals.rotation.x, 0.0, delta * 8.0)
-				visuals.rotation.z = -input_vec.x * 0.08
-				visuals.position.y = abs(sin(walk_time)) * 0.05
-				if left_leg: left_leg.rotation.x = swing
-				if right_leg: right_leg.rotation.x = -swing
-				if left_arm: left_arm.rotation = Vector3(-swing * 0.8, 0, 0)
-				if right_arm and not is_mining: right_arm.rotation = Vector3(swing * 0.8, 0, 0)
+				if is_on_floor() and prefers_lunar_hopping():
+					# Marcha Apolo ("Lunar Loping Stride" del footage histórico de la NASA)
+					# En baja gravedad (Luna, Marte, asteroides, lunas heladas): saltitos elásticos
+					# Al correr (sprint): ¡saltos notablemente más grandes (~0.46m en el aire)!
+					var lope_freq = 5.2 if is_sprint_active else 4.4
+					var lope_hop_h = 0.46 if is_sprint_active else 0.22
+					
+					walk_time += delta * lope_freq
+					var hop_phase = fmod(walk_time, PI)
+					var hop_y = sin(hop_phase) * lope_hop_h
+					visuals.position.y = hop_y
+					
+					# Inclinación de avance del footage lunar
+					var forward_lean = deg_to_rad(12.0 if is_sprint_active else 6.0)
+					visuals.rotation.x = lerp_angle(visuals.rotation.x, forward_lean, delta * 8.0)
+					visuals.rotation.z = -input_vec.x * 0.06
+					
+					# Zancada lunar suspendida en el aire
+					var stride = sin(walk_time) * (0.60 if is_sprint_active else 0.40)
+					if left_leg: left_leg.rotation.x = stride
+					if right_leg: right_leg.rotation.x = -stride
+					
+					# Brazos en abducción espacial balanceando el salto
+					var arm_pitch = -deg_to_rad(8.0) - sin(walk_time) * deg_to_rad(14.0 if is_sprint_active else 8.0)
+					var arm_spread = deg_to_rad(20.0 if is_sprint_active else 15.0)
+					if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(arm_pitch, 0, arm_spread), delta * 8.0)
+					if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(-arm_pitch, 0, -arm_spread), delta * 8.0)
+				else:
+					# Planetas de gravedad normal/alta (Tierra, mundos densos): marcha terrestre tradicional paso a paso
+					walk_time += delta * (14.0 if is_sprint_active else 8.5)
+					var swing = sin(walk_time) * (0.65 if is_sprint_active else 0.45)
+					visuals.rotation.x = lerp_angle(visuals.rotation.x, 0.0, delta * 8.0)
+					visuals.rotation.z = -input_vec.x * 0.08
+					visuals.position.y = abs(sin(walk_time)) * 0.05
+					if left_leg: left_leg.rotation.x = swing
+					if right_leg: right_leg.rotation.x = -swing
+					if left_arm: left_arm.rotation = Vector3(-swing * 0.8, 0, 0)
+					if right_arm and not is_mining: right_arm.rotation = Vector3(swing * 0.8, 0, 0)
 			else:
 				walk_time += delta * 1.5
 				var idle_breath = sin(walk_time) * 0.015
@@ -981,6 +1028,22 @@ func get_liquid_density() -> float:
 		return 0.92 # Amoníaco-agua (~920 kg/m³)
 	else:
 		return 1.00 # Agua marina estándar (~1025 kg/m³)
+
+func prefers_lunar_hopping() -> bool:
+	var p_params = planet if planet.size() > 0 else (GameManager.current_planet if is_instance_valid(GameManager) else {})
+	if is_in_liquid:
+		# En líquido: la flotabilidad reduce el peso aparente. En fluidos normales o ligeros
+		# (metano, agua, amoníaco, ácido) conviene avanzar a saltitos submarinos.
+		# En magma hiperdenso y viscoso (>2.2 g/cm³), el fluido bloquea el salto; conviene caminar empujando.
+		var liq_density = get_liquid_density()
+		return liq_density < 2.2
+	else:
+		# En tierra firme:
+		# En planetas de baja gravedad (< 0.78g como la Luna, Marte, asteroides o lunas heladas),
+		# la tracción de caminar plano es ineficiente; conviene el "lunar lope" de saltitos de las misiones Apolo.
+		# En mundos terrestres de gravedad normal o alta (>= 0.78g), caminar normal es más eficiente.
+		var grav_g = float(p_params.get("gravity_g", p_params.get("gravity", 9.8) / 9.8))
+		return grav_g < 0.78
 
 func _die(reason: String) -> void:
 	is_dead = true

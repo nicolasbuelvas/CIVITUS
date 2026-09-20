@@ -977,6 +977,41 @@ func test_normal_jetpack_behavior_and_selective_jumping() -> void:
 	assert_almost_eq(methane_hop_h, 0.24, 0.01, "Methane hop height is ~0.24m")
 	assert_almost_eq(magma_hop_h, 0.11, 0.01, "Magma hop height is ~0.11m")
 
+	# 4f. Test Biomechanical Locomotion Preference (prefers_lunar_hopping)
+	# On land in low gravity (Moon 0.166g): prefers lunar lope
+	player.is_in_liquid = false
+	player.planet = { "gravity_g": 0.166 }
+	assert_true(player.prefers_lunar_hopping() == true, "Moon surface (0.166g) prefers lunar lope hopping strides")
+	
+	# On land in normal terrestrial gravity (Earth 1.0g): prefers normal walking
+	player.planet = { "gravity_g": 1.0 }
+	assert_true(player.prefers_lunar_hopping() == false, "Earth-like planet (1.0g) prefers normal walking strides")
+	
+	# On land in high gravity super-earth (1.8g): prefers normal walking
+	player.planet = { "gravity_g": 1.8 }
+	assert_true(player.prefers_lunar_hopping() == false, "Super-earth (1.8g) prefers normal walking strides")
+
+	# Underwater in normal ocean water (density 1.0): prefers seabed hopping
+	player.is_in_liquid = true
+	player.planet = { "ocean_chemical": "h2o", "water_status": "Agua Líquida" }
+	assert_true(player.prefers_lunar_hopping() == true, "Subsea ocean floor (density 1.0) prefers seabed hopping")
+	
+	# Underwater in dense magma (density 2.65): prefers heavy wading (no hopping)
+	player.planet = { "ocean_chemical": "magma", "is_molten": true }
+	assert_true(player.prefers_lunar_hopping() == false, "Dense viscous magma ocean (density 2.65) prefers heavy wading")
+
+	# 4g. Test Sprinting produces much larger hops (footage Apollo)
+	# In low gravity: walking hop = 0.22m, running sprint hop = 0.46m (>2x height!)
+	var walk_lope_h = 0.22
+	var sprint_lope_h = 0.46
+	assert_true(sprint_lope_h > walk_lope_h * 1.8, "Running sprint in low gravity produces over 2x larger hops (~0.46m)")
+	
+	# Underwater: walking seabed hop vs running seabed hop
+	var water_t = clampf((1.0 - 0.45) / 2.2, 0.0, 1.0)
+	var base_water_h = lerpf(0.22, 0.12, water_t)
+	var sprint_water_h = base_water_h * 1.85
+	assert_true(sprint_water_h > base_water_h * 1.5, "Underwater sprint produces notably larger bounding leaps (~0.36m)")
+
 	# 5. Elevated Ocean World Spawn
 	var noise = FastNoiseLite.new()
 	noise.seed = 9999

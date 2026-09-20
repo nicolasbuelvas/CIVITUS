@@ -48,9 +48,13 @@ func _ready() -> void:
 	print("[Test Landing Flow] At 2.6s of wait: HUD visible (still false): ", hud.visible if hud else "no hud")
 	assert(hud == null or hud.visible == false, "HUD must remain hidden throughout 3s wait!")
 	
-	# 4. Wait for zoom-in completion (1.4s zoom + buffer)
+	# Mid-zoom snapshot (0.6s into the 1.4s zoom transition) - verify NO headless astronaut
+	await get_tree().create_timer(0.9).timeout
+	_save_viewport("screenshot_flow_2b_mid_zoom.png")
+	
+	# 4. Wait for zoom-in completion (remaining 1.0s zoom + buffer)
 	print("[Test Landing Flow] Waiting for zoom in to first person...")
-	await get_tree().create_timer(2.0).timeout
+	await get_tree().create_timer(1.2).timeout
 	
 	var player = planet.player_instance
 	print("[Test Landing Flow] Player action locked: ", player.is_action_locked if player else "no player")

@@ -83,24 +83,16 @@ func play_landing_intro(target_pos: Vector3, up_dir: Vector3) -> void:
 	AudioManager.play("reentry", 0.80, 4.5)
 	AudioManager.play("thruster", 0.90, 4.0)
 	
-	# Kerbal Space Program style multi-stage physics trajectory
-	var tw = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	# Smooth continuous atmospheric retro-burn descent without intermediate slowdowns
+	var tw = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	
-	# Stage 1: High altitude atmospheric entry & deceleration (88m -> 20m)
-	var mid_pos_1 = target_pos + up_dir * 20.0
-	tw.tween_property(self, "global_position", mid_pos_1, 4.8)
-	
-	# Stage 2: Terminal low-altitude retro-burn (20m -> 1.8m) with flame wash reaching surface
-	var mid_pos_2 = target_pos + up_dir * 1.8
-	tw.tween_property(self, "global_position", mid_pos_2, 2.6)
+	# Continuous descent: high speed in upper atmosphere decelerating smoothly into touchdown
+	tw.tween_property(self, "global_position", target_pos, 5.4)
 	if flame_pivot:
-		# Flame plume elongates DOWNWARDS only, reaching towards ground
-		tw.parallel().tween_property(flame_pivot, "scale:y", 2.2, 2.6)
+		# Flame plume expands steadily as ground approaches
+		tw.parallel().tween_property(flame_pivot, "scale:y", 2.2, 5.0)
 		
-	# Stage 3: Touchdown soft cushion (1.8m -> target_pos)
-	tw.tween_property(self, "global_position", target_pos, 0.8)
-	
-	# Stage 4: Touchdown impact, leg suspension compression & firm parking freeze
+	# Touchdown impact, leg suspension compression & firm parking freeze
 	tw.tween_callback(func():
 		is_landing_intro_active = false
 		if flame_pivot:
@@ -111,8 +103,8 @@ func play_landing_intro(target_pos: Vector3, up_dir: Vector3) -> void:
 		
 		# KSP landing leg suspension compression bounce
 		var tw_bounce = create_tween().set_trans(Tween.TRANS_SINE)
-		tw_bounce.tween_property(self, "global_position", target_pos - up_dir * 0.18, 0.12)
-		tw_bounce.tween_property(self, "global_position", target_pos, 0.22)
+		tw_bounce.tween_property(self, "global_position", target_pos - up_dir * 0.14, 0.10)
+		tw_bounce.tween_property(self, "global_position", target_pos, 0.18)
 		tw_bounce.tween_callback(func():
 			# Firmly frozen and parked on the ground
 			global_position = target_pos

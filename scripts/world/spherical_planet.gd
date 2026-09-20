@@ -849,14 +849,16 @@ func _deploy_landing_camera(ground_ship_pos: Vector3, north_dir: Vector3) -> voi
 			var tw_wait = create_tween()
 			tw_wait.tween_interval(3.0)
 			tw_wait.tween_callback(func():
-				# Load astronaut inside cabin
+				# Prepare and position astronaut inside cabin (keep invisible to prevent headless 3P frame during zoom)
+				var cur_exit = Vector3.FORWARD
+				if is_instance_valid(spaceship_instance):
+					cur_exit = spaceship_instance.global_transform.basis.z.normalized()
 				if is_instance_valid(player_instance):
-					player_instance.visible = true
-					var cur_exit = spaceship_instance.global_transform.basis.z.normalized()
+					player_instance.visible = false
 					player_instance.global_position = spaceship_instance.global_position + north_dir * 0.35 + cur_exit * 0.2
 					player_instance.is_action_locked = true
 					if player_instance.has_method("zoom_camera"):
-						player_instance.zoom_camera(-16.0) # Ensure 1st person mode
+						player_instance.zoom_camera(-16.0) # Pre-set 1st person mode
 						
 				if not is_instance_valid(cam):
 					return
@@ -869,10 +871,15 @@ func _deploy_landing_camera(ground_ship_pos: Vector3, north_dir: Vector3) -> voi
 				else:
 					target_zoom_pos = spaceship_instance.global_position + north_dir * 1.6
 					
-				var tw_zoom = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+				var tw_zoom = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT).set_parallel(true)
 				tw_zoom.tween_property(cam, "global_position", target_zoom_pos, 1.4)
-				tw_zoom.tween_callback(func():
+				# Align camera gaze forward towards cockpit hatch during zoom
+				var look_target = target_zoom_pos + cur_exit * 8.0
+				cam.look_at(look_target, north_dir)
+				
+				tw_zoom.chain().tween_callback(func():
 					if is_instance_valid(player_instance):
+						player_instance.visible = true
 						if p_cam:
 							p_cam.current = true
 						player_instance.set_physics_process(true)

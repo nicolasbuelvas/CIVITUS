@@ -14,9 +14,10 @@ void fragment() {
 	float n_dot_v = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
 	float rim = pow(1.0 - n_dot_v, rim_power);
 	
-	// Rayleigh forward-scattering on host-star illuminated hemisphere
+	// Rayleigh forward-scattering on host-star illuminated hemisphere (world space normal)
 	vec3 sun_dir_norm = normalize(sun_direction);
-	float sun_factor = clamp(dot(NORMAL, sun_dir_norm), 0.0, 1.0);
+	vec3 world_normal = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	float sun_factor = clamp(dot(world_normal, sun_dir_norm), 0.0, 1.0);
 	float sun_scattering = pow(sun_factor, sun_intensity_power) * 1.5 + 0.12;
 	
 	// Sunset golden-crimson reddening along the terminator edge

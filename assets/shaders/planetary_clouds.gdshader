@@ -28,9 +28,15 @@ float noise3d(vec3 p) {
 	               mix(hash3(i + vec3(0,1,1)), hash3(i + vec3(1,1,1)), u.x), u.y), u.z);
 }
 
+varying vec3 v_world_norm;
+
+void vertex() {
+	v_world_norm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+
 void fragment() {
-	// Sphere coordinate projection from vertex normal
-	vec3 norm = normalize(NORMAL);
+	// Sphere coordinate projection from world normal (independent of camera angle)
+	vec3 norm = normalize(v_world_norm);
 	
 	// Dual-drift atmospheric wind currents (east-west jet streams)
 	float t = TIME * cloud_speed;

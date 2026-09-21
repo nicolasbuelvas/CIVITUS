@@ -128,10 +128,10 @@ void fragment() {
 	float is_shore_wet = 1.0 - smoothstep(0.0, 1.4, dist_to_sea);
 	shaded_terrain = mix(shaded_terrain, shaded_terrain * 0.90, is_shore_wet * 0.40);
 	
-	// Normal perturbation for rough micro-relief
-	vec3 perturbed_norm = norm;
+	// Normal perturbation for rough micro-relief in world space, then transformed to view space for Godot PBR
 	float bump = (rock_texture - 0.5) * 0.28 * is_step_top + (cliff_fissures - 0.5) * 0.18 * (1.0 - is_step_top);
-	NORMAL = normalize(norm + tangent * bump + bitangent * bump);
+	vec3 world_perturbed_norm = normalize(norm + tangent * bump + bitangent * bump);
+	NORMAL = normalize((VIEW_MATRIX * vec4(world_perturbed_norm, 0.0)).xyz);
 	
 	ALBEDO = shaded_terrain;
 	ROUGHNESS = mix(roughness, 0.18, is_shore_wet);

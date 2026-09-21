@@ -85,16 +85,18 @@ corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_JarvisCard"]
-bg_color = Color(0.03, 0.06, 0.1, 0.65)
-border_width_left = 1
+bg_color = Color(0.04, 0.06, 0.11, 0.75)
+border_width_left = 3
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.18, 0.8, 1, 0.35)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
+border_color = Color(0.18, 0.85, 1, 0.65)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 4
 
 [node name="HUD" type="Control"]
 visible = false
@@ -106,6 +108,17 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_hud")
+
+[node name="JarvisVisorOverlay" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_visor")
 
 [node name="MobileLayer" type="Control" parent="."]
 layout_mode = 1
@@ -145,10 +158,10 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -320.0
+offset_left = -340.0
 offset_top = -250.0
-offset_right = -20.0
-offset_bottom = -20.0
+offset_right = -36.0
+offset_bottom = -36.0
 grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
@@ -161,10 +174,10 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -98.0
-offset_top = -98.0
-offset_right = -10.0
-offset_bottom = -10.0
+offset_left = -88.0
+offset_top = -88.0
+offset_right = 0.0
+offset_bottom = 0.0
 grow_horizontal = 0
 grow_vertical = 0
 texture_normal = ExtResource("3_thrust")
@@ -179,10 +192,10 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -276.0
-offset_top = -92.0
-offset_right = -196.0
-offset_bottom = -12.0
+offset_left = -266.0
+offset_top = -84.0
+offset_right = -186.0
+offset_bottom = -4.0
 grow_horizontal = 0
 grow_vertical = 0
 script = ExtResource("6_art_btn")
@@ -196,10 +209,10 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -184.0
-offset_top = -88.0
-offset_right = -110.0
-offset_bottom = -14.0
+offset_left = -174.0
+offset_top = -80.0
+offset_right = -100.0
+offset_bottom = -6.0
 grow_horizontal = 0
 grow_vertical = 0
 texture_normal = ExtResource("5_run")
@@ -217,10 +230,10 @@ mouse_filter = 2
 [node name="VitalsPod" type="PanelContainer" parent="TopLayer"]
 visible = false
 layout_mode = 0
-offset_left = 20.0
-offset_top = 16.0
-offset_right = 220.0
-offset_bottom = 96.0
+offset_left = 52.0
+offset_top = 34.0
+offset_right = 264.0
+offset_bottom = 126.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_JarvisCard")
 
 [node name="Margin" type="MarginContainer" parent="TopLayer/VitalsPod"]
@@ -345,19 +358,13 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -425.0
-offset_top = 14.0
-offset_right = -14.0
-offset_bottom = 60.0
+offset_left = -380.0
+offset_top = 28.0
+offset_right = -48.0
+offset_bottom = 74.0
 grow_horizontal = 0
 theme_override_constants/separation = 12
 alignment = 2
-
-[node name="SuitAlertBtn" type="BaseButton" parent="TopLayer/TopBarCluster"]
-custom_minimum_size = Vector2(46, 46)
-layout_mode = 2
-script = ExtResource("6_art_btn")
-icon_name = "suit_alert"
 
 [node name="HeadlampBtn" type="BaseButton" parent="TopLayer/TopBarCluster"]
 custom_minimum_size = Vector2(46, 46)
@@ -381,17 +388,6 @@ custom_minimum_size = Vector2(46, 46)
 layout_mode = 2
 script = ExtResource("6_art_btn")
 icon_name = "pause"
-
-[node name="JarvisVisorOverlay" type="Control" parent="."]
-visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("4_visor")
 
 [node name="Modals" type="Control" parent="."]
 layout_mode = 1

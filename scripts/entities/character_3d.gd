@@ -470,7 +470,8 @@ func _check_fps_mode() -> void:
 	var should_be_fps = target_zoom <= FPS_THRESHOLD
 	if should_be_fps != is_first_person:
 		is_first_person = should_be_fps
-		visuals.visible = true
+		if visuals:
+			visuals.visible = true
 		if head:
 			head.visible = not is_first_person
 		set_suit_mode(is_in_space_suit)

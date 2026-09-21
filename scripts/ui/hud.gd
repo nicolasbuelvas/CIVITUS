@@ -289,6 +289,8 @@ func _on_first_person_toggled(is_fps: bool) -> void:
 		vitals_pod.visible = is_fps
 	if header_node:
 		header_node.visible = not is_fps
+	if hyperdrive_badge:
+		hyperdrive_badge.visible = not is_fps
 	if suit_alert_btn:
 		suit_alert_btn.visible = not is_fps
 		if is_fps:

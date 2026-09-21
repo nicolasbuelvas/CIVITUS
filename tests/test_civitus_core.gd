@@ -1293,19 +1293,18 @@ func test_hud_topbar_cluster_and_3d_body_props_and_dual_storage_modes() -> void:
 	
 	var top_cluster = hud.get_node_or_null("TopLayer/TopBarCluster")
 	assert_true(top_cluster != null, "TopLayer contains TopBarCluster HBoxContainer")
-	assert_true(top_cluster.get_child_count() == 5, "TopBarCluster contains 5 children (SuitAlert, Headlamp, Backpack, Hyperdrive, Pause)")
+	assert_true(top_cluster.get_child_count() == 4, "TopBarCluster contains 4 key controls (Headlamp, Backpack, Hyperdrive, Pause)")
 	
 	var suit_btn = top_cluster.get_node_or_null("SuitAlertBtn")
 	var lamp_btn = top_cluster.get_node_or_null("HeadlampBtn")
 	var bpack_btn = top_cluster.get_node_or_null("BackpackBtn")
 	var hd_badge = top_cluster.get_node_or_null("HyperdriveBadge")
 	var p_btn = top_cluster.get_node_or_null("PauseBtn")
-	assert_true(suit_btn != null, "SuitAlertBtn exists in TopBarCluster")
+	assert_true(suit_btn == null, "Redundant SuitAlertBtn removed from TopBarCluster")
 	assert_true(lamp_btn != null, "HeadlampBtn exists in TopBarCluster")
 	assert_true(bpack_btn != null, "BackpackBtn exists in TopBarCluster")
 	assert_true(hd_badge != null, "HyperdriveBadge exists in TopBarCluster")
 	assert_true(p_btn != null, "PauseBtn exists in TopBarCluster")
-	assert_true(suit_btn.icon_name == "suit_alert", "SuitAlertBtn uses 'suit_alert' icon")
 	assert_true(lamp_btn.icon_name == "headlamp", "HeadlampBtn uses 'headlamp' icon")
 	assert_true(bpack_btn.icon_name == "backpack", "BackpackBtn uses 'backpack' icon")
 	assert_true(p_btn.icon_name == "pause", "PauseBtn uses 'pause' icon")
@@ -1645,21 +1644,19 @@ func test_suit_alerts_helmet_visor_frame_and_headlamp_illumination() -> void:
 	hud.init_player(character)
 	hud.activate_hud()
 	
-	assert_true(hud.suit_alert_btn != null, "HUD contains suit_alert_btn")
+	assert_true(hud.suit_alert_btn == null, "Suit helmet icon removed from HUD (not needed)")
 	assert_true(hud.headlamp_btn != null, "HUD contains headlamp_btn")
 	
 	# Test triggering Suit EVA Alert upon exiting cabin
 	hud.trigger_suit_eva_alert("SISTEMAS EVA ACTIVOS • TRAJE NOMINAL")
-	assert_true(hud.suit_alert_btn.is_active == true, "suit_alert_btn enters active pulsing caution state")
 	assert_true(hud.active_toast_panel != null, "HUD displays status toast notification for EVA alert")
 	
-	# Entering First Person acknowledges and clears the alert
+	# Entering First Person
 	character.toggle_first_person()
 	hud._on_first_person_toggled(true)
-	assert_true(hud.suit_alert_btn.is_active == false, "Suit alert acknowledged and cleared upon entering visor mode")
 	assert_true(hud.jarvis_overlay.visible == true, "Helmet visor overlay visible in first person")
-	assert_true(hud.suit_alert_btn.visible == false, "Suit alert helmet button hidden in first person")
 	assert_true(hud.vitals_pod.visible == true, "Vitals pod visible in first person for key stats")
+	assert_true(hud.hyperdrive_badge.visible == false, "Hyperdrive badge hidden in first person view")
 	assert_true(hud.header_node.visible == false, "Planet header hidden in first person to prevent clutter")
 	
 	# Test Headlamp Button on HUD toggles character lights

@@ -21,6 +21,8 @@ var swim_icon = preload("res://assets/sprites/icon_swim.png")
 @onready var planet_name_label: Label = $TopLayer/Header/PlanetLabel
 @onready var hyperdrive_badge = $TopLayer/TopBarCluster/HyperdriveBadge if has_node("TopLayer/TopBarCluster/HyperdriveBadge") else $TopLayer/HyperdriveBadge
 @onready var pause_btn = $TopLayer/TopBarCluster/PauseBtn if has_node("TopLayer/TopBarCluster/PauseBtn") else $TopLayer/PauseBtn
+@onready var suit_alert_btn = $TopLayer/TopBarCluster/SuitAlertBtn if has_node("TopLayer/TopBarCluster/SuitAlertBtn") else null
+@onready var headlamp_btn = $TopLayer/TopBarCluster/HeadlampBtn if has_node("TopLayer/TopBarCluster/HeadlampBtn") else null
 @onready var top_layer: Control = $TopLayer
 @onready var vitals_pod: Control = $TopLayer/VitalsPod
 
@@ -126,7 +128,9 @@ func _ready() -> void:
 			modals_node.add_child(astronaut_storage_modal)
 			
 	_setup_backpack_btn()
+	_setup_top_bar_buttons()
 	_setup_modal_art_styling()
+	add_to_group("hud")
 	
 	_update_crafting_ui()
 	_update_hyperdrive_ui()
@@ -145,9 +149,9 @@ func _update_localization() -> void:
 	# Pause Modal
 	var pause_title = get_node_or_null("Modals/PauseModal/VBox/Title")
 	if pause_title: pause_title.text = GameManager.loc("pause_title")
-	if pause_resume_btn: pause_resume_btn.text = "▶ " + GameManager.loc("resume_btn")
-	if pause_settings_btn: pause_settings_btn.text = "⚙ " + GameManager.loc("settings")
-	if pause_menu_btn: pause_menu_btn.text = "⌂ " + GameManager.loc("return_menu")
+	if pause_resume_btn: pause_resume_btn.text = GameManager.loc("resume_btn")
+	if pause_settings_btn: pause_settings_btn.text = GameManager.loc("settings")
+	if pause_menu_btn: pause_menu_btn.text = GameManager.loc("return_menu")
 	
 	# Storage Modal
 	var storage_title = get_node_or_null("Modals/StorageModal/VBox/Title")
@@ -222,8 +226,12 @@ func init_player(p: CharacterBody3D) -> void:
 	player.interaction_available.connect(_on_interaction_available)
 	player.interaction_lost.connect(_on_interaction_lost)
 	player.first_person_toggled.connect(_on_first_person_toggled)
+	if player.has_signal("headlamp_toggled") and not player.headlamp_toggled.is_connected(_on_headlamp_toggled):
+		player.headlamp_toggled.connect(_on_headlamp_toggled)
 	if visible:
 		_on_first_person_toggled(player.is_first_person)
+		if headlamp_btn and "is_headlamp_on" in player:
+			headlamp_btn.is_active = player.is_headlamp_on
 
 func activate_hud() -> void:
 	visible = true
@@ -233,6 +241,38 @@ func activate_hud() -> void:
 		mobile_layer.visible = true
 	if player:
 		_on_first_person_toggled(player.is_first_person)
+		if headlamp_btn and "is_headlamp_on" in player:
+			headlamp_btn.is_active = player.is_headlamp_on
+
+func _setup_top_bar_buttons() -> void:
+	if suit_alert_btn and not suit_alert_btn.pressed.is_connected(_on_suit_alert_btn_pressed):
+		suit_alert_btn.pressed.connect(_on_suit_alert_btn_pressed)
+	if headlamp_btn and not headlamp_btn.pressed.is_connected(_on_headlamp_btn_pressed):
+		headlamp_btn.pressed.connect(_on_headlamp_btn_pressed)
+
+func _on_headlamp_btn_pressed() -> void:
+	if player and player.has_method("toggle_headlamp"):
+		var on = player.toggle_headlamp()
+		if headlamp_btn:
+			headlamp_btn.is_active = on
+
+func _on_headlamp_toggled(is_on: bool) -> void:
+	if headlamp_btn:
+		headlamp_btn.is_active = is_on
+
+func _on_suit_alert_btn_pressed() -> void:
+	AudioManager.play("click")
+	if player and player.has_method("toggle_first_person"):
+		if not player.is_first_person:
+			player.toggle_first_person()
+	if suit_alert_btn:
+		suit_alert_btn.is_active = false
+
+func trigger_suit_eva_alert(custom_msg: String = "") -> void:
+	if suit_alert_btn:
+		suit_alert_btn.is_active = true
+	var msg = custom_msg if custom_msg != "" else "SISTEMAS EVA ACTIVOS • TRAJE NOMINAL"
+	show_status_toast(msg, 2.8)
 
 func _on_cam_toggle_pressed() -> void:
 	AudioManager.play("click")
@@ -249,7 +289,9 @@ func _on_first_person_toggled(is_fps: bool) -> void:
 	if cam_toggle_btn:
 		if "is_active" in cam_toggle_btn:
 			cam_toggle_btn.is_active = is_fps
-		cam_toggle_btn.text = "👤" if is_fps else "👁"
+		cam_toggle_btn.text = ""
+	if suit_alert_btn and is_fps:
+		suit_alert_btn.is_active = false
 	if jarvis_overlay:
 		jarvis_overlay.visible = is_fps
 		if is_fps and visible:

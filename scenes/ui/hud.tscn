@@ -362,13 +362,25 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -310.0
+offset_left = -425.0
 offset_top = 14.0
 offset_right = -14.0
 offset_bottom = 60.0
 grow_horizontal = 0
 theme_override_constants/separation = 12
 alignment = 2
+
+[node name="SuitAlertBtn" type="BaseButton" parent="TopLayer/TopBarCluster"]
+custom_minimum_size = Vector2(46, 46)
+layout_mode = 2
+script = ExtResource("6_art_btn")
+icon_name = "suit_alert"
+
+[node name="HeadlampBtn" type="BaseButton" parent="TopLayer/TopBarCluster"]
+custom_minimum_size = Vector2(46, 46)
+layout_mode = 2
+script = ExtResource("6_art_btn")
+icon_name = "headlamp"
 
 [node name="BackpackBtn" type="BaseButton" parent="TopLayer/TopBarCluster"]
 custom_minimum_size = Vector2(46, 46)

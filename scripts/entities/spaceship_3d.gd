@@ -500,6 +500,9 @@ func _on_cabin_exited(body: Node3D) -> void:
 			stand_up_from_pilot_seat(player_ref)
 		if player_ref and player_ref.has_method("set_suit_mode"):
 			player_ref.set_suit_mode(true)
+		var hud = get_tree().get_first_node_in_group("hud")
+		if hud and hud.has_method("trigger_suit_eva_alert"):
+			hud.trigger_suit_eva_alert()
 
 # Cabin Module Interaction & Management
 func get_cabin_module_interaction(p: CharacterBody3D) -> Dictionary:
@@ -509,9 +512,9 @@ func get_cabin_module_interaction(p: CharacterBody3D) -> Dictionary:
 	var local_p = to_local(p.global_position)
 	# Check hatch threshold first if near door
 	if not is_hatch_open and local_p.z > 2.0 and local_p.z < 3.3:
-		return {"type": "open_hatch", "label": "🚪 " + GameManager.loc("context_open"), "target": self}
+		return {"type": "open_hatch", "label": GameManager.loc("context_open"), "target": self}
 	if is_hatch_open and local_p.z > 0.8 and local_p.z <= 2.2 and absf(local_p.x) < 1.2:
-		return {"type": "close_hatch", "label": "🚪 " + GameManager.loc("context_close"), "target": self}
+		return {"type": "close_hatch", "label": GameManager.loc("context_close"), "target": self}
 		
 	# Find the closest module within interaction radius
 	var p_2d = Vector2(local_p.x, local_p.z)

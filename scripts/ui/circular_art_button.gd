@@ -47,7 +47,9 @@ enum IconType {
 	WIRE,
 	MICROCHIP,
 	REACTOR_CELL,
-	LUNA_COIN
+	LUNA_COIN,
+	SUIT_ALERT,
+	HEADLAMP
 }
 
 @export var icon_type: IconType = IconType.NONE:
@@ -158,6 +160,8 @@ func _resolve_icon_name() -> void:
 		"microchip": icon_type = IconType.MICROCHIP
 		"reactor_cell": icon_type = IconType.REACTOR_CELL
 		"coin", "luna_coin", "luna": icon_type = IconType.LUNA_COIN
+		"suit_alert", "suit", "helmet", "alert", "eva": icon_type = IconType.SUIT_ALERT
+		"headlamp", "flashlight", "torch", "light", "lights": icon_type = IconType.HEADLAMP
 		_: pass
 
 func _on_mouse_entered() -> void:
@@ -343,6 +347,10 @@ func _draw() -> void:
 			_draw_tool_reactor_cell(icon_center, icon_scale)
 		IconType.LUNA_COIN:
 			_draw_luna_coin(icon_center, icon_scale)
+		IconType.SUIT_ALERT:
+			_draw_suit_alert(icon_center, icon_scale)
+		IconType.HEADLAMP:
+			_draw_headlamp_beam(icon_center, icon_scale)
 			
 	# 5. Badge Overlay (e.g. "x4", "100%")
 	if badge_text != "":
@@ -906,6 +914,105 @@ func _draw_tool_reactor_cell(c: Vector2, s: float) -> void:
 		c + Vector2(8.0, 11.0) * s,
 		c + Vector2(-8.0, 11.0) * s
 	]), blue, 2.0 * s, true)
+
+# ----------------------------------------------------
+# 11. SUIT ALERT (ASTRONAUT HELMET & STATUS VISOR)
+# ----------------------------------------------------
+func _draw_suit_alert(c: Vector2, s: float) -> void:
+	var white = Color(0.92, 0.94, 0.98)
+	var dark_shell = Color(0.12, 0.16, 0.24)
+	var cyan = Color(0.2, 0.85, 1.0)
+	var amber = Color(1.0, 0.72, 0.14)
+	
+	# If active/alert, pulse with amber/caution glow
+	var active_color = amber if is_active else Color(0.55, 0.62, 0.72, 0.8)
+	var visor_fill = (amber * Color(1.0, 1.0, 1.0, 0.85)) if is_active else Color(0.15, 0.45, 0.65, 0.75)
+	
+	# 1. Outer Helmet Dome
+	var dome_pts = PackedVector2Array([
+		c + Vector2(-11.0, 6.0) * s,
+		c + Vector2(-11.0, -3.0) * s,
+		c + Vector2(-8.0, -9.0) * s,
+		c + Vector2(0.0, -12.0) * s,
+		c + Vector2(8.0, -9.0) * s,
+		c + Vector2(11.0, -3.0) * s,
+		c + Vector2(11.0, 6.0) * s,
+		c + Vector2(8.0, 10.0) * s,
+		c + Vector2(-8.0, 10.0) * s
+	])
+	draw_colored_polygon(dome_pts, dark_shell)
+	draw_polyline(dome_pts, active_color, 2.0 * s, true)
+	
+	# 2. Visor Faceplate
+	var visor_pts = PackedVector2Array([
+		c + Vector2(-7.5, -4.0) * s,
+		c + Vector2(7.5, -4.0) * s,
+		c + Vector2(6.5, 5.0) * s,
+		c + Vector2(-6.5, 5.0) * s
+	])
+	draw_colored_polygon(visor_pts, visor_fill)
+	draw_polyline(visor_pts, (amber if is_active else cyan), 1.6 * s, true)
+	
+	# 3. Visor Specular Reflection Slash
+	draw_line(c + Vector2(-4.0, -2.5) * s, c + Vector2(3.0, 3.5) * s, Color(1.0, 1.0, 1.0, 0.6), 1.2 * s)
+	
+	# 4. Neck Seal Collar Ring
+	draw_line(c + Vector2(-9.0, 10.0) * s, c + Vector2(9.0, 10.0) * s, active_color, 2.5 * s)
+	
+	# 5. Side Comms Nodes
+	draw_rect(Rect2(c + Vector2(-13.0, -1.0) * s, Vector2(2.5, 6.0) * s), active_color, true)
+	draw_rect(Rect2(c + Vector2(10.5, -1.0) * s, Vector2(2.5, 6.0) * s), active_color, true)
+	
+	# 6. Pulsing Alert Exclamation Marker above Helmet (if active)
+	if is_active:
+		var pulse_y = sin(pulse_time * 6.0) * 1.5 * s
+		draw_line(c + Vector2(0.0, -15.0) * s + Vector2(0, pulse_y), c + Vector2(0.0, -18.0) * s + Vector2(0, pulse_y), amber, 2.0 * s)
+		draw_circle(c + Vector2(0.0, -13.5) * s + Vector2(0, pulse_y), 1.2 * s, amber)
+
+# ----------------------------------------------------
+# 12. HEADLAMP BEAM (FLASHLIGHT / HELMET LIGHTS)
+# ----------------------------------------------------
+func _draw_headlamp_beam(c: Vector2, s: float) -> void:
+	var gold = Color(0.96, 0.82, 0.22)
+	var bright_beam = Color(1.0, 0.92, 0.45)
+	var cone_fill = Color(0.96, 0.82, 0.22, 0.22) if is_active else Color(0.3, 0.35, 0.45, 0.08)
+	var wire_color = gold if is_active else Color(0.55, 0.62, 0.72, 0.7)
+	
+	# 1. Lamp Housing & Cylindrical Casing
+	var casing = Rect2(c + Vector2(-12.0, -6.0) * s, Vector2(6.0, 12.0) * s)
+	draw_rect(casing, Color(0.12, 0.15, 0.22), true)
+	draw_rect(casing, wire_color, false, 1.8 * s)
+	
+	# 2. Bezel Ring / Mounting Bracket
+	draw_line(c + Vector2(-12.0, 0.0) * s, c + Vector2(-15.0, 0.0) * s, wire_color, 2.0 * s)
+	
+	# 3. Curved Lamp Lens (Front glass)
+	var lens_pts = PackedVector2Array([
+		c + Vector2(-6.0, -7.0) * s,
+		c + Vector2(-4.0, -4.0) * s,
+		c + Vector2(-3.0, 0.0) * s,
+		c + Vector2(-4.0, 4.0) * s,
+		c + Vector2(-6.0, 7.0) * s
+	])
+	draw_polyline(lens_pts, (bright_beam if is_active else wire_color), 2.2 * s, false)
+	
+	# 4. Radiating Photonic Cone (Expanding to the right)
+	var beam_cone = PackedVector2Array([
+		c + Vector2(-3.0, -4.0) * s,
+		c + Vector2(13.0, -11.0) * s,
+		c + Vector2(13.0, 11.0) * s,
+		c + Vector2(-3.0, 4.0) * s
+	])
+	draw_colored_polygon(beam_cone, cone_fill)
+	
+	# 5. Expanding Beam Rays
+	var ray_col = bright_beam if is_active else Color(0.5, 0.58, 0.68, 0.5)
+	# Upper ray
+	draw_line(c + Vector2(-3.0, -4.0) * s, c + Vector2(13.0, -11.0) * s, ray_col, 1.8 * s)
+	# Center ray
+	draw_line(c + Vector2(-2.0, 0.0) * s, c + Vector2(14.0, 0.0) * s, (gold if is_active else ray_col), (2.2 * s if is_active else 1.5 * s))
+	# Lower ray
+	draw_line(c + Vector2(-3.0, 4.0) * s, c + Vector2(13.0, 11.0) * s, ray_col, 1.8 * s)
 
 func _draw_badge(pos: Vector2, b_text: String) -> void:
 	var font = ThemeDB.fallback_font

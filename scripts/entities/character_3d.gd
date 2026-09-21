@@ -44,6 +44,14 @@ var is_swimming_manual: bool = false
 var is_jetpack_thrusting: bool = false
 var swim_time: float = 0.0
 
+# Helmet Headlamp / Flashlights
+var is_headlamp_on: bool = false
+signal headlamp_toggled(is_on: bool)
+var helmet_light_left: SpotLight3D = null
+var helmet_light_right: SpotLight3D = null
+var fps_headlamp: SpotLight3D = null
+var headlamp_lens_mat: StandardMaterial3D = null
+
 # Dynamic Ocean Wave Physics & Staged Water Interactions
 var wave_surge_velocity: Vector3 = Vector3.ZERO
 var wave_stumble_timer: float = 0.0
@@ -128,8 +136,108 @@ func _ready() -> void:
 	_setup_fluid_and_jetpack_particles()
 	_setup_underwater_overlay()
 	_setup_body_attachment_props()
+	_setup_helmet_lights()
 	set_suit_mode(true)
 	_check_fps_mode()
+
+func _setup_helmet_lights() -> void:
+	# Material for headlamp lenses
+	headlamp_lens_mat = StandardMaterial3D.new()
+	headlamp_lens_mat.albedo_color = Color(0.85, 0.9, 1.0)
+	headlamp_lens_mat.emission_enabled = false
+	headlamp_lens_mat.emission = Color(1.0, 0.95, 0.8)
+	headlamp_lens_mat.emission_energy_multiplier = 3.0
+
+	# 1. 3D Exterior Headlamps mounted on helmet
+	if helmet:
+		var lamp_mount_l = Node3D.new()
+		lamp_mount_l.name = "LampMountL"
+		lamp_mount_l.position = Vector3(-0.25, 0.05, -0.16)
+		helmet.add_child(lamp_mount_l)
+		
+		var lamp_mount_r = Node3D.new()
+		lamp_mount_r.name = "LampMountR"
+		lamp_mount_r.position = Vector3(0.25, 0.05, -0.16)
+		helmet.add_child(lamp_mount_r)
+		
+		# Lamp Housings (small metallic cylinder bezels)
+		var cyl_mesh = CylinderMesh.new()
+		cyl_mesh.top_radius = 0.035
+		cyl_mesh.bottom_radius = 0.035
+		cyl_mesh.height = 0.06
+		
+		var housing_mat = StandardMaterial3D.new()
+		housing_mat.albedo_color = Color(0.12, 0.15, 0.2)
+		housing_mat.metallic = 0.8
+		housing_mat.roughness = 0.3
+		
+		var housing_l = MeshInstance3D.new()
+		housing_l.mesh = cyl_mesh
+		housing_l.material_override = housing_mat
+		housing_l.rotation_degrees.x = 90.0
+		lamp_mount_l.add_child(housing_l)
+		
+		var housing_r = MeshInstance3D.new()
+		housing_r.mesh = cyl_mesh
+		housing_r.material_override = housing_mat
+		housing_r.rotation_degrees.x = 90.0
+		lamp_mount_r.add_child(housing_r)
+		
+		# Front glass lenses
+		var lens_mesh = SphereMesh.new()
+		lens_mesh.radius = 0.032
+		lens_mesh.height = 0.03
+		
+		var lens_l = MeshInstance3D.new()
+		lens_l.name = "LensMeshL"
+		lens_l.mesh = lens_mesh
+		lens_l.material_override = headlamp_lens_mat
+		lens_l.position = Vector3(0, 0, -0.03)
+		lamp_mount_l.add_child(lens_l)
+		
+		var lens_r = MeshInstance3D.new()
+		lens_r.name = "LensMeshR"
+		lens_r.mesh = lens_mesh
+		lens_r.material_override = headlamp_lens_mat
+		lens_r.position = Vector3(0, 0, -0.03)
+		lamp_mount_r.add_child(lens_r)
+		
+		# Left Spotlight
+		helmet_light_left = SpotLight3D.new()
+		helmet_light_left.name = "SpotLightL"
+		helmet_light_left.light_color = Color(0.96, 0.98, 1.0)
+		helmet_light_left.light_energy = 2.4
+		helmet_light_left.spot_range = 26.0
+		helmet_light_left.spot_angle = 38.0
+		helmet_light_left.spot_attenuation = 0.8
+		helmet_light_left.position = Vector3(0, 0, -0.04)
+		helmet_light_left.visible = false
+		lamp_mount_l.add_child(helmet_light_left)
+		
+		# Right Spotlight
+		helmet_light_right = SpotLight3D.new()
+		helmet_light_right.name = "SpotLightR"
+		helmet_light_right.light_color = Color(0.96, 0.98, 1.0)
+		helmet_light_right.light_energy = 2.4
+		helmet_light_right.spot_range = 26.0
+		helmet_light_right.spot_angle = 38.0
+		helmet_light_right.spot_attenuation = 0.8
+		helmet_light_right.position = Vector3(0, 0, -0.04)
+		helmet_light_right.visible = false
+		lamp_mount_r.add_child(helmet_light_right)
+		
+	# 2. First Person Viewport Headlamp (attached to camera)
+	if camera:
+		fps_headlamp = SpotLight3D.new()
+		fps_headlamp.name = "FPSHeadlamp"
+		fps_headlamp.light_color = Color(0.96, 0.98, 1.0)
+		fps_headlamp.light_energy = 3.0
+		fps_headlamp.spot_range = 32.0
+		fps_headlamp.spot_angle = 45.0
+		fps_headlamp.spot_attenuation = 0.85
+		fps_headlamp.position = Vector3(0, -0.05, -0.1)
+		fps_headlamp.visible = false
+		camera.add_child(fps_headlamp)
 
 func _setup_underwater_overlay() -> void:
 	var canvas = CanvasLayer.new()
@@ -202,6 +310,7 @@ func set_suit_mode(outside: bool) -> void:
 		if not outside:
 			if left_arm: left_arm.rotation = LEFT_ARM_HELD_ROT
 			if right_arm and not is_mining: right_arm.rotation = RIGHT_ARM_HELD_ROT
+	_update_headlamp_state()
 
 func animate_put_on_helmet() -> void:
 	is_in_space_suit = true
@@ -328,6 +437,35 @@ func set_camera_zoom_normalized(norm_val: float) -> void:
 	target_zoom = lerp(MIN_ZOOM, MAX_ZOOM, clamp(norm_val, 0.0, 1.0))
 	_check_fps_mode()
 
+func toggle_headlamp() -> bool:
+	is_headlamp_on = not is_headlamp_on
+	_update_headlamp_state()
+	headlamp_toggled.emit(is_headlamp_on)
+	AudioManager.play("click", 1.25 if is_headlamp_on else 0.85, -2.0)
+	return is_headlamp_on
+
+func set_headlamp(on: bool) -> void:
+	if is_headlamp_on != on:
+		is_headlamp_on = on
+		_update_headlamp_state()
+		headlamp_toggled.emit(is_headlamp_on)
+
+func _update_headlamp_state() -> void:
+	if headlamp_lens_mat:
+		headlamp_lens_mat.emission_enabled = is_headlamp_on
+		
+	if is_first_person:
+		if fps_headlamp:
+			fps_headlamp.visible = is_headlamp_on and is_in_space_suit
+		if helmet_light_left: helmet_light_left.visible = false
+		if helmet_light_right: helmet_light_right.visible = false
+	else:
+		if fps_headlamp:
+			fps_headlamp.visible = false
+		var can_ext_light = is_headlamp_on and is_in_space_suit and helmet and helmet.visible
+		if helmet_light_left: helmet_light_left.visible = can_ext_light
+		if helmet_light_right: helmet_light_right.visible = can_ext_light
+
 func _check_fps_mode() -> void:
 	var should_be_fps = target_zoom <= FPS_THRESHOLD
 	if should_be_fps != is_first_person:
@@ -336,7 +474,10 @@ func _check_fps_mode() -> void:
 		if head:
 			head.visible = not is_first_person
 		set_suit_mode(is_in_space_suit)
+		_update_headlamp_state()
 		first_person_toggled.emit(is_first_person)
+	else:
+		_update_headlamp_state()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -344,6 +485,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			zoom_camera(-1.0)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			zoom_camera(1.0)
+	elif event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F or event.keycode == KEY_L:
+			toggle_headlamp()
 
 func _physics_process(delta: float) -> void:
 	if is_instance_valid(GameManager) and (GameManager.current_planet.size() > 0 or planet.is_empty()):

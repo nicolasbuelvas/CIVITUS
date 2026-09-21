@@ -40,6 +40,7 @@ func _ready() -> void:
 	test_hud_art_style_buttons_hyperdrive_and_body_inventory()
 	test_hud_topbar_cluster_and_3d_body_props_and_dual_storage_modes()
 	test_vertical_menu_luna_coins_save_state_and_helmet_occupancy()
+	test_suit_alerts_helmet_visor_frame_and_headlamp_illumination()
 	
 	print("\n==========================================")
 	print("TEST RESULTS: %d PASSED, %d FAILED" % [passed_count, failed_count])
@@ -1292,14 +1293,20 @@ func test_hud_topbar_cluster_and_3d_body_props_and_dual_storage_modes() -> void:
 	
 	var top_cluster = hud.get_node_or_null("TopLayer/TopBarCluster")
 	assert_true(top_cluster != null, "TopLayer contains TopBarCluster HBoxContainer")
-	assert_true(top_cluster.get_child_count() == 3, "TopBarCluster contains exactly 3 children (Backpack, Hyperdrive, Pause)")
+	assert_true(top_cluster.get_child_count() == 5, "TopBarCluster contains 5 children (SuitAlert, Headlamp, Backpack, Hyperdrive, Pause)")
 	
+	var suit_btn = top_cluster.get_node_or_null("SuitAlertBtn")
+	var lamp_btn = top_cluster.get_node_or_null("HeadlampBtn")
 	var bpack_btn = top_cluster.get_node_or_null("BackpackBtn")
 	var hd_badge = top_cluster.get_node_or_null("HyperdriveBadge")
 	var p_btn = top_cluster.get_node_or_null("PauseBtn")
+	assert_true(suit_btn != null, "SuitAlertBtn exists in TopBarCluster")
+	assert_true(lamp_btn != null, "HeadlampBtn exists in TopBarCluster")
 	assert_true(bpack_btn != null, "BackpackBtn exists in TopBarCluster")
 	assert_true(hd_badge != null, "HyperdriveBadge exists in TopBarCluster")
 	assert_true(p_btn != null, "PauseBtn exists in TopBarCluster")
+	assert_true(suit_btn.icon_name == "suit_alert", "SuitAlertBtn uses 'suit_alert' icon")
+	assert_true(lamp_btn.icon_name == "headlamp", "HeadlampBtn uses 'headlamp' icon")
 	assert_true(bpack_btn.icon_name == "backpack", "BackpackBtn uses 'backpack' icon")
 	assert_true(p_btn.icon_name == "pause", "PauseBtn uses 'pause' icon")
 	
@@ -1540,6 +1547,134 @@ func test_vertical_menu_luna_coins_save_state_and_helmet_occupancy() -> void:
 	assert_true(menu.planet_pivot.position.x > 1.5, "Planet returned to right side in root menu")
 	
 	menu.queue_free()
+
+func test_suit_alerts_helmet_visor_frame_and_headlamp_illumination() -> void:
+	print("--- 30. Testing Suit Alerts, Curved Helmet Visor Frame & Headlamp Illumination ---")
+	
+	# 1. CircularArtButton Icon Types for Suit Alert and Headlamp
+	var suit_btn = CircularArtButton.new()
+	assert_true(suit_btn != null, "CircularArtButton instantiates")
+	suit_btn.icon_name = "suit_alert"
+	assert_true(suit_btn.icon_type == CircularArtButton.IconType.SUIT_ALERT, "Button resolves 'suit_alert' to SUIT_ALERT icon type")
+	suit_btn.is_active = true
+	assert_true(suit_btn.is_active == true, "Suit Alert button can be primed in active caution state")
+	
+	var lamp_btn = CircularArtButton.new()
+	lamp_btn.icon_name = "headlamp"
+	assert_true(lamp_btn.icon_type == CircularArtButton.IconType.HEADLAMP, "Button resolves 'headlamp' to HEADLAMP icon type")
+	lamp_btn.is_active = true
+	assert_true(lamp_btn.is_active == true, "Headlamp button accepts active illumination state")
+	
+	suit_btn.queue_free()
+	lamp_btn.queue_free()
+	
+	# 2. Test Character 3D Headlamp System (Twin Exterior Helmet Lights & FPS Camera Light)
+	var char_scene = load("res://scenes/entities/character_3d.tscn")
+	var character = char_scene.instantiate()
+	add_child(character)
+	
+	assert_true(character.helmet_light_left != null, "Astronaut helmet possesses physical left headlamp")
+	assert_true(character.helmet_light_right != null, "Astronaut helmet possesses physical right headlamp")
+	assert_true(character.fps_headlamp != null, "Astronaut camera possesses FPS viewport headlamp")
+	assert_true(character.is_headlamp_on == false, "Headlamps initially in OFF state")
+	
+	# Test Toggling Headlamp ON
+	var toggled_signal_fired = [false]
+	var signal_val = [false]
+	var on_toggled_cb = func(on):
+		toggled_signal_fired[0] = true
+		signal_val[0] = on
+	character.headlamp_toggled.connect(on_toggled_cb)
+	
+	var res_on = character.toggle_headlamp()
+	assert_true(res_on == true, "toggle_headlamp() returns true when turning ON")
+	assert_true(character.is_headlamp_on == true, "is_headlamp_on is true")
+	assert_true(toggled_signal_fired[0] == true, "headlamp_toggled signal emitted")
+	assert_true(signal_val[0] == true, "headlamp_toggled passed true")
+	assert_true(character.headlamp_lens_mat.emission_enabled == true, "Helmet lamp lens emits light when ON")
+	
+	# Set to 3rd person initially
+	character.target_zoom = 4.5
+	character._check_fps_mode()
+	assert_true(character.is_first_person == false, "Character starts in 3rd person mode")
+	assert_true(character.helmet_light_left.visible == true, "Left 3D helmet spotlight active in 3rd person")
+	assert_true(character.helmet_light_right.visible == true, "Right 3D helmet spotlight active in 3rd person")
+	assert_true(character.fps_headlamp.visible == false, "FPS headlamp hidden in 3rd person")
+	
+	# Switch to 1st person: FPS camera spotlight is visible, 3rd person helmet lights are hidden
+	character.toggle_first_person()
+	assert_true(character.is_first_person == true, "Character entered 1st person mode")
+	assert_true(character.fps_headlamp.visible == true, "FPS headlamp active and aligned with camera in 1st person")
+	assert_true(character.helmet_light_left.visible == false, "Exterior helmet spotlight hidden in 1st person")
+	
+	# Switch Headlamp OFF
+	var res_off = character.toggle_headlamp()
+	assert_true(res_off == false, "toggle_headlamp() returns false when turning OFF")
+	assert_true(character.is_headlamp_on == false, "is_headlamp_on is false")
+	assert_true(character.fps_headlamp.visible == false, "FPS headlamp turned OFF")
+	assert_true(character.headlamp_lens_mat.emission_enabled == false, "Helmet lamp lens emission disabled when OFF")
+	
+	# Inside cabin without space suit: headlamps stay disabled
+	character.toggle_first_person() # Back to 3rd person
+	character.set_suit_mode(false) # Inside cabin without suit
+	character.set_headlamp(true)
+	assert_true(character.helmet_light_left.visible == false, "Exterior headlamps stay OFF when helmet is not worn")
+	
+	character.set_suit_mode(true)
+	character.headlamp_toggled.disconnect(on_toggled_cb)
+	
+	# 3. Test Helmet Visor Frame & Aerospace Telemetry (scripts/ui/helmet_visor.gd)
+	var HelmetVisorScript = load("res://scripts/ui/helmet_visor.gd")
+	var visor = HelmetVisorScript.new()
+	visor.size = Vector2(1920, 1080)
+	add_child(visor)
+	assert_true(visor != null, "HelmetVisor instantiates successfully")
+	assert_true(visor.has_method("_draw_helmet_visor_frame"), "HelmetVisor contains curved visor frame drawing routine")
+	assert_true(visor.has_method("_draw_tactical_telemetry"), "HelmetVisor contains aerospace technical telemetry routine")
+	
+	# Cardinal direction conversion
+	assert_true(visor._get_cardinal(0) == "N", "Azimuth 0 deg is North")
+	assert_true(visor._get_cardinal(90) == "E", "Azimuth 90 deg is East")
+	assert_true(visor._get_cardinal(180) == "S", "Azimuth 180 deg is South")
+	assert_true(visor._get_cardinal(270) == "W", "Azimuth 270 deg is West")
+	
+	# 4. Test HUD Integration (Buttons, Alerts, Headlamp sync, Zero Emojis)
+	var hud_scene = load("res://scenes/ui/hud.tscn")
+	var hud = hud_scene.instantiate()
+	add_child(hud)
+	hud.init_player(character)
+	hud.activate_hud()
+	
+	assert_true(hud.suit_alert_btn != null, "HUD contains suit_alert_btn")
+	assert_true(hud.headlamp_btn != null, "HUD contains headlamp_btn")
+	
+	# Test triggering Suit EVA Alert upon exiting cabin
+	hud.trigger_suit_eva_alert("SISTEMAS EVA ACTIVOS • TRAJE NOMINAL")
+	assert_true(hud.suit_alert_btn.is_active == true, "suit_alert_btn enters active pulsing caution state")
+	assert_true(hud.active_toast_panel != null, "HUD displays status toast notification for EVA alert")
+	
+	# Entering First Person acknowledges and clears the alert
+	character.toggle_first_person()
+	hud._on_first_person_toggled(true)
+	assert_true(hud.suit_alert_btn.is_active == false, "Suit alert acknowledged and cleared upon entering visor mode")
+	assert_true(hud.jarvis_overlay.visible == true, "Helmet visor overlay visible in first person")
+	
+	# Test Headlamp Button on HUD toggles character lights
+	character.set_headlamp(false)
+	assert_true(character.is_headlamp_on == false, "Headlamp is off")
+	hud._on_headlamp_btn_pressed()
+	assert_true(character.is_headlamp_on == true, "HUD headlamp button toggles astronaut lights ON")
+	assert_true(hud.headlamp_btn.is_active == true, "HUD headlamp button reflects active state")
+	
+	# Verify ZERO emojis in HUD camera toggle or pause actions
+	assert_true(hud.cam_toggle_btn.text == "", "Camera toggle button text has zero emojis")
+	assert_true(not hud.pause_resume_btn.text.contains("▶"), "Pause resume button has zero emoji icons")
+	assert_true(not hud.pause_settings_btn.text.contains("⚙"), "Pause settings button has zero emoji icons")
+	
+	hud.queue_free()
+	visor.queue_free()
+	character.queue_free()
+
 
 
 

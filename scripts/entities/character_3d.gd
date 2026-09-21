@@ -92,8 +92,23 @@ const FPS_THRESHOLD: float = 0.8
 const HELMET_HEAD_POS: Vector3 = Vector3(0, 1.6, 0)
 const HELMET_HELD_POS: Vector3 = Vector3(0, 0.95, -0.36)
 const HELMET_HELD_ROT: Vector3 = Vector3(0.35, 0, 0)
+const HELMET_HIP_POS: Vector3 = Vector3(-0.38, 0.78, 0.05)
+const HELMET_HIP_ROT: Vector3 = Vector3(0.2, 0.3, 0.45)
+const HELMET_HIP_R_POS: Vector3 = Vector3(0.38, 0.78, 0.05)
+const HELMET_HIP_R_ROT: Vector3 = Vector3(0.2, -0.3, -0.45)
 const LEFT_ARM_HELD_ROT: Vector3 = Vector3(0.72, 0.22, 0.42)
 const RIGHT_ARM_HELD_ROT: Vector3 = Vector3(0.72, -0.22, -0.42)
+
+func get_occupied_hands_count() -> int:
+	if not is_instance_valid(GameManager) or not GameManager.crafting:
+		return 0
+	var count = 0
+	var b_slots = GameManager.crafting.body_slots
+	if b_slots.get("hand_left", {}).get("count", 0) > 0:
+		count += 1
+	if b_slots.get("hand_right", {}).get("count", 0) > 0:
+		count += 1
+	return count
 
 # Surface Swimming State
 var is_surface_swimming: bool = false
@@ -112,6 +127,7 @@ func _ready() -> void:
 	_setup_suit_materials()
 	_setup_fluid_and_jetpack_particles()
 	_setup_underwater_overlay()
+	_setup_body_attachment_props()
 	set_suit_mode(true)
 	_check_fps_mode()
 
@@ -227,36 +243,62 @@ func animate_put_on_helmet() -> void:
 
 func animate_take_off_helmet() -> void:
 	is_in_space_suit = false
-	if helmet and left_arm and right_arm and not is_first_person:
+	var hands_occ = get_occupied_hands_count()
+	if helmet and not is_first_person:
 		helmet.visible = true
-		helmet.position = HELMET_HEAD_POS
-		helmet.rotation = Vector3.ZERO
-		
-		# 1. Hands raise from sides to collar ring
-		var tw1 = create_tween().set_parallel(true)
-		tw1.tween_property(left_arm, "rotation:x", 1.6, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw1.tween_property(left_arm, "rotation:z", 0.35, 0.35)
-		tw1.tween_property(right_arm, "rotation:x", 1.6, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw1.tween_property(right_arm, "rotation:z", -0.35, 0.35)
-		
-		# 2. Hands lift helmet off head & reveal face
-		var tw2 = create_tween().set_parallel(true)
-		tw2.tween_interval(0.35)
-		tw2.chain().tween_callback(func():
+		if hands_occ >= 2:
+			# Both hands occupied: automated suit collar pops and helmet docks directly to magnetic hip clip
+			var tw = create_tween().set_parallel(true)
+			tw.tween_property(helmet, "position", Vector3(-0.18, 1.45, 0.15), 0.25)
+			tw.chain().tween_property(helmet, "position", HELMET_HIP_POS, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tw.tween_property(helmet, "rotation", HELMET_HIP_ROT, 0.35)
 			if face: face.visible = true
 			AudioManager.play("click", 1.1)
-		)
-		tw2.chain().tween_property(helmet, "position", Vector3(0, 1.85, -0.1), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw2.tween_property(left_arm, "rotation:x", 2.15, 0.35)
-		tw2.tween_property(right_arm, "rotation:x", 2.15, 0.35)
-		
-		# 3. Lower helmet smoothly down to chest and cradle with both hands
-		var tw3 = create_tween().set_parallel(true)
-		tw3.tween_interval(0.7)
-		tw3.chain().tween_property(helmet, "position", HELMET_HELD_POS, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
-		tw3.tween_property(helmet, "rotation", HELMET_HELD_ROT, 0.45)
-		tw3.tween_property(left_arm, "rotation", Vector3(0.72, 0.22, 0.42), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
-		tw3.tween_property(right_arm, "rotation", Vector3(0.72, -0.22, -0.42), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+		elif hands_occ == 1:
+			# One hand occupied: free hand unlatches helmet and rests it on side hip
+			var has_left = GameManager.crafting.body_slots.get("hand_left", {}).get("count", 0) > 0
+			var target_pos = HELMET_HIP_R_POS if has_left else HELMET_HIP_POS
+			var target_rot = HELMET_HIP_R_ROT if has_left else HELMET_HIP_ROT
+			var free_arm = right_arm if has_left else left_arm
+			var tw = create_tween().set_parallel(true)
+			if free_arm:
+				tw.tween_property(free_arm, "rotation:x", 1.7, 0.3)
+			tw.chain().tween_property(helmet, "position", target_pos, 0.35)
+			tw.tween_property(helmet, "rotation", target_rot, 0.35)
+			if free_arm:
+				tw.chain().tween_property(free_arm, "rotation", Vector3(0.5, 0.0, 0.1), 0.3)
+			if face: face.visible = true
+			AudioManager.play("click", 1.1)
+		else:
+			# Both hands free: normal 2-handed helmet removal to chest
+			helmet.position = HELMET_HEAD_POS
+			helmet.rotation = Vector3.ZERO
+			
+			# 1. Hands raise from sides to collar ring
+			var tw1 = create_tween().set_parallel(true)
+			tw1.tween_property(left_arm, "rotation:x", 1.6, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tw1.tween_property(left_arm, "rotation:z", 0.35, 0.35)
+			tw1.tween_property(right_arm, "rotation:x", 1.6, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tw1.tween_property(right_arm, "rotation:z", -0.35, 0.35)
+			
+			# 2. Hands lift helmet off head & reveal face
+			var tw2 = create_tween().set_parallel(true)
+			tw2.tween_interval(0.35)
+			tw2.chain().tween_callback(func():
+				if face: face.visible = true
+				AudioManager.play("click", 1.1)
+			)
+			tw2.chain().tween_property(helmet, "position", Vector3(0, 1.85, -0.1), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tw2.tween_property(left_arm, "rotation:x", 2.15, 0.35)
+			tw2.tween_property(right_arm, "rotation:x", 2.15, 0.35)
+			
+			# 3. Lower helmet smoothly down to chest and cradle with both hands
+			var tw3 = create_tween().set_parallel(true)
+			tw3.tween_interval(0.7)
+			tw3.chain().tween_property(helmet, "position", HELMET_HELD_POS, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+			tw3.tween_property(helmet, "rotation", HELMET_HELD_ROT, 0.45)
+			tw3.tween_property(left_arm, "rotation", Vector3(0.72, 0.22, 0.42), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+			tw3.tween_property(right_arm, "rotation", Vector3(0.72, -0.22, -0.42), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	else:
 		set_suit_mode(false)
 
@@ -807,14 +849,44 @@ func _physics_process(delta: float) -> void:
 				if left_leg: left_leg.rotation.x = swing
 				if right_leg: right_leg.rotation.x = -swing
 				
-				var arm_target_l = Vector3(0.72 + breath, 0.22, 0.42)
-				var arm_target_r = Vector3(0.72 + breath, -0.22, -0.42)
-				if left_arm: left_arm.rotation = left_arm.rotation.lerp(arm_target_l, delta * 12.0)
-				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(arm_target_r, delta * 12.0)
-				if helmet and not is_first_person:
-					helmet.position = Vector3(HELMET_HELD_POS.x, HELMET_HELD_POS.y + breath * 0.4, HELMET_HELD_POS.z)
-					helmet.rotation = HELMET_HELD_ROT
-					helmet.visible = true
+				var hands_occ = get_occupied_hands_count()
+				if hands_occ >= 2:
+					# Both hands occupied: holding items forward, helmet docked to magnetic hip clip
+					var arm_l = Vector3(0.52 + breath, 0.05, 0.12)
+					var arm_r = Vector3(0.52 + breath, -0.05, -0.12)
+					if left_arm: left_arm.rotation = left_arm.rotation.lerp(arm_l, delta * 12.0)
+					if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(arm_r, delta * 12.0)
+					if helmet and not is_first_person:
+						helmet.position = HELMET_HIP_POS + Vector3(0, breath * 0.4, 0)
+						helmet.rotation = HELMET_HIP_ROT
+						helmet.visible = true
+				elif hands_occ == 1:
+					# One hand occupied: carrying cargo in one hand, helmet on hip by the free hand
+					var has_left = GameManager.crafting.body_slots.get("hand_left", {}).get("count", 0) > 0
+					if has_left:
+						if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(0.52 + breath, 0.05, 0.12), delta * 12.0)
+						if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(0.40, -0.15, -0.25), delta * 12.0)
+						if helmet and not is_first_person:
+							helmet.position = HELMET_HIP_R_POS + Vector3(0, breath * 0.4, 0)
+							helmet.rotation = HELMET_HIP_R_ROT
+							helmet.visible = true
+					else:
+						if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(0.40, 0.15, 0.25), delta * 12.0)
+						if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(0.52 + breath, -0.05, -0.12), delta * 12.0)
+						if helmet and not is_first_person:
+							helmet.position = HELMET_HIP_POS + Vector3(0, breath * 0.4, 0)
+							helmet.rotation = HELMET_HIP_ROT
+							helmet.visible = true
+				else:
+					# Both hands free: cradling helmet in front of chest
+					var arm_target_l = Vector3(0.72 + breath, 0.22, 0.42)
+					var arm_target_r = Vector3(0.72 + breath, -0.22, -0.42)
+					if left_arm: left_arm.rotation = left_arm.rotation.lerp(arm_target_l, delta * 12.0)
+					if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(arm_target_r, delta * 12.0)
+					if helmet and not is_first_person:
+						helmet.position = Vector3(HELMET_HELD_POS.x, HELMET_HELD_POS.y + breath * 0.4, HELMET_HELD_POS.z)
+						helmet.rotation = HELMET_HELD_ROT
+						helmet.visible = true
 			elif input_str > 0.05:
 				if is_on_floor() and prefers_lunar_hopping():
 					# Marcha Apolo ("Lunar Loping Stride" del footage histórico de la NASA)
@@ -1447,3 +1519,216 @@ func _update_suit_thermal_and_fluid_reactions(delta: float, planet_params: Dicti
 		active_suit_material.emission_energy_multiplier = lerpf(active_suit_material.emission_energy_multiplier, 0.0, delta * 3.0)
 		if active_suit_material.emission_energy_multiplier < 0.02:
 			active_suit_material.emission_enabled = false
+
+# ==============================================================================
+# PHYSICAL 3D BODY ATTACHMENT PROPS (HANDS & BACKPACK)
+# ==============================================================================
+var slot_prop_nodes: Dictionary = {
+	"hand_left": null,
+	"hand_right": null,
+	"back_1": null,
+	"back_2": null
+}
+
+func _setup_body_attachment_props() -> void:
+	# Hand Left mount - positioned firmly in the left hand forward
+	var l_arm = get_node_or_null("Visuals/LeftArm")
+	if l_arm and not slot_prop_nodes["hand_left"]:
+		var n = Node3D.new()
+		n.name = "SlotProp_HandL"
+		n.position = Vector3(0.0, -0.42, -0.22)
+		l_arm.add_child(n)
+		slot_prop_nodes["hand_left"] = n
+		
+	# Hand Right mount - positioned firmly in the right hand forward
+	var r_arm = get_node_or_null("Visuals/RightArm")
+	if r_arm and not slot_prop_nodes["hand_right"]:
+		var n = Node3D.new()
+		n.name = "SlotProp_HandR"
+		n.position = Vector3(0.0, -0.42, -0.22)
+		r_arm.add_child(n)
+		slot_prop_nodes["hand_right"] = n
+		
+	# Backpack (PLSS) mounts - prominently mounted on the life support backpack
+	var backpack = get_node_or_null("Visuals/Torso/BackpackPLSS")
+	if backpack:
+		if not slot_prop_nodes["back_1"]:
+			var n1 = Node3D.new()
+			n1.name = "SlotProp_Back1"
+			# Mounted high on rear cargo rack, clearly visible over and between O2 tanks
+			n1.position = Vector3(0.0, 0.28, 0.32)
+			backpack.add_child(n1)
+			slot_prop_nodes["back_1"] = n1
+			
+		if not slot_prop_nodes["back_2"]:
+			var n2 = Node3D.new()
+			n2.name = "SlotProp_Back2"
+			# Mounted low on rear cargo rack, clearly visible beneath O2 tanks
+			n2.position = Vector3(0.0, -0.22, 0.32)
+			backpack.add_child(n2)
+			slot_prop_nodes["back_2"] = n2
+			
+	if is_instance_valid(GameManager) and GameManager.crafting:
+		if not GameManager.crafting.body_slots_changed.is_connected(_update_body_attachment_props):
+			GameManager.crafting.body_slots_changed.connect(_update_body_attachment_props)
+	_update_body_attachment_props()
+
+func _update_body_attachment_props() -> void:
+	if not is_instance_valid(GameManager) or not GameManager.crafting:
+		return
+	var b_slots = GameManager.crafting.body_slots
+	for s_key in ["hand_left", "hand_right", "back_1", "back_2"]:
+		var p_node: Node3D = slot_prop_nodes.get(s_key, null)
+		if not is_instance_valid(p_node):
+			continue
+		var data = b_slots.get(s_key, {})
+		var item_name = data.get("item", "")
+		var count = data.get("count", 0)
+		
+		# Clear existing prop meshes
+		for c in p_node.get_children():
+			p_node.remove_child(c)
+			c.queue_free()
+			
+		if count <= 0 or item_name == "":
+			continue
+			
+		# Build and attach new 3D prop
+		var prop_inst = _create_resource_3d_prop(item_name)
+		if prop_inst:
+			p_node.add_child(prop_inst)
+
+func _create_resource_3d_prop(item_name: String) -> Node3D:
+	var root = Node3D.new()
+	root.name = "Prop_" + item_name
+	
+	match item_name:
+		"iron":
+			var m = BoxMesh.new()
+			m.size = Vector3(0.20, 0.20, 0.20)
+			var mat = StandardMaterial3D.new()
+			mat.albedo_color = Color(0.68, 0.72, 0.80)
+			mat.metallic = 0.95
+			mat.roughness = 0.30
+			var inst = MeshInstance3D.new()
+			inst.mesh = m
+			inst.material_override = mat
+			root.add_child(inst)
+			
+		"copper":
+			var m = CylinderMesh.new()
+			m.top_radius = 0.08
+			m.bottom_radius = 0.08
+			m.height = 0.22
+			m.radial_segments = 14
+			var mat = StandardMaterial3D.new()
+			mat.albedo_color = Color(0.92, 0.54, 0.30)
+			mat.metallic = 0.92
+			mat.roughness = 0.25
+			var inst = MeshInstance3D.new()
+			inst.mesh = m
+			inst.material_override = mat
+			root.add_child(inst)
+			
+		"silicon":
+			var m = PrismMesh.new()
+			m.size = Vector3(0.18, 0.24, 0.18)
+			var mat = StandardMaterial3D.new()
+			mat.albedo_color = Color(0.25, 0.90, 1.0, 0.95)
+			mat.roughness = 0.06
+			mat.metallic = 0.25
+			mat.emission_enabled = true
+			mat.emission = Color(0.15, 0.75, 1.0)
+			mat.emission_energy_multiplier = 1.4
+			var inst = MeshInstance3D.new()
+			inst.mesh = m
+			inst.material_override = mat
+			root.add_child(inst)
+			
+		"uranium":
+			var m = CylinderMesh.new()
+			m.top_radius = 0.08
+			m.bottom_radius = 0.08
+			m.height = 0.24
+			m.radial_segments = 14
+			var mat = StandardMaterial3D.new()
+			mat.albedo_color = Color(0.15, 0.85, 0.30)
+			mat.emission_enabled = true
+			mat.emission = Color(0.25, 1.0, 0.40)
+			mat.emission_energy_multiplier = 2.8
+			var inst = MeshInstance3D.new()
+			inst.mesh = m
+			inst.material_override = mat
+			root.add_child(inst)
+			
+		"wrench":
+			var shaft_mesh = BoxMesh.new()
+			shaft_mesh.size = Vector3(0.04, 0.30, 0.03)
+			var head_mesh = CylinderMesh.new()
+			head_mesh.top_radius = 0.05
+			head_mesh.bottom_radius = 0.05
+			head_mesh.height = 0.03
+			var mat = StandardMaterial3D.new()
+			mat.albedo_color = Color(0.80, 0.82, 0.90)
+			mat.metallic = 0.98
+			mat.roughness = 0.15
+			var inst_shaft = MeshInstance3D.new()
+			inst_shaft.mesh = shaft_mesh
+			inst_shaft.material_override = mat
+			root.add_child(inst_shaft)
+			var inst_head = MeshInstance3D.new()
+			inst_head.mesh = head_mesh
+			inst_head.material_override = mat
+			inst_head.position = Vector3(0, 0.14, 0)
+			root.add_child(inst_head)
+			
+		"wire":
+			var m = TorusMesh.new()
+			m.inner_radius = 0.05
+			m.outer_radius = 0.11
+			var mat = StandardMaterial3D.new()
+			mat.albedo_color = Color(0.98, 0.70, 0.22)
+			mat.metallic = 0.95
+			mat.roughness = 0.25
+			var inst = MeshInstance3D.new()
+			inst.mesh = m
+			inst.material_override = mat
+			root.add_child(inst)
+			
+		"microchip":
+			var m = BoxMesh.new()
+			m.size = Vector3(0.18, 0.02, 0.22)
+			var mat = StandardMaterial3D.new()
+			mat.albedo_color = Color(0.10, 0.50, 0.25)
+			mat.metallic = 0.50
+			mat.roughness = 0.20
+			var inst = MeshInstance3D.new()
+			inst.mesh = m
+			inst.material_override = mat
+			root.add_child(inst)
+			
+		"reactor_cell":
+			var m = CylinderMesh.new()
+			m.top_radius = 0.085
+			m.bottom_radius = 0.085
+			m.height = 0.22
+			m.radial_segments = 16
+			var mat = StandardMaterial3D.new()
+			mat.albedo_color = Color(0.25, 0.70, 1.0)
+			mat.emission_enabled = true
+			mat.emission = Color(0.35, 0.85, 1.0)
+			mat.emission_energy_multiplier = 3.5
+			var inst = MeshInstance3D.new()
+			inst.mesh = m
+			inst.material_override = mat
+			root.add_child(inst)
+			
+		_:
+			var m = SphereMesh.new()
+			m.radius = 0.10
+			m.height = 0.20
+			var inst = MeshInstance3D.new()
+			inst.mesh = m
+			root.add_child(inst)
+			
+	return root

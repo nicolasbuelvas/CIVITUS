@@ -3,10 +3,10 @@ extends Control
 @onready var mobile_layer: Control = $MobileLayer
 @onready var virtual_joystick = $MobileLayer/VirtualJoystick
 @onready var touch_camera_zone: Control = $MobileLayer/TouchCameraZone
-@onready var jump_btn: TextureButton = $MobileLayer/ActionCluster/JumpBtn
-@onready var context_action_btn: Button = $MobileLayer/ActionCluster/ContextActionBtn
-@onready var sprint_btn: TextureButton = $MobileLayer/ActionCluster/SprintBtn
-@onready var cam_toggle_btn: Button = get_node_or_null("MobileLayer/ActionCluster/CamToggleBtn")
+@onready var jump_btn = $MobileLayer/ActionCluster/JumpBtn
+@onready var context_action_btn = $MobileLayer/ActionCluster/ContextActionBtn
+@onready var sprint_btn = $MobileLayer/ActionCluster/SprintBtn
+@onready var cam_toggle_btn = get_node_or_null("MobileLayer/ActionCluster/CamToggleBtn")
 
 var thrust_icon = preload("res://assets/sprites/icon_thrust.png")
 var swim_icon = preload("res://assets/sprites/icon_swim.png")
@@ -19,8 +19,8 @@ var swim_icon = preload("res://assets/sprites/icon_swim.png")
 @onready var hull_val_label: Label = $TopLayer/VitalsPod/Margin/VBox/HullRow/Val
 
 @onready var planet_name_label: Label = $TopLayer/Header/PlanetLabel
-@onready var hyperdrive_badge: Button = $TopLayer/HyperdriveBadge
-@onready var pause_btn: Button = $TopLayer/PauseBtn
+@onready var hyperdrive_badge = $TopLayer/TopBarCluster/HyperdriveBadge if has_node("TopLayer/TopBarCluster/HyperdriveBadge") else $TopLayer/HyperdriveBadge
+@onready var pause_btn = $TopLayer/TopBarCluster/PauseBtn if has_node("TopLayer/TopBarCluster/PauseBtn") else $TopLayer/PauseBtn
 @onready var top_layer: Control = $TopLayer
 @onready var vitals_pod: Control = $TopLayer/VitalsPod
 
@@ -36,6 +36,7 @@ var swim_icon = preload("res://assets/sprites/icon_swim.png")
 @onready var starmap_modal: Panel = $Modals/StarmapModal
 @onready var game_over_modal: Panel = $Modals/GameOverModal
 @onready var victory_modal: Panel = $Modals/VictoryModal
+var astronaut_storage_modal: AstronautStorageModal = null
 
 # Pause / Settings Buttons
 @onready var pause_resume_btn: Button = $Modals/PauseModal/VBox/ResumeBtn
@@ -110,7 +111,22 @@ func _ready() -> void:
 	GameManager.crafting.inventory_changed.connect(_update_crafting_ui)
 	GameManager.crafting.hyperdrive_repaired.connect(func(_p): _update_hyperdrive_ui())
 	GameManager.crafting.storage_changed.connect(_update_storage_ui)
+	GameManager.crafting.inventory_full.connect(_on_inventory_full)
+	
+	# Initialize Astronaut Storage & Body Inventory Modal
+	if not astronaut_storage_modal:
+		astronaut_storage_modal = AstronautStorageModal.new()
+		astronaut_storage_modal.name = "AstronautStorageModal"
+		astronaut_storage_modal.visible = false
+		astronaut_storage_modal.closed.connect(func():
+			get_tree().paused = false
+		)
+		var modals_node = get_node_or_null("Modals")
+		if modals_node:
+			modals_node.add_child(astronaut_storage_modal)
+			
 	_setup_backpack_btn()
+	_setup_modal_art_styling()
 	
 	_update_crafting_ui()
 	_update_hyperdrive_ui()
@@ -149,8 +165,10 @@ func _update_localization() -> void:
 	
 	# Hyperdrive Modal
 	var hd_title = get_node_or_null("Modals/HyperdriveModal/VBox/Title")
-	if hd_title: hd_title.text = GameManager.loc("hyperdrive_title")
-	var close_hd_btn = get_node_or_null("Modals/HyperdriveModal/VBox/CloseBtn")
+	if hd_title: hd_title.text = "HYPERDRIVE"
+	var close_hd_btn = get_node_or_null("Modals/HyperdriveModal/VBox/CloseHyperBtn")
+	if not close_hd_btn:
+		close_hd_btn = get_node_or_null("Modals/HyperdriveModal/VBox/CloseBtn")
 	if close_hd_btn: close_hd_btn.text = GameManager.loc("close_modal")
 	if launch_btn: launch_btn.text = GameManager.loc("hyperdrive_activate")
 	_update_hyperdrive_ui()
@@ -190,6 +208,7 @@ func close_all_modals() -> void:
 	if pause_modal: pause_modal.visible = false
 	if settings_modal: settings_modal.visible = false
 	if storage_modal: storage_modal.visible = false
+	if astronaut_storage_modal: astronaut_storage_modal.visible = false
 	crafting_modal.visible = false
 	hyperdrive_modal.visible = false
 	starmap_modal.visible = false
@@ -228,6 +247,8 @@ func _on_first_person_toggled(is_fps: bool) -> void:
 	if vitals_pod:
 		vitals_pod.visible = is_fps
 	if cam_toggle_btn:
+		if "is_active" in cam_toggle_btn:
+			cam_toggle_btn.is_active = is_fps
 		cam_toggle_btn.text = "👤" if is_fps else "👁"
 	if jarvis_overlay:
 		jarvis_overlay.visible = is_fps
@@ -307,6 +328,8 @@ func _on_sprint_btn_pressed() -> void:
 	if player:
 		player.is_sprinting = not player.is_sprinting
 		if sprint_btn:
+			if "is_active" in sprint_btn:
+				sprint_btn.is_active = player.is_sprinting
 			sprint_btn.modulate = Color(1.0, 0.85, 0.2) if player.is_sprinting else Color(1.0, 1.0, 1.0, 0.9)
 
 func _on_jump_down() -> void:
@@ -356,51 +379,49 @@ func _on_close_settings_pressed() -> void:
 func _on_interaction_available(type: String, target: Node3D) -> void:
 	current_context_type = type
 	context_action_btn.visible = true
+	if "icon_name" in context_action_btn:
+		context_action_btn.icon_name = type
 	match type:
 		"open_hatch":
-			context_action_btn.text = "🚪 " + GameManager.loc("context_open")
+			context_action_btn.text = "ABRIR" if GameManager.current_language == "es" else "OPEN"
 			context_action_btn.modulate = Color(0.2, 0.85, 1.0)
 		"close_hatch":
-			context_action_btn.text = "🚪 " + GameManager.loc("context_close")
+			context_action_btn.text = "CERRAR" if GameManager.current_language == "es" else "CLOSE"
 			context_action_btn.modulate = Color(1.0, 0.75, 0.2)
 		"pilot_seat":
 			var ship = get_tree().get_first_node_in_group("spaceship")
 			var is_seated = ship.get("is_player_seated") if ship else false
-			if is_seated:
-				context_action_btn.text = "🚶 " + ("LEVANTARSE" if GameManager.current_language == "es" else "STAND UP")
-				context_action_btn.modulate = Color(1.0, 0.6, 0.2)
-			else:
-				context_action_btn.text = "💺 " + ("CABINA DE MANDO" if GameManager.current_language == "es" else "PILOT SEAT")
-				context_action_btn.modulate = Color(0.3, 0.85, 1.0)
+			context_action_btn.text = "SALIR" if is_seated else "CABINA"
+			context_action_btn.modulate = Color(0.3, 0.85, 1.0)
 		"oxygen_gen":
-			context_action_btn.text = "🫁 " + ("SOPORTE VITAL O2" if GameManager.current_language == "es" else "O2 GENERATOR")
+			context_action_btn.text = "O2"
 			context_action_btn.modulate = Color(0.2, 0.9, 0.85)
 		"gravity_device":
-			context_action_btn.text = "🌀 " + ("ESTABILIZADOR GRAVEDAD" if GameManager.current_language == "es" else "GRAVITY DEVICE")
+			context_action_btn.text = "GRAV"
 			context_action_btn.modulate = Color(0.75, 0.45, 1.0)
 		"mine":
-			context_action_btn.text = "⛏ " + GameManager.loc("context_mine")
+			context_action_btn.text = "MINAR" if GameManager.current_language == "es" else "MINE"
 			context_action_btn.modulate = Color(0.2, 0.9, 1.0)
 		"fabricator":
-			context_action_btn.text = "⚙ " + GameManager.loc("context_craft")
+			context_action_btn.text = "TALLER" if GameManager.current_language == "es" else "CRAFT"
 			context_action_btn.modulate = Color(0.3, 1.0, 0.4)
 		"hyperdrive":
-			context_action_btn.text = "🚀 " + GameManager.loc("context_hyperdrive")
+			context_action_btn.text = "HYPERDRIVE"
 			context_action_btn.modulate = Color(1.0, 0.8, 0.2)
 		"starmap":
-			context_action_btn.text = "🗺 " + GameManager.loc("context_starmap")
+			context_action_btn.text = "MAPA" if GameManager.current_language == "es" else "STARMAP"
 			context_action_btn.modulate = Color(0.8, 0.5, 1.0)
 		"storage":
-			context_action_btn.text = "📦 " + GameManager.loc("context_storage")
+			context_action_btn.text = "BODEGA" if GameManager.current_language == "es" else "CARGO"
 			context_action_btn.modulate = Color(0.4, 0.7, 1.0)
 		"repair":
-			context_action_btn.text = "⚙ " + GameManager.loc("repair_btn")
+			context_action_btn.text = "REPARAR" if GameManager.current_language == "es" else "REPAIR"
 			context_action_btn.modulate = Color(1.0, 0.4, 0.2)
 		"attack":
-			context_action_btn.text = "⚔ " + ("ATACAR" if GameManager.current_language == "es" else "ATTACK")
+			context_action_btn.text = "ATACAR" if GameManager.current_language == "es" else "ATTACK"
 			context_action_btn.modulate = Color(1.0, 0.25, 0.25)
 		"feed":
-			context_action_btn.text = "🌿 " + ("ALIMENTAR" if GameManager.current_language == "es" else "FEED")
+			context_action_btn.text = "ALIMENTAR" if GameManager.current_language == "es" else "FEED"
 			context_action_btn.modulate = Color(0.35, 1.0, 0.45)
 
 func _on_interaction_lost() -> void:
@@ -453,8 +474,15 @@ func _on_context_btn_down() -> void:
 			_build_starmap_ui()
 			AudioManager.play("click")
 		"storage":
-			storage_modal.visible = true
-			_update_storage_ui()
+			var is_in_ship = false
+			var ship = get_tree().get_first_node_in_group("spaceship")
+			if ship and ship.get("is_player_in_cabin"):
+				is_in_ship = true
+			if astronaut_storage_modal:
+				astronaut_storage_modal.open_modal(is_in_ship)
+			elif storage_modal:
+				storage_modal.visible = true
+				_update_storage_ui()
 			AudioManager.play("click")
 		"repair":
 			var ship = get_tree().get_first_node_in_group("spaceship")
@@ -475,28 +503,96 @@ func _on_hyperdrive_badge_pressed() -> void:
 var active_toast_panel: PanelContainer = null
 
 func _setup_backpack_btn() -> void:
+	var bpack = get_node_or_null("TopLayer/TopBarCluster/BackpackBtn")
+	if bpack:
+		if not bpack.pressed.is_connected(_on_backpack_btn_pressed):
+			bpack.pressed.connect(_on_backpack_btn_pressed)
+		return
 	if not top_layer or top_layer.get_node_or_null("BackpackBtn"):
 		return
-	var bpack = Button.new()
-	bpack.name = "BackpackBtn"
-	bpack.text = "🎒 " + ("MOCHILA" if GameManager.current_language == "es" else "BACKPACK")
-	bpack.custom_minimum_size = Vector2(90, 36)
-	bpack.anchors_preset = Control.PRESET_TOP_RIGHT
-	bpack.anchor_left = 1.0
-	bpack.anchor_right = 1.0
-	bpack.offset_left = -285.0
-	bpack.offset_top = 14.0
-	bpack.offset_right = -195.0
-	bpack.offset_bottom = 50.0
-	bpack.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	bpack.pressed.connect(_on_backpack_btn_pressed)
-	top_layer.add_child(bpack)
+	var bpack_new = CircularArtButton.new()
+	bpack_new.name = "BackpackBtn"
+	bpack_new.icon_name = "backpack"
+	bpack_new.custom_minimum_size = Vector2(46, 46)
+	bpack_new.size = Vector2(46, 46)
+	bpack_new.pressed.connect(_on_backpack_btn_pressed)
+	top_layer.add_child(bpack_new)
 
 func _on_backpack_btn_pressed() -> void:
-	storage_modal.visible = not storage_modal.visible
-	if storage_modal.visible:
-		_update_storage_ui()
-		AudioManager.play("click")
+	if astronaut_storage_modal:
+		if astronaut_storage_modal.visible:
+			astronaut_storage_modal.close_modal()
+		else:
+			# Opening personal field gear (backpack & hands)
+			astronaut_storage_modal.open_modal(false)
+			AudioManager.play("click")
+	elif storage_modal:
+		storage_modal.visible = not storage_modal.visible
+		if storage_modal.visible:
+			_update_storage_ui()
+			AudioManager.play("click")
+
+func _setup_modal_art_styling() -> void:
+	var modal_card_sb = StyleBoxFlat.new()
+	modal_card_sb.bg_color = Color(0.08, 0.07, 0.15, 0.96)
+	modal_card_sb.border_color = Color(0.96, 0.66, 0.16, 0.90) # Golden Rim
+	modal_card_sb.set_border_width_all(2)
+	modal_card_sb.set_corner_radius_all(12)
+	modal_card_sb.shadow_color = Color(0.0, 0.0, 0.0, 0.5)
+	modal_card_sb.shadow_size = 6
+	
+	if pause_modal:
+		pause_modal.add_theme_stylebox_override("panel", modal_card_sb)
+		_style_menu_button(pause_resume_btn, Color(0.96, 0.66, 0.16))
+		_style_menu_button(pause_settings_btn, Color(0.2, 0.85, 1.0))
+		_style_menu_button(pause_menu_btn, Color(0.95, 0.4, 0.35))
+		
+	if settings_modal:
+		settings_modal.add_theme_stylebox_override("panel", modal_card_sb)
+		_style_menu_button(reset_defaults_btn, Color(0.96, 0.66, 0.16))
+		_style_menu_button(close_settings_btn, Color(0.95, 0.4, 0.35))
+		
+	if crafting_modal:
+		crafting_modal.add_theme_stylebox_override("panel", modal_card_sb)
+		var close_craft = get_node_or_null("Modals/CraftingModal/VBox/CloseCraftBtn")
+		if close_craft is Button:
+			_style_menu_button(close_craft, Color(0.95, 0.4, 0.35))
+			
+	if hyperdrive_modal:
+		hyperdrive_modal.add_theme_stylebox_override("panel", modal_card_sb)
+		var close_hd = get_node_or_null("Modals/HyperdriveModal/VBox/CloseHyperBtn")
+		if close_hd is Button:
+			_style_menu_button(close_hd, Color(0.95, 0.4, 0.35))
+		if launch_btn:
+			_style_menu_button(launch_btn, Color(0.2, 1.0, 0.4))
+
+func _style_menu_button(btn: Button, rim_col: Color) -> void:
+	if not is_instance_valid(btn):
+		return
+	var sb_normal = StyleBoxFlat.new()
+	sb_normal.bg_color = Color(0.10, 0.14, 0.22, 0.95)
+	sb_normal.border_color = rim_col
+	sb_normal.set_border_width_all(1)
+	sb_normal.set_corner_radius_all(8)
+	sb_normal.content_margin_left = 12
+	sb_normal.content_margin_right = 12
+	sb_normal.content_margin_top = 8
+	sb_normal.content_margin_bottom = 8
+	
+	var sb_hover = sb_normal.duplicate()
+	sb_hover.bg_color = Color(0.15, 0.20, 0.32, 1.0)
+	sb_hover.border_color = rim_col.lightened(0.25)
+	sb_hover.set_border_width_all(2)
+	
+	btn.add_theme_stylebox_override("normal", sb_normal)
+	btn.add_theme_stylebox_override("hover", sb_hover)
+	btn.add_theme_stylebox_override("pressed", sb_hover)
+	btn.add_theme_color_override("font_color", rim_col.lightened(0.1))
+	btn.add_theme_color_override("font_hover_color", Color.WHITE)
+
+func _on_inventory_full(_item: String) -> void:
+	var msg = "¡INVENTARIO LLENO! (Manos y espalda ocupadas)" if (is_instance_valid(GameManager) and GameManager.current_language == "es") else "INVENTORY FULL! (Hands and back occupied)"
+	show_status_toast(msg, 2.8)
 
 func show_status_toast(message: String, duration: float = 2.8) -> void:
 	if is_instance_valid(active_toast_panel):
@@ -589,14 +685,30 @@ func _on_craft_item_pressed(item_name: String) -> void:
 
 # Hyperdrive
 func _update_hyperdrive_ui() -> void:
+	# Automatically install any available crafted parts from inventory/storage into hyperdrive
+	if is_instance_valid(GameManager) and GameManager.crafting:
+		GameManager.crafting.install_all_available_parts()
+
 	var prog = GameManager.crafting.get_hyperdrive_progress()
-	hyperdrive_badge.text = "%s %d%%" % [GameManager.loc("hyperdrive_title"), int(prog * 100)]
+	if "progress" in hyperdrive_badge:
+		hyperdrive_badge.progress = prog
+	else:
+		hyperdrive_badge.text = "HYPERDRIVE %d%%" % int(prog * 100)
 	
-	if GameManager.crafting.is_hyperdrive_complete():
-		hyperdrive_status_label.text = GameManager.loc("hyperdrive_status_ok")
+	var is_es = (is_instance_valid(GameManager) and GameManager.current_language == "es")
+	var is_complete = GameManager.crafting.is_hyperdrive_complete()
+	
+	var hd_title = get_node_or_null("Modals/HyperdriveModal/VBox/Title")
+	if hd_title:
+		hd_title.text = "HYPERDRIVE"
+		
+	if is_complete:
+		hyperdrive_status_label.text = "ESTADO: OPERATIVO (100%)" if is_es else "STATUS: OPERATIONAL (100%)"
+		hyperdrive_status_label.add_theme_color_override("font_color", Color(0.25, 1.0, 0.45))
 		launch_btn.visible = true
 	else:
-		hyperdrive_status_label.text = GameManager.loc("hyperdrive_status_dmg")
+		hyperdrive_status_label.text = ("ESTADO: DAÑADO (%d%%)" % int(prog * 100)) if is_es else ("STATUS: DAMAGED (%d%%)" % int(prog * 100))
+		hyperdrive_status_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
 		launch_btn.visible = false
 		
 	for child in hyperdrive_list_container.get_children():
@@ -604,28 +716,87 @@ func _update_hyperdrive_ui() -> void:
 		
 	var reqs = GameManager.crafting.hyperdrive_requirements
 	var installed = GameManager.crafting.installed_parts
-	var inv = GameManager.crafting.inventory
+	
+	var part_display_names = {
+		"wrench": ("Llave Inglesa" if is_es else "Pressure Wrench"),
+		"wire": ("Cables Conductores" if is_es else "Conductive Wire"),
+		"microchip": ("Microprocesador" if is_es else "Microprocessor"),
+		"reactor_cell": ("Celda de Reactor" if is_es else "Reactor Cell"),
+		"uranium": ("Uranio Enriquecido" if is_es else "Enriched Uranium"),
+	}
 	
 	for part in reqs.keys():
-		var row = HBoxContainer.new()
-		var lbl = Label.new()
-		var needed = reqs[part]
-		var cur = installed.get(part, 0)
-		lbl.text = "%s: %d / %d" % [part.capitalize(), cur, needed]
-		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(lbl)
+		var needed: int = reqs[part]
+		var cur: int = installed.get(part, 0)
+		var pct: int = int(clamp(float(cur) / float(maxi(1, needed)), 0.0, 1.0) * 100.0)
+		var missing: int = maxi(0, needed - cur)
+		var display_name: String = part_display_names.get(part, part.capitalize())
 		
-		if cur < needed:
-			var btn = Button.new()
-			btn.text = GameManager.loc("craft_action")
-			btn.disabled = inv.get(part, 0) <= 0
-			btn.pressed.connect(func():
-				GameManager.crafting.install_part(part)
-				_update_hyperdrive_ui()
-			)
-			row.add_child(btn)
-			
-		hyperdrive_list_container.add_child(row)
+		var card = PanelContainer.new()
+		var card_sb = StyleBoxFlat.new()
+		card_sb.bg_color = Color(0.06, 0.08, 0.14, 0.95)
+		card_sb.border_color = Color(0.25, 1.0, 0.45, 0.8) if missing == 0 else Color(0.35, 0.28, 0.18, 0.7)
+		card_sb.set_border_width_all(1)
+		card_sb.set_corner_radius_all(8)
+		card_sb.content_margin_left = 12
+		card_sb.content_margin_right = 12
+		card_sb.content_margin_top = 8
+		card_sb.content_margin_bottom = 8
+		card.add_theme_stylebox_override("panel", card_sb)
+		
+		var v_box = VBoxContainer.new()
+		v_box.add_theme_constant_override("separation", 6)
+		card.add_child(v_box)
+		
+		# Top Row: Name, Count, Progress % and Status
+		var top_row = HBoxContainer.new()
+		
+		var name_lbl = Label.new()
+		name_lbl.text = display_name
+		name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_lbl.add_theme_font_size_override("font_size", 13)
+		name_lbl.add_theme_color_override("font_color", Color(0.95, 0.85, 0.45))
+		top_row.add_child(name_lbl)
+		
+		var count_lbl = Label.new()
+		count_lbl.text = "%d / %d  (%d%%)" % [cur, needed, pct]
+		count_lbl.add_theme_font_size_override("font_size", 12)
+		count_lbl.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
+		top_row.add_child(count_lbl)
+		
+		var status_lbl = Label.new()
+		if missing == 0:
+			status_lbl.text = "  [COMPLETO ✓]" if is_es else "  [COMPLETE ✓]"
+			status_lbl.add_theme_color_override("font_color", Color(0.25, 1.0, 0.45))
+		else:
+			status_lbl.text = ("  [Falta: %d]" % missing) if is_es else ("  [Missing: %d]" % missing)
+			status_lbl.add_theme_color_override("font_color", Color(1.0, 0.65, 0.2))
+		status_lbl.add_theme_font_size_override("font_size", 12)
+		top_row.add_child(status_lbl)
+		
+		v_box.add_child(top_row)
+		
+		# Bottom Row: Graphical Progress Bar
+		var pbar = ProgressBar.new()
+		pbar.custom_minimum_size = Vector2(0, 8)
+		pbar.min_value = 0.0
+		pbar.max_value = 100.0
+		pbar.value = pct
+		pbar.show_percentage = false
+		
+		var pbar_bg = StyleBoxFlat.new()
+		pbar_bg.bg_color = Color(0.04, 0.04, 0.08, 0.95)
+		pbar_bg.set_corner_radius_all(4)
+		pbar.add_theme_stylebox_override("background", pbar_bg)
+		
+		var pbar_fill = StyleBoxFlat.new()
+		pbar_fill.bg_color = Color(0.25, 1.0, 0.45) if missing == 0 else Color(0.2, 0.85, 1.0).lerp(Color(1.0, 0.78, 0.2), float(pct) / 100.0)
+		pbar_fill.set_corner_radius_all(4)
+		pbar.add_theme_stylebox_override("fill", pbar_fill)
+		
+		v_box.add_child(pbar)
+		
+		hyperdrive_list_container.add_child(card)
 
 func _on_launch_hyperdrive_pressed() -> void:
 	hyperdrive_modal.visible = false

@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3 uid="uid://cmainmenu01"]
+[gd_scene load_steps=23 format=3 uid="uid://cmainmenu01"]
 
 [ext_resource type="Script" path="res://scripts/screens/main_menu.gd" id="1_menu"]
 [ext_resource type="Shader" path="res://assets/shaders/planet_sphere.gdshader" id="2_planet_shader"]
@@ -6,6 +6,7 @@
 [ext_resource type="Shader" path="res://assets/shaders/space_sky.gdshader" id="4_space_sky"]
 [ext_resource type="Script" path="res://scripts/world/solar_system_orbits_3d.gd" id="5_orbits"]
 [ext_resource type="Shader" path="res://assets/shaders/star_sun.gdshader" id="6_star_shader"]
+[ext_resource type="Script" path="res://scripts/ui/circular_art_button.gd" id="7_art_btn"]
 
 [sub_resource type="ShaderMaterial" id="SkyMat_Space"]
 shader = ExtResource("4_space_sky")
@@ -214,7 +215,7 @@ visible = false
 script = ExtResource("5_orbits")
 
 [node name="PlanetPivot" type="Node3D" parent="SubViewportContainer/SubViewport/World3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 0, 0)
 
 [node name="PlanetMesh" type="MeshInstance3D" parent="SubViewportContainer/SubViewport/World3D/PlanetPivot"]
 mesh = SubResource("SphereMesh_Planet")
@@ -245,74 +246,171 @@ mouse_filter = 2
 
 [node name="BrandBox" type="VBoxContainer" parent="MenuLayer/RootLayer"]
 layout_mode = 0
-offset_left = 40.0
-offset_top = 35.0
-offset_right = 420.0
-offset_bottom = 98.0
-theme_override_constants/separation = 1
+offset_left = 60.0
+offset_top = 70.0
+offset_right = 440.0
+offset_bottom = 155.0
+theme_override_constants/separation = 4
 
 [node name="Title" type="Label" parent="MenuLayer/RootLayer/BrandBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.28, 0.88, 1, 1)
-theme_override_font_sizes/font_size = 36
-text = "CIVITUS"
+theme_override_colors/font_color = Color(0.96, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 42
+text = "C I V I T U S"
 
 [node name="Subtitle" type="Label" parent="MenuLayer/RootLayer/BrandBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.70, 0.82, 0.95, 1)
-theme_override_font_sizes/font_size = 12
-text = "PROCEDURAL EXPLORATION"
+theme_override_colors/font_color = Color(0.96, 0.66, 0.16, 1)
+theme_override_font_sizes/font_size = 13
+text = "THE UNMILKY WAY HOME"
 
-[node name="ActionButtons" type="HBoxContainer" parent="MenuLayer/RootLayer"]
+[node name="ActionButtons" type="VBoxContainer" parent="MenuLayer/RootLayer"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 180.0
+offset_right = 140.0
+offset_bottom = 540.0
+theme_override_constants/separation = 14
+
+[node name="PlayBtn" type="BaseButton" parent="MenuLayer/RootLayer/ActionButtons"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+tooltip_text = "Jugar"
+script = ExtResource("7_art_btn")
+icon_name = "play"
+ring_color = Color(0.96, 0.66, 0.16, 1)
+
+[node name="PlanetEditorBtn" type="BaseButton" parent="MenuLayer/RootLayer/ActionButtons"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+tooltip_text = "Simulador Planetario"
+script = ExtResource("7_art_btn")
+icon_name = "starmap"
+ring_color = Color(0.65, 0.35, 0.95, 1)
+
+[node name="StoreBtn" type="BaseButton" parent="MenuLayer/RootLayer/ActionButtons"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+tooltip_text = "Tienda Luna"
+script = ExtResource("7_art_btn")
+icon_name = "coin"
+ring_color = Color(0.96, 0.66, 0.16, 1)
+
+[node name="SettingsBtn" type="BaseButton" parent="MenuLayer/RootLayer/ActionButtons"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+tooltip_text = "Ajustes"
+script = ExtResource("7_art_btn")
+icon_name = "settings"
+ring_color = Color(0.35, 0.75, 1, 1)
+
+[node name="ExitBtn" type="BaseButton" parent="MenuLayer/RootLayer/ActionButtons"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+tooltip_text = "Salir"
+script = ExtResource("7_art_btn")
+icon_name = "exit"
+ring_color = Color(0.85, 0.28, 0.28, 1)
+
+[node name="PlaySelectLayer" type="Control" parent="MenuLayer"]
+visible = false
 layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
+anchors_preset = 15
+anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -440.0
-offset_top = -96.0
-offset_right = 440.0
-offset_bottom = -24.0
 grow_horizontal = 2
-grow_vertical = 0
-theme_override_constants/separation = 12
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="BrandBox" type="VBoxContainer" parent="MenuLayer/PlaySelectLayer"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 70.0
+offset_right = 440.0
+offset_bottom = 155.0
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="MenuLayer/PlaySelectLayer/BrandBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 38
+text = "EXPEDICIÓN"
+
+[node name="Subtitle" type="Label" parent="MenuLayer/PlaySelectLayer/BrandBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.66, 0.16, 1)
+theme_override_font_sizes/font_size = 13
+text = "SELECCIONA TU MODO DE VUELO"
+
+[node name="ActionButtons" type="VBoxContainer" parent="MenuLayer/PlaySelectLayer"]
+layout_mode = 0
+offset_left = 60.0
+offset_top = 180.0
+offset_right = 380.0
+offset_bottom = 440.0
+theme_override_constants/separation = 16
+
+[node name="ContinueRow" type="HBoxContainer" parent="MenuLayer/PlaySelectLayer/ActionButtons"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="ContinueBtn" type="BaseButton" parent="MenuLayer/PlaySelectLayer/ActionButtons/ContinueRow"]
+custom_minimum_size = Vector2(72, 72)
+layout_mode = 2
+tooltip_text = "Continuar"
+script = ExtResource("7_art_btn")
+icon_name = "play"
+ring_color = Color(0.2, 0.85, 1, 1)
+
+[node name="ContinueInfo" type="VBoxContainer" parent="MenuLayer/PlaySelectLayer/ActionButtons/ContinueRow"]
+layout_mode = 2
 alignment = 1
 
-[node name="PlayBtn" type="Button" parent="MenuLayer/RootLayer/ActionButtons"]
-custom_minimum_size = Vector2(200, 68)
+[node name="ContinueTitle" type="Label" parent="MenuLayer/PlaySelectLayer/ActionButtons/ContinueRow/ContinueInfo"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-theme_override_styles/normal = SubResource("StyleBoxFlat_PlayBtn")
-text = "▶ JUGAR"
+theme_override_colors/font_color = Color(0.96, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 14
+text = "CONTINUAR"
 
-[node name="PlanetEditorBtn" type="Button" parent="MenuLayer/RootLayer/ActionButtons"]
-custom_minimum_size = Vector2(170, 64)
+[node name="ContinueDetails" type="Label" parent="MenuLayer/PlaySelectLayer/ActionButtons/ContinueRow/ContinueInfo"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
-theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "🛠️ PLANETAS"
+theme_override_colors/font_color = Color(0.4, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "Expedición • 0%"
 
-[node name="SettingsBtn" type="Button" parent="MenuLayer/RootLayer/ActionButtons"]
-custom_minimum_size = Vector2(130, 64)
+[node name="NewGameRow" type="HBoxContainer" parent="MenuLayer/PlaySelectLayer/ActionButtons"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
-theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "⚙ AJUSTES"
+theme_override_constants/separation = 14
 
-[node name="StoreBtn" type="Button" parent="MenuLayer/RootLayer/ActionButtons"]
-custom_minimum_size = Vector2(130, 64)
+[node name="NewGameBtn" type="BaseButton" parent="MenuLayer/PlaySelectLayer/ActionButtons/NewGameRow"]
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
-theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "🛒 TIENDA"
+tooltip_text = "Nueva Partida"
+script = ExtResource("7_art_btn")
+icon_name = "thrust"
+ring_color = Color(0.96, 0.66, 0.16, 1)
 
-[node name="ExitBtn" type="Button" parent="MenuLayer/RootLayer/ActionButtons"]
-custom_minimum_size = Vector2(90, 64)
+[node name="NewGameInfo" type="VBoxContainer" parent="MenuLayer/PlaySelectLayer/ActionButtons/NewGameRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
-theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "✖ SALIR"
+alignment = 1
+
+[node name="NewGameTitle" type="Label" parent="MenuLayer/PlaySelectLayer/ActionButtons/NewGameRow/NewGameInfo"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.96, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 14
+text = "NUEVA PARTIDA"
+
+[node name="BackRow" type="HBoxContainer" parent="MenuLayer/PlaySelectLayer/ActionButtons"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="BackFromPlayBtn" type="BaseButton" parent="MenuLayer/PlaySelectLayer/ActionButtons/BackRow"]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "Volver"
+script = ExtResource("7_art_btn")
+icon_name = "back"
+ring_color = Color(0.7, 0.7, 0.75, 1)
 
 [node name="PlanetSelectorLayer" type="Control" parent="MenuLayer"]
 visible = false
@@ -351,12 +449,13 @@ theme_override_colors/font_color = Color(0.65, 0.75, 0.85, 0.8)
 theme_override_font_sizes/font_size = 11
 text = "[RA 19h 44m | DEC +44° 16' | DIST: 1,402 AL]"
 
-[node name="NewSystemBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/TopBar"]
-custom_minimum_size = Vector2(230, 44)
+[node name="NewSystemBtn" type="BaseButton" parent="MenuLayer/PlanetSelectorLayer/TopBar"]
+custom_minimum_size = Vector2(48, 48)
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
-theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "EXPLORAR NUEVO SISTEMA"
+tooltip_text = "Explorar Nuevo Sistema"
+script = ExtResource("7_art_btn")
+icon_name = "galaxy"
+ring_color = Color(0.2, 0.85, 1, 1)
 
 [node name="BottomDock" type="VBoxContainer" parent="MenuLayer/PlanetSelectorLayer"]
 layout_mode = 1
@@ -377,46 +476,51 @@ custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="PrevBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
-custom_minimum_size = Vector2(48, 44)
+[node name="PrevBtn" type="BaseButton" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "◄"
+tooltip_text = "Planeta Anterior"
+script = ExtResource("7_art_btn")
+icon_name = "arrow_left"
+ring_color = Color(0.4, 0.7, 1, 1)
 
 [node name="PlanetBadgeLabel" type="Label" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.85, 0.92, 1, 1)
 theme_override_font_sizes/font_size = 14
-text = "Planeta 1 de 4"
+text = "1 / 4"
 horizontal_alignment = 1
 
-[node name="NextBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
-custom_minimum_size = Vector2(48, 44)
+[node name="NextBtn" type="BaseButton" parent="MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow"]
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "►"
+tooltip_text = "Planeta Siguiente"
+script = ExtResource("7_art_btn")
+icon_name = "arrow_right"
+ring_color = Color(0.4, 0.7, 1, 1)
 
 [node name="TabBar" type="HBoxContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock"]
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 16
+alignment = 1
 
-[node name="PlanetTabBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TabBar"]
+[node name="PlanetTabBtn" type="BaseButton" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TabBar"]
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
-theme_override_styles/normal = SubResource("StyleBoxFlat_TabActive")
-text = "INFORMACIÓN DEL PLANETA"
+tooltip_text = "Información del Planeta"
+script = ExtResource("7_art_btn")
+icon_name = "planet"
+ring_color = Color(0.2, 0.85, 1, 1)
 
-[node name="SystemTabBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TabBar"]
+[node name="SystemTabBtn" type="BaseButton" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TabBar"]
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
-theme_override_styles/normal = SubResource("StyleBoxFlat_TabInactive")
-text = "INFORMACIÓN DEL SISTEMA"
+tooltip_text = "Información del Sistema"
+script = ExtResource("7_art_btn")
+icon_name = "solar_system"
+ring_color = Color(0.85, 0.65, 0.2, 1)
 
 [node name="TelemetryCard" type="PanelContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock"]
 layout_mode = 2
@@ -443,12 +547,13 @@ theme_override_colors/font_color = Color(0.70, 0.82, 0.95, 1)
 theme_override_font_sizes/font_size = 12
 text = "Rocoso Templado (Clase H)"
 
-[node name="ToggleDetailsBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow"]
-custom_minimum_size = Vector2(130, 30)
+[node name="ToggleDetailsBtn" type="BaseButton" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow"]
+custom_minimum_size = Vector2(34, 34)
 layout_mode = 2
-theme_override_font_sizes/font_size = 11
-theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "[ + INFO ]"
+tooltip_text = "Telemetría Detallada"
+script = ExtResource("7_art_btn")
+icon_name = "info"
+ring_color = Color(0.4, 0.8, 1, 1)
 
 [node name="MetersGrid" type="GridContainer" parent="MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox"]
 visible = false
@@ -588,29 +693,34 @@ text = "Cuerpos Orbitales: 6 planetas (1 habitable) • Radiación media: 0.04 r
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="BackBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons"]
-custom_minimum_size = Vector2(180, 60)
+[node name="BackBtn" type="BaseButton" parent="MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons"]
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
-theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "◀ VOLVER"
+tooltip_text = "Volver"
+script = ExtResource("7_art_btn")
+icon_name = "arrow_left"
+ring_color = Color(0.7, 0.75, 0.85, 1)
 
-[node name="UnlockAdBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons"]
-visible = false
-custom_minimum_size = Vector2(240, 60)
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.88, 0.35, 1)
-theme_override_font_sizes/font_size = 14
-theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "DESBLOQUEAR CON ANUNCIO"
-
-[node name="LaunchBtn" type="Button" parent="MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons"]
-custom_minimum_size = Vector2(0, 64)
+[node name="NavSpacer" type="Control" parent="MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 18
-theme_override_styles/normal = SubResource("StyleBoxFlat_PlayBtn")
-text = "🚀 INICIAR EXPEDICIÓN"
+
+[node name="UnlockAdBtn" type="BaseButton" parent="MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons"]
+visible = false
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+tooltip_text = "Desbloquear con Anuncio"
+script = ExtResource("7_art_btn")
+icon_name = "coin"
+ring_color = Color(1, 0.88, 0.35, 1)
+
+[node name="LaunchBtn" type="BaseButton" parent="MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+tooltip_text = "Iniciar Expedición"
+script = ExtResource("7_art_btn")
+icon_name = "thrust"
+ring_color = Color(0.2, 0.95, 0.55, 1)
 
 [node name="SettingsModal" type="Panel" parent="MenuLayer"]
 visible = false
@@ -655,7 +765,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(130, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
-text = "Idioma:"
+text = "IDIOMA"
 
 [node name="OptionButton" type="OptionButton" parent="MenuLayer/SettingsModal/VBox/LangBox"]
 layout_mode = 2
@@ -668,7 +778,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(130, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
-text = "Audio Master:"
+text = "AUDIO MASTER"
 
 [node name="HSlider" type="HSlider" parent="MenuLayer/SettingsModal/VBox/MasterBox"]
 layout_mode = 2
@@ -691,7 +801,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(130, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
-text = "Música:"
+text = "MÚSICA"
 
 [node name="HSlider" type="HSlider" parent="MenuLayer/SettingsModal/VBox/MusicBox"]
 layout_mode = 2
@@ -714,7 +824,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(130, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
-text = "Efectos SFX:"
+text = "EFECTOS SFX"
 
 [node name="HSlider" type="HSlider" parent="MenuLayer/SettingsModal/VBox/SfxBox"]
 layout_mode = 2
@@ -763,10 +873,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -310.0
-offset_top = -235.0
-offset_right = 310.0
-offset_bottom = 235.0
+offset_left = -340.0
+offset_top = -260.0
+offset_right = 340.0
+offset_bottom = 260.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_Modal")
@@ -776,23 +886,66 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 22.0
+offset_left = 20.0
 offset_top = 16.0
-offset_right = -22.0
+offset_right = -20.0
 offset_bottom = -16.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 10
 alignment = 1
 
-[node name="Title" type="Label" parent="MenuLayer/StoreModal/VBox"]
+[node name="HeaderRow" type="HBoxContainer" parent="MenuLayer/StoreModal/VBox"]
 layout_mode = 2
+
+[node name="Title" type="Label" parent="MenuLayer/StoreModal/VBox/HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
 theme_override_font_sizes/font_size = 18
-text = "TERMINAL DE SUMINISTROS // LICENCIAS"
-horizontal_alignment = 1
+text = "TIENDA LUNA"
+
+[node name="StoreCoinsBadge" type="Label" parent="MenuLayer/StoreModal/VBox/HeaderRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.25, 1)
+theme_override_font_sizes/font_size = 14
+text = "0 LUNA COINS"
+
+[node name="CategoryTabs" type="HBoxContainer" parent="MenuLayer/StoreModal/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TabSkinsBtn" type="Button" parent="MenuLayer/StoreModal/VBox/CategoryTabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_HighlightBtn")
+text = "TRAJES"
+
+[node name="TabPaintsBtn" type="Button" parent="MenuLayer/StoreModal/VBox/CategoryTabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "PROPULSIÓN"
+
+[node name="TabPacksBtn" type="Button" parent="MenuLayer/StoreModal/VBox/CategoryTabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
+text = "PAQUETES"
+
+[node name="ItemsScroll" type="ScrollContainer" parent="MenuLayer/StoreModal/VBox"]
+custom_minimum_size = Vector2(0, 270)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ItemsContainer" type="VBoxContainer" parent="MenuLayer/StoreModal/VBox/ItemsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
 
 [node name="Desc" type="Label" parent="MenuLayer/StoreModal/VBox"]
+visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.88, 0.94, 1)
 theme_override_font_sizes/font_size = 12
@@ -801,18 +954,21 @@ horizontal_alignment = 1
 autowrap_mode = 2
 
 [node name="BuyNoAdsBtn" type="Button" parent="MenuLayer/StoreModal/VBox"]
+visible = false
 custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
 text = "Supresión de Anuncios - $0.99 USD"
 
 [node name="BuyFullGameBtn" type="Button" parent="MenuLayer/StoreModal/VBox"]
+visible = false
 custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_HighlightBtn")
 text = "PROTOCOLO TOTAL (JUEGO COMPLETO) - $2.99 USD"
 
 [node name="BuyEditorBtn" type="Button" parent="MenuLayer/StoreModal/VBox"]
+visible = false
 custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
@@ -834,7 +990,7 @@ custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
-text = "RESTAURAR COMPRAS"
+text = "RESTAURAR"
 
 [node name="CloseStoreBtn" type="Button" parent="MenuLayer/StoreModal/VBox/BottomRow"]
 custom_minimum_size = Vector2(0, 38)

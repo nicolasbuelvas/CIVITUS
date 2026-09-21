@@ -3,6 +3,7 @@ extends Control
 # View State
 enum ViewState {
 	ROOT_MENU,
+	PLAY_SELECT,
 	PLANET_SELECTOR
 }
 
@@ -18,35 +19,43 @@ var current_view: ViewState = ViewState.ROOT_MENU
 @onready var sun_light: DirectionalLight3D = $SubViewportContainer/SubViewport/World3D/SunLight
 @onready var camera_3d: Camera3D = $SubViewportContainer/SubViewport/World3D/Camera3D
 
-# UI References - Root Menu
+# UI References - Root Menu (Pure Game Art Symbology)
 @onready var root_layer: Control = $MenuLayer/RootLayer
 @onready var title_label: Label = $MenuLayer/RootLayer/BrandBox/Title
 @onready var subtitle_label: Label = $MenuLayer/RootLayer/BrandBox/Subtitle
 
-@onready var play_btn: Button = $MenuLayer/RootLayer/ActionButtons/PlayBtn
-@onready var planet_editor_btn: Button = $MenuLayer/RootLayer/ActionButtons/PlanetEditorBtn
-@onready var settings_btn: Button = $MenuLayer/RootLayer/ActionButtons/SettingsBtn
-@onready var store_btn: Button = $MenuLayer/RootLayer/ActionButtons/StoreBtn
-@onready var exit_btn: Button = $MenuLayer/RootLayer/ActionButtons/ExitBtn
+@onready var play_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/PlayBtn
+@onready var planet_editor_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/PlanetEditorBtn
+@onready var store_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/StoreBtn
+@onready var settings_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/SettingsBtn
+@onready var exit_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/ExitBtn
+
+# UI References - Play Perspective (Only 2 options + Volver)
+@onready var play_select_layer: Control = $MenuLayer/PlaySelectLayer
+@onready var continue_row: HBoxContainer = $MenuLayer/PlaySelectLayer/ActionButtons/ContinueRow
+@onready var continue_btn: BaseButton = $MenuLayer/PlaySelectLayer/ActionButtons/ContinueRow/ContinueBtn
+@onready var continue_details: Label = $MenuLayer/PlaySelectLayer/ActionButtons/ContinueRow/ContinueInfo/ContinueDetails
+@onready var new_game_btn: BaseButton = $MenuLayer/PlaySelectLayer/ActionButtons/NewGameRow/NewGameBtn
+@onready var back_from_play_btn: BaseButton = $MenuLayer/PlaySelectLayer/ActionButtons/BackRow/BackFromPlayBtn
 
 # UI References - Planet Selector
 @onready var selector_layer: Control = $MenuLayer/PlanetSelectorLayer
 @onready var system_name_label: Label = $MenuLayer/PlanetSelectorLayer/TopBar/SystemBox/SystemName
 @onready var system_coords_label: Label = $MenuLayer/PlanetSelectorLayer/TopBar/SystemBox/SystemCoords
-@onready var new_system_btn: Button = $MenuLayer/PlanetSelectorLayer/TopBar/NewSystemBtn
+@onready var new_system_btn: BaseButton = $MenuLayer/PlanetSelectorLayer/TopBar/NewSystemBtn
 
-@onready var prev_planet_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/PrevBtn
-@onready var next_planet_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/NextBtn
+@onready var prev_planet_btn: BaseButton = $MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/PrevBtn
+@onready var next_planet_btn: BaseButton = $MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/NextBtn
 @onready var planet_badge_label: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/CarouselRow/PlanetBadgeLabel
 
-@onready var planet_tab_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/TabBar/PlanetTabBtn
-@onready var system_tab_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/TabBar/SystemTabBtn
+@onready var planet_tab_btn: BaseButton = $MenuLayer/PlanetSelectorLayer/BottomDock/TabBar/PlanetTabBtn
+@onready var system_tab_btn: BaseButton = $MenuLayer/PlanetSelectorLayer/BottomDock/TabBar/SystemTabBtn
 
 @onready var telemetry_card: PanelContainer = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard
 @onready var planet_info_box: VBoxContainer = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox
 @onready var planet_name_label: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow/PlanetName
 @onready var planet_type_label: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow/PlanetType
-@onready var toggle_details_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow/ToggleDetailsBtn
+@onready var toggle_details_btn: BaseButton = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/HeaderRow/ToggleDetailsBtn
 
 # Graphical Meters
 @onready var meters_grid: GridContainer = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/PlanetInfoBox/MetersGrid
@@ -72,9 +81,9 @@ var current_view: ViewState = ViewState.ROOT_MENU
 @onready var hab_zone_line: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/SystemInfoBox/HabZoneLine
 @onready var planets_count_line: Label = $MenuLayer/PlanetSelectorLayer/BottomDock/TelemetryCard/SystemInfoBox/PlanetsCountLine
 
-@onready var back_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons/BackBtn
-@onready var unlock_ad_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons/UnlockAdBtn
-@onready var launch_btn: Button = $MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons/LaunchBtn
+@onready var back_btn: BaseButton = $MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons/BackBtn
+@onready var unlock_ad_btn: BaseButton = $MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons/UnlockAdBtn
+@onready var launch_btn: BaseButton = $MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons/LaunchBtn
 
 # UI References - Settings Modal
 @onready var settings_modal: Panel = $MenuLayer/SettingsModal
@@ -100,7 +109,12 @@ var current_view: ViewState = ViewState.ROOT_MENU
 
 # UI References - Store Modal
 @onready var store_modal: Panel = $MenuLayer/StoreModal
-@onready var store_title: Label = $MenuLayer/StoreModal/VBox/Title
+@onready var store_title: Label = $MenuLayer/StoreModal/VBox/HeaderRow/Title
+@onready var store_coins_badge: Label = $MenuLayer/StoreModal/VBox/HeaderRow/StoreCoinsBadge
+@onready var tab_skins_btn: Button = $MenuLayer/StoreModal/VBox/CategoryTabs/TabSkinsBtn
+@onready var tab_paints_btn: Button = $MenuLayer/StoreModal/VBox/CategoryTabs/TabPaintsBtn
+@onready var tab_packs_btn: Button = $MenuLayer/StoreModal/VBox/CategoryTabs/TabPacksBtn
+@onready var store_items_container: VBoxContainer = $MenuLayer/StoreModal/VBox/ItemsScroll/ItemsContainer
 @onready var store_desc: Label = $MenuLayer/StoreModal/VBox/Desc
 @onready var buy_no_ads_btn: Button = $MenuLayer/StoreModal/VBox/BuyNoAdsBtn
 @onready var buy_full_game_btn: Button = $MenuLayer/StoreModal/VBox/BuyFullGameBtn
@@ -131,6 +145,11 @@ var is_dragging: bool = false
 var last_drag_pos: Vector2 = Vector2.ZERO
 var drag_travel: float = 0.0
 
+# In-place 3D Planet Drag & Spin (Camera stays still)
+var is_dragging_planet: bool = false
+var planet_spin_vel_y: float = 0.05
+var planet_spin_vel_x: float = 0.0
+
 # Multi-touch pinch-to-zoom tracking
 var active_touches: Dictionary = {}
 var last_pinch_dist: float = 0.0
@@ -151,31 +170,140 @@ var cached_master: float = 0.85
 var cached_music: float = 0.70
 var cached_sfx: float = 0.90
 var cached_lang: String = "es"
-var luna_badge_label: Label = null
+var luna_badge_btn: Button = null
+var luna_coins_label: Label = null
+
+func _style_menu_button(btn: Button, border_color: Color, fill_color: Color = Color(0.08, 0.07, 0.16, 0.95)) -> void:
+	if not btn: return
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = fill_color
+	sb.border_width_left = 2
+	sb.border_width_top = 2
+	sb.border_width_right = 2
+	sb.border_width_bottom = 2
+	sb.border_color = border_color
+	sb.corner_radius_top_left = 22
+	sb.corner_radius_top_right = 22
+	sb.corner_radius_bottom_right = 22
+	sb.corner_radius_bottom_left = 22
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	sb.content_margin_left = 18
+	sb.content_margin_right = 18
+	btn.add_theme_stylebox_override("normal", sb)
+	
+	var sb_hover = sb.duplicate()
+	sb_hover.bg_color = Color(0.13, 0.11, 0.24, 0.98)
+	sb_hover.border_color = border_color.lightened(0.25)
+	btn.add_theme_stylebox_override("hover", sb_hover)
+	btn.add_theme_stylebox_override("pressed", sb_hover)
 
 func _ready() -> void:
 	# Hide modals
 	settings_modal.visible = false
 	store_modal.visible = false
 	
-	# Luna Points Top Badge
-	luna_badge_label = Label.new()
-	luna_badge_label.name = "LunaPointsBadge"
-	luna_badge_label.position = Vector2(35, 25)
-	luna_badge_label.modulate = Color(1.0, 0.88, 0.35)
+	# Top-Right Luna Coins Pill Badge (Circular icon with our game art + only the number!)
 	var root_layer = get_node_or_null("MenuLayer/RootLayer")
 	if root_layer:
-		root_layer.add_child(luna_badge_label)
+		luna_badge_btn = Button.new()
+		luna_badge_btn.name = "LunaCoinsPill"
+		luna_badge_btn.custom_minimum_size = Vector2(85, 42)
+		luna_badge_btn.anchors_preset = Control.PRESET_TOP_RIGHT
+		luna_badge_btn.anchor_left = 1.0
+		luna_badge_btn.anchor_right = 1.0
+		luna_badge_btn.offset_left = -140.0
+		luna_badge_btn.offset_top = 26.0
+		luna_badge_btn.offset_right = -30.0
+		luna_badge_btn.offset_bottom = 68.0
+		
+		var pill_sb = StyleBoxFlat.new()
+		pill_sb.bg_color = Color(0.08, 0.07, 0.16, 0.95)
+		pill_sb.border_width_left = 2
+		pill_sb.border_width_top = 2
+		pill_sb.border_width_right = 2
+		pill_sb.border_width_bottom = 2
+		pill_sb.border_color = Color(0.96, 0.66, 0.16, 1.0) # Gold rim
+		pill_sb.corner_radius_top_left = 21
+		pill_sb.corner_radius_top_right = 21
+		pill_sb.corner_radius_bottom_right = 21
+		pill_sb.corner_radius_bottom_left = 21
+		pill_sb.content_margin_left = 8
+		pill_sb.content_margin_right = 14
+		pill_sb.content_margin_top = 4
+		pill_sb.content_margin_bottom = 4
+		luna_badge_btn.add_theme_stylebox_override("normal", pill_sb)
+		
+		var pill_hover = pill_sb.duplicate()
+		pill_hover.bg_color = Color(0.13, 0.11, 0.24, 0.98)
+		pill_hover.border_color = Color(1.0, 0.88, 0.35, 1.0)
+		luna_badge_btn.add_theme_stylebox_override("hover", pill_hover)
+		luna_badge_btn.add_theme_stylebox_override("pressed", pill_hover)
+		
+		var hbox = HBoxContainer.new()
+		hbox.name = "HBox"
+		hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.add_theme_constant_override("separation", 8)
+		hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		
+		var coin_icon = CircularArtButton.new()
+		coin_icon.name = "CoinIcon"
+		coin_icon.custom_minimum_size = Vector2(30, 30)
+		coin_icon.icon_type = CircularArtButton.IconType.LUNA_COIN
+		coin_icon.ring_thickness = 1.5
+		coin_icon.ring_color = Color(0.96, 0.66, 0.16, 1.0)
+		coin_icon.bg_color = Color(0.08, 0.07, 0.16, 0.95)
+		coin_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.add_child(coin_icon)
+		
+		luna_coins_label = Label.new()
+		luna_coins_label.name = "CoinsNum"
+		luna_coins_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		luna_coins_label.add_theme_font_size_override("font_size", 16)
+		luna_coins_label.add_theme_color_override("font_color", Color(0.96, 0.66, 0.16))
+		hbox.add_child(luna_coins_label)
+		
+		luna_badge_btn.add_child(hbox)
+		luna_badge_btn.pressed.connect(_on_store_pressed)
+		root_layer.add_child(luna_badge_btn)
+	
 	_update_luna_points_ui()
 	GameManager.luna_points_changed.connect(func(_new_pts): _update_luna_points_ui())
+	if GameManager.has_signal("luna_coins_changed"):
+		GameManager.luna_coins_changed.connect(func(_new_pts): _update_luna_points_ui())
 	
-	# Connect Root Menu buttons
+	# Connect Root Menu symbol buttons (Pure Game Art Symbology)
 	play_btn.pressed.connect(_on_play_pressed)
+	
 	if planet_editor_btn:
 		planet_editor_btn.pressed.connect(_on_planet_editor_pressed)
-	settings_btn.pressed.connect(_on_settings_pressed)
-	store_btn.pressed.connect(_on_store_pressed)
-	exit_btn.pressed.connect(_on_exit_pressed)
+		
+	if store_btn:
+		store_btn.pressed.connect(_on_store_pressed)
+	
+	if settings_btn:
+		settings_btn.pressed.connect(_on_settings_pressed)
+	
+	if exit_btn:
+		exit_btn.pressed.connect(_on_exit_pressed)
+	
+	# Connect Play Perspective buttons (Only 2 options + Volver)
+	if continue_btn:
+		continue_btn.pressed.connect(_on_continue_pressed)
+		
+	if new_game_btn:
+		new_game_btn.pressed.connect(_on_new_game_pressed)
+		
+	if back_from_play_btn:
+		back_from_play_btn.pressed.connect(_on_back_from_play_pressed)
+	
+	# Connect Store Category Tabs
+	if tab_skins_btn:
+		tab_skins_btn.pressed.connect(func(): _switch_store_tab("skins"))
+	if tab_paints_btn:
+		tab_paints_btn.pressed.connect(func(): _switch_store_tab("paints"))
+	if tab_packs_btn:
+		tab_packs_btn.pressed.connect(func(): _switch_store_tab("packs"))
 	
 	# Connect Store Modal buttons
 	if buy_no_ads_btn:
@@ -240,20 +368,73 @@ func _ready() -> void:
 		selected_planet_index = randi() % planets.size()
 		_select_planet(selected_planet_index)
 
+func _on_play_pressed() -> void:
+	AudioManager.play("click")
+	_show_view(ViewState.PLAY_SELECT)
+
+func _on_back_from_play_pressed() -> void:
+	AudioManager.play("click")
+	_show_view(ViewState.ROOT_MENU)
+
+func _on_new_game_pressed() -> void:
+	AudioManager.play("click")
+	_show_view(ViewState.PLANET_SELECTOR)
+
+func _update_continue_button() -> void:
+	if not continue_btn:
+		return
+	if GameManager.has_save_game():
+		if continue_row:
+			continue_row.visible = true
+		continue_btn.disabled = false
+		var summary = GameManager.get_save_summary()
+		var p_name = summary.get("planet_name", "Expedición")
+		var p_prog = int(summary.get("hyperdrive_progress", 0.0) * 100)
+		if continue_details:
+			continue_details.text = "%s • %d%%" % [p_name, p_prog]
+	else:
+		if continue_row:
+			continue_row.visible = false
+		continue_btn.disabled = true
+
+func _on_continue_pressed() -> void:
+	AudioManager.play("click")
+	GameManager.load_game()
+
 func _apply_localization() -> void:
-	# Root Menu
-	play_btn.text = GameManager.loc("play")
+	# Root Menu & Play Perspective Tooltips (No text buttons, pure symbology!)
+	_update_continue_button()
+	play_btn.tooltip_text = "Jugar" if GameManager.current_language == "es" else "Play"
+	if new_game_btn:
+		new_game_btn.tooltip_text = "Nueva Partida" if GameManager.current_language == "es" else "New Game"
+	if continue_btn:
+		continue_btn.tooltip_text = "Continuar" if GameManager.current_language == "es" else "Continue"
+	if back_from_play_btn:
+		back_from_play_btn.tooltip_text = "Volver" if GameManager.current_language == "es" else "Back"
 	if planet_editor_btn:
-		planet_editor_btn.text = GameManager.loc("planet_editor")
-	settings_btn.text = GameManager.loc("settings")
-	store_btn.text = GameManager.loc("store")
-	exit_btn.text = GameManager.loc("exit")
+		planet_editor_btn.tooltip_text = "Simulador Planetario" if GameManager.current_language == "es" else "Planet Simulator"
+	if settings_btn:
+		settings_btn.tooltip_text = "Ajustes" if GameManager.current_language == "es" else "Settings"
+	if store_btn:
+		store_btn.tooltip_text = "Tienda Luna" if GameManager.current_language == "es" else "Luna Store"
+	if exit_btn:
+		exit_btn.tooltip_text = "Salir" if GameManager.current_language == "es" else "Exit"
 	
-	# Selector Navigation
-	new_system_btn.text = GameManager.loc("new_system")
-	back_btn.text = GameManager.loc("back_menu")
-	planet_tab_btn.text = GameManager.loc("planet_info_tab")
-	system_tab_btn.text = GameManager.loc("system_info_tab")
+	# Selector Navigation Tooltips (Pure Game Art Symbology)
+	if new_system_btn:
+		new_system_btn.tooltip_text = GameManager.loc("new_system")
+	if back_btn:
+		back_btn.tooltip_text = GameManager.loc("back_menu")
+	if planet_tab_btn:
+		planet_tab_btn.tooltip_text = GameManager.loc("planet_info_tab")
+	if system_tab_btn:
+		system_tab_btn.tooltip_text = GameManager.loc("system_info_tab")
+	if toggle_details_btn:
+		toggle_details_btn.tooltip_text = "Telemetría" if GameManager.current_language == "es" else "Telemetry"
+	if prev_planet_btn:
+		prev_planet_btn.tooltip_text = "Planeta Anterior" if GameManager.current_language == "es" else "Previous Planet"
+	if next_planet_btn:
+		next_planet_btn.tooltip_text = "Planeta Siguiente" if GameManager.current_language == "es" else "Next Planet"
 	
 	# Settings Modal
 	settings_title_label.text = GameManager.loc("settings_title")
@@ -279,7 +460,10 @@ func _apply_localization() -> void:
 	if close_store_btn:
 		close_store_btn.text = GameManager.loc("close")
 	if unlock_ad_btn:
-		unlock_ad_btn.text = GameManager.loc("unlock_ad_btn")
+		if unlock_ad_btn is CircularArtButton:
+			unlock_ad_btn.tooltip_text = GameManager.loc("unlock_ad_btn")
+		else:
+			unlock_ad_btn.text = GameManager.loc("unlock_ad_btn")
 	if ad_tip_label:
 		ad_tip_label.text = GameManager.loc("ad_tip")
 	
@@ -297,20 +481,40 @@ func _show_view(new_view: ViewState) -> void:
 	match new_view:
 		ViewState.ROOT_MENU:
 			root_layer.visible = true
+			if play_select_layer:
+				play_select_layer.visible = false
 			selector_layer.visible = false
 			target_camera_dist = 12.0
 			target_focal_point = Vector3.ZERO
 			planet_pivot.visible = true
+			planet_pivot.position = Vector3(2.4, 0.0, 0.0)
 			if star_pivot:
 				star_pivot.visible = false
 			if orbits_view:
 				orbits_view.visible = false
+		ViewState.PLAY_SELECT:
+			root_layer.visible = false
+			if play_select_layer:
+				play_select_layer.visible = true
+			selector_layer.visible = false
+			target_camera_dist = 12.0
+			target_focal_point = Vector3.ZERO
+			planet_pivot.visible = true
+			planet_pivot.position = Vector3(2.4, 0.0, 0.0)
+			if star_pivot:
+				star_pivot.visible = false
+			if orbits_view:
+				orbits_view.visible = false
+			_update_continue_button()
 		ViewState.PLANET_SELECTOR:
 			root_layer.visible = false
+			if play_select_layer:
+				play_select_layer.visible = false
 			selector_layer.visible = true
 			target_camera_dist = 11.5
 			target_focal_point = Vector3.ZERO
 			planet_pivot.visible = true
+			planet_pivot.position = Vector3.ZERO # Planet centered in planet selector!
 			if star_pivot:
 				star_pivot.visible = true
 			if orbits_view:
@@ -318,7 +522,23 @@ func _show_view(new_view: ViewState) -> void:
 			_refresh_solar_system_ui()
 
 func _process(delta: float) -> void:
-	# Idle orbital camera drift when not dragging
+	# Menu & Play Perspective: Stationary camera ("YO no giro con el"), 3D planet spins in-place
+	if current_view == ViewState.ROOT_MENU or current_view == ViewState.PLAY_SELECT:
+		if camera_3d:
+			camera_3d.position = Vector3(0.0, 0.0, 12.0)
+			camera_3d.rotation = Vector3.ZERO
+		if planet_mesh and planet_pivot and planet_pivot.visible:
+			if not is_dragging_planet:
+				planet_spin_vel_y = lerp(planet_spin_vel_y, 0.05, delta * 2.0)
+				planet_spin_vel_x = lerp(planet_spin_vel_x, 0.0, delta * 3.0)
+				planet_mesh.rotate_y(planet_spin_vel_y * delta)
+				if abs(planet_spin_vel_x) > 0.0001:
+					planet_mesh.rotate_object_local(Vector3.RIGHT, planet_spin_vel_x * delta)
+		if planet_pivot:
+			planet_pivot.position.x = lerp(planet_pivot.position.x, 2.4, delta * 8.0)
+		return
+
+	# Orbital camera drift for planet selector
 	if not is_dragging:
 		cam_yaw += cam_yaw_velocity * delta
 		cam_pitch += cam_pitch_velocity * delta
@@ -326,9 +546,11 @@ func _process(delta: float) -> void:
 		cam_yaw_velocity = lerp(cam_yaw_velocity, 0.025, delta * 1.5)
 		cam_pitch_velocity = lerp(cam_pitch_velocity, 0.0, delta * 2.5)
 		
-	# Planet spins on its own polar axis
-	if planet_mesh and planet_pivot and planet_pivot.visible:
-		planet_mesh.rotation.y += delta * 0.05
+	# In PLANET_SELECTOR view, planet is perfectly centered at origin
+	if planet_pivot and planet_pivot.visible:
+		planet_pivot.position.x = lerp(planet_pivot.position.x, 0.0, delta * 8.0)
+		if planet_mesh:
+			planet_mesh.rotation.y += delta * 0.05
 		
 	# Star slow drift
 	if star_pivot and star_pivot.visible:
@@ -346,7 +568,45 @@ func _process(delta: float) -> void:
 		camera_3d.look_at(current_focal_point, quat * Vector3.UP)
 
 func _gui_input(event: InputEvent) -> void:
-	# Free 360° omnidirectional orbit drag & mobile tap detection
+	# Menu & Play Perspective: Drag directly rotates the 3D planet inside its right-hand zone
+	if current_view == ViewState.ROOT_MENU or current_view == ViewState.PLAY_SELECT:
+		var is_in_planet_zone = event.position.x >= get_viewport_rect().size.x * 0.28
+		if event is InputEventMouseButton:
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				if event.pressed and is_in_planet_zone:
+					is_dragging_planet = true
+					last_drag_pos = event.position
+					planet_spin_vel_y = 0.0
+					planet_spin_vel_x = 0.0
+				else:
+					is_dragging_planet = false
+		elif event is InputEventMouseMotion and is_dragging_planet:
+			var delta_pos = event.relative
+			var sens = 0.005
+			if planet_mesh:
+				planet_mesh.rotate_y(delta_pos.x * sens)
+				planet_mesh.rotate_object_local(Vector3.RIGHT, delta_pos.y * sens)
+			planet_spin_vel_y = delta_pos.x * sens * 16.0
+			planet_spin_vel_x = delta_pos.y * sens * 16.0
+		elif event is InputEventScreenTouch:
+			if event.pressed and is_in_planet_zone:
+				is_dragging_planet = true
+				last_drag_pos = event.position
+				planet_spin_vel_y = 0.0
+				planet_spin_vel_x = 0.0
+			else:
+				is_dragging_planet = false
+		elif event is InputEventScreenDrag and is_dragging_planet:
+			var delta_pos = event.relative
+			var sens = 0.005
+			if planet_mesh:
+				planet_mesh.rotate_y(delta_pos.x * sens)
+				planet_mesh.rotate_object_local(Vector3.RIGHT, delta_pos.y * sens)
+			planet_spin_vel_y = delta_pos.x * sens * 16.0
+			planet_spin_vel_x = delta_pos.y * sens * 16.0
+		return
+
+	# Free 360° omnidirectional orbit drag & mobile tap detection for Planet Selector
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
@@ -468,13 +728,13 @@ func _on_toggle_details_pressed() -> void:
 	AudioManager.play("click")
 	is_telemetry_expanded = !is_telemetry_expanded
 	meters_grid.visible = is_telemetry_expanded
-	toggle_details_btn.text = "[ - INFO ]" if is_telemetry_expanded else "[ + INFO ]"
+	if toggle_details_btn is CircularArtButton:
+		toggle_details_btn.ring_color = Color(0.2, 0.95, 0.55) if is_telemetry_expanded else Color(0.4, 0.8, 1.0)
+		toggle_details_btn.tooltip_text = "[ - INFO ]" if is_telemetry_expanded else "[ + INFO ]"
+	else:
+		toggle_details_btn.text = "[ - INFO ]" if is_telemetry_expanded else "[ + INFO ]"
 
 # ----------------- Navigation & Button Callbacks -----------------
-
-func _on_play_pressed() -> void:
-	AudioManager.play("click")
-	_show_view(ViewState.PLANET_SELECTOR)
 
 func _on_back_to_menu_pressed() -> void:
 	AudioManager.play("click")
@@ -708,7 +968,11 @@ func _update_telemetry_ui() -> void:
 	planet_name_label.text = "%s [%s %d]" % [p_name, GameManager.loc("level"), p_lvl]
 	planet_type_label.text = p_type
 	if toggle_details_btn:
-		toggle_details_btn.text = "[ - INFO ]" if is_telemetry_expanded else "[ + INFO ]"
+		if toggle_details_btn is CircularArtButton:
+			toggle_details_btn.ring_color = Color(0.2, 0.95, 0.55) if is_telemetry_expanded else Color(0.4, 0.8, 1.0)
+			toggle_details_btn.tooltip_text = "[ - INFO ]" if is_telemetry_expanded else "[ + INFO ]"
+		else:
+			toggle_details_btn.text = "[ - INFO ]" if is_telemetry_expanded else "[ + INFO ]"
 	if meters_grid:
 		meters_grid.visible = is_telemetry_expanded
 	
@@ -760,8 +1024,14 @@ func _on_planet_tab_pressed() -> void:
 	active_info_tab = "planet"
 	planet_info_box.visible = true
 	system_info_box.visible = false
-	planet_tab_btn.modulate = Color(1.0, 1.0, 1.0)
-	system_tab_btn.modulate = Color(0.65, 0.75, 0.85, 0.6)
+	if planet_tab_btn is CircularArtButton:
+		planet_tab_btn.ring_color = Color(0.2, 0.85, 1.0)
+	else:
+		planet_tab_btn.modulate = Color(1.0, 1.0, 1.0)
+	if system_tab_btn is CircularArtButton:
+		system_tab_btn.ring_color = Color(0.4, 0.5, 0.65)
+	else:
+		system_tab_btn.modulate = Color(0.65, 0.75, 0.85, 0.6)
 	
 	# Show close-up planet and host star in distance
 	planet_pivot.visible = true
@@ -779,8 +1049,14 @@ func _on_system_tab_pressed() -> void:
 	active_info_tab = "system"
 	planet_info_box.visible = false
 	system_info_box.visible = true
-	planet_tab_btn.modulate = Color(0.65, 0.75, 0.85, 0.6)
-	system_tab_btn.modulate = Color(1.0, 1.0, 1.0)
+	if planet_tab_btn is CircularArtButton:
+		planet_tab_btn.ring_color = Color(0.4, 0.5, 0.65)
+	else:
+		planet_tab_btn.modulate = Color(0.65, 0.75, 0.85, 0.6)
+	if system_tab_btn is CircularArtButton:
+		system_tab_btn.ring_color = Color(0.85, 0.65, 0.2)
+	else:
+		system_tab_btn.modulate = Color(1.0, 1.0, 1.0)
 	
 	# HIDE close-up planet and background star to completely resolve floating/duplicate bugs!
 	planet_pivot.visible = false
@@ -798,12 +1074,22 @@ func _update_launch_button_text() -> void:
 	var p = GameManager.current_planet
 	var is_locked = p.get("is_locked", false) and not GameManager.is_vip_unlocked(p.get("level", 0))
 	
-	if is_locked:
-		launch_btn.text = GameManager.loc("unlock_tier")
-		launch_btn.modulate = Color(1.0, 0.7, 0.2)
+	if launch_btn is CircularArtButton:
+		if is_locked:
+			launch_btn.icon_name = "coin"
+			launch_btn.ring_color = Color(1.0, 0.7, 0.2)
+			launch_btn.tooltip_text = GameManager.loc("unlock_tier")
+		else:
+			launch_btn.icon_name = "thrust"
+			launch_btn.ring_color = Color(0.2, 0.95, 0.55)
+			launch_btn.tooltip_text = GameManager.loc("start_expedition")
 	else:
-		launch_btn.text = GameManager.loc("start_expedition")
-		launch_btn.modulate = Color(0.2, 0.9, 0.45)
+		if is_locked:
+			launch_btn.text = GameManager.loc("unlock_tier")
+			launch_btn.modulate = Color(1.0, 0.7, 0.2)
+		else:
+			launch_btn.text = GameManager.loc("start_expedition")
+			launch_btn.modulate = Color(0.2, 0.9, 0.45)
 
 func _on_launch_pressed() -> void:
 	AudioManager.play("click")
@@ -931,25 +1217,311 @@ func _on_store_pressed() -> void:
 	settings_modal.visible = false
 	open_store_modal(GameManager.loc("pro_sector_locked"), GameManager.loc("pro_sector_desc"), false)
 
-func _update_luna_points_ui() -> void:
-	if luna_badge_label:
-		luna_badge_label.text = "🌙 %d LUNA POINTS" % GameManager.luna_points
+var current_store_tab: String = "skins"
 
-func open_store_modal(title: String, desc: String, highlight_editor: bool = false) -> void:
-	store_title.text = title
-	store_desc.text = "%s\n\n[ 🌙 Saldo actual: %d Luna Points ]" % [desc, GameManager.luna_points]
+const STORE_ITEMS: Array[Dictionary] = [
+	# Skins
+	{
+		"id": "apollo_white",
+		"category": "skins",
+		"name": "APOLO CLÁSICO",
+		"badge": "[EVA-01]",
+		"color": Color(0.9, 0.9, 0.95),
+		"cost": 0,
+		"currency": "coins",
+		"desc": "Traje presurizado estándar de polímero aislante."
+	},
+	{
+		"id": "solar_gold",
+		"category": "skins",
+		"name": "SOLAR ÁUREO",
+		"badge": "[EVA-02]",
+		"color": Color(0.96, 0.66, 0.16),
+		"cost": 150,
+		"currency": "coins",
+		"desc": "Aleación reflectante con protección contra radiación solar."
+	},
+	{
+		"id": "abyssal_onyx",
+		"category": "skins",
+		"name": "ABISAL ÓNIX",
+		"badge": "[EVA-03]",
+		"color": Color(0.18, 0.18, 0.22),
+		"cost": 250,
+		"currency": "coins",
+		"desc": "Blindaje de nanotubos de carbono de absorción térmica."
+	},
+	{
+		"id": "cyber_neon",
+		"category": "skins",
+		"name": "CIBER NEÓN",
+		"badge": "[EVA-04]",
+		"color": Color(0.15, 0.85, 1.0),
+		"cost": 400,
+		"currency": "coins",
+		"desc": "Canalización de plasma frío electroluminiscente."
+	},
+	# Propulsion
+	{
+		"id": "capsule_white",
+		"category": "paints",
+		"name": "CÁPSULA BLANCA",
+		"badge": "[HULL-01]",
+		"color": Color(0.85, 0.85, 0.9),
+		"cost": 0,
+		"currency": "coins",
+		"desc": "Blindaje cerámico para reentrada atmosférica."
+	},
+	{
+		"id": "plasma_cyan",
+		"category": "paints",
+		"name": "PLASMA CIAN",
+		"badge": "[HULL-02]",
+		"color": Color(0.2, 0.85, 1.0),
+		"cost": 100,
+		"currency": "coins",
+		"desc": "Tobera de empuje iónico con aceleración de xenón."
+	},
+	{
+		"id": "solar_fire",
+		"category": "paints",
+		"name": "FUEGO SOLAR",
+		"badge": "[HULL-03]",
+		"color": Color(1.0, 0.5, 0.1),
+		"cost": 200,
+		"currency": "coins",
+		"desc": "Combustión metanox de alta temperatura y pluma dorada."
+	},
+	{
+		"id": "amethyst_singularity",
+		"category": "paints",
+		"name": "AMATISTA",
+		"badge": "[HULL-04]",
+		"color": Color(0.75, 0.25, 0.95),
+		"cost": 350,
+		"currency": "coins",
+		"desc": "Propulsión exótica de taquiones con rastro violeta."
+	},
+	# Packs
+	{
+		"id": "pack_scout",
+		"category": "packs",
+		"name": "SUMINISTRO INICIAL",
+		"badge": "[+250 COINS]",
+		"color": Color(1.0, 0.85, 0.25),
+		"cost_label": "$0.99 USD",
+		"reward_coins": 250,
+		"currency": "real",
+		"desc": "Reserva de fondos para exploradores espaciales."
+	},
+	{
+		"id": "pack_explorer",
+		"category": "packs",
+		"name": "EXPEDICIÓN AVANZADA",
+		"badge": "[+800 + SIN ADS]",
+		"color": Color(0.35, 0.85, 1.0),
+		"cost_label": "$1.99 USD",
+		"reward_coins": 800,
+		"no_ads": true,
+		"currency": "real",
+		"desc": "Vuelo sin publicidad y 800 Luna Coins."
+	},
+	{
+		"id": "pack_protocol",
+		"category": "packs",
+		"name": "PROTOCOLO TOTAL VIP",
+		"badge": "[VIP COMPLETO]",
+		"color": Color(0.4, 0.95, 0.5),
+		"cost_label": "$4.99 USD",
+		"reward_coins": 2500,
+		"unlock_all": true,
+		"currency": "real",
+		"desc": "Todo desbloqueado: editor de planetas, cosméticos y 2500 Luna Coins."
+	}
+]
+
+func _update_luna_points_ui() -> void:
+	if luna_coins_label:
+		luna_coins_label.text = "%d" % GameManager.luna_points
+	elif luna_badge_btn:
+		luna_badge_btn.text = "%d" % GameManager.luna_points
+	if store_coins_badge:
+		store_coins_badge.text = "%d LUNA COINS" % GameManager.luna_points
+
+func _switch_store_tab(tab: String) -> void:
+	AudioManager.play("click")
+	current_store_tab = tab
+	if tab_skins_btn:
+		tab_skins_btn.modulate = Color(1.0, 0.9, 0.4) if tab == "skins" else Color(0.7, 0.7, 0.7)
+	if tab_paints_btn:
+		tab_paints_btn.modulate = Color(1.0, 0.9, 0.4) if tab == "paints" else Color(0.7, 0.7, 0.7)
+	if tab_packs_btn:
+		tab_packs_btn.modulate = Color(1.0, 0.9, 0.4) if tab == "packs" else Color(0.7, 0.7, 0.7)
+	_render_store_items()
+
+func _render_store_items() -> void:
+	if not store_items_container:
+		return
+	for c in store_items_container.get_children():
+		c.queue_free()
+		
+	for it in STORE_ITEMS:
+		if it["category"] != current_store_tab:
+			continue
+			
+		var card = PanelContainer.new()
+		var card_sb = StyleBoxFlat.new()
+		card_sb.bg_color = Color(0.04, 0.07, 0.12, 0.88)
+		card_sb.border_width_left = 1
+		card_sb.border_width_top = 1
+		card_sb.border_width_right = 1
+		card_sb.border_width_bottom = 1
+		card_sb.border_color = (it["color"] as Color).lerp(Color(0.96, 0.66, 0.16), 0.4)
+		card_sb.corner_radius_top_left = 8
+		card_sb.corner_radius_top_right = 8
+		card_sb.corner_radius_bottom_right = 8
+		card_sb.corner_radius_bottom_left = 8
+		card_sb.content_margin_left = 14
+		card_sb.content_margin_right = 14
+		card_sb.content_margin_top = 10
+		card_sb.content_margin_bottom = 10
+		card.add_theme_stylebox_override("panel", card_sb)
+		
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		
+		# Visual badge
+		var badge_lbl = Label.new()
+		badge_lbl.text = it["badge"]
+		badge_lbl.modulate = it["color"]
+		badge_lbl.custom_minimum_size = Vector2(90, 0)
+		badge_lbl.add_theme_font_size_override("font_size", 12)
+		row.add_child(badge_lbl)
+		
+		# Info Box
+		var info_box = VBoxContainer.new()
+		info_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info_box.add_theme_constant_override("separation", 2)
+		
+		var name_lbl = Label.new()
+		name_lbl.text = it["name"]
+		name_lbl.add_theme_font_size_override("font_size", 13)
+		name_lbl.modulate = Color(0.95, 0.95, 0.98)
+		info_box.add_child(name_lbl)
+		
+		var desc_lbl = Label.new()
+		desc_lbl.text = it["desc"]
+		desc_lbl.add_theme_font_size_override("font_size", 11)
+		desc_lbl.modulate = Color(0.65, 0.72, 0.82)
+		info_box.add_child(desc_lbl)
+		row.add_child(info_box)
+		
+		# Action Button
+		var act_btn = Button.new()
+		act_btn.custom_minimum_size = Vector2(140, 36)
+		act_btn.add_theme_font_size_override("font_size", 12)
+		
+		var is_skin = it["category"] == "skins"
+		var is_paint = it["category"] == "paints"
+		var is_pack = it["category"] == "packs"
+		
+		if is_skin:
+			var unlocked = it["cost"] == 0 or it["id"] in GameManager.unlocked_skins
+			var equipped = GameManager.active_skin == it["id"]
+			if equipped:
+				act_btn.text = "EQUIPADO ✓"
+				act_btn.disabled = true
+				_style_menu_button(act_btn, Color(0.2, 0.85, 0.4), Color(0.04, 0.14, 0.08))
+			elif unlocked:
+				act_btn.text = "EQUIPAR"
+				_style_menu_button(act_btn, Color(0.2, 0.75, 1.0), Color(0.04, 0.11, 0.18))
+				act_btn.pressed.connect(func():
+					GameManager.active_skin = it["id"]
+					GameManager.save_player_progression()
+					AudioManager.play("click")
+					_render_store_items()
+				)
+			else:
+				act_btn.text = "%d LUNA COINS" % it["cost"]
+				_style_menu_button(act_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
+				act_btn.pressed.connect(func():
+					if GameManager.spend_luna_coins(it["cost"]):
+						GameManager.unlocked_skins.append(it["id"])
+						GameManager.active_skin = it["id"]
+						GameManager.save_player_progression()
+						AudioManager.play("click")
+						_update_luna_points_ui()
+						_render_store_items()
+					else:
+						if store_status_label:
+							store_status_label.visible = true
+							store_status_label.text = "LUNA COINS INSUFICIENTES (FALTAN %d)" % (it["cost"] - GameManager.luna_points)
+							store_status_label.modulate = Color(1.0, 0.4, 0.4)
+				)
+		elif is_paint:
+			var unlocked = it["cost"] == 0 or it["id"] in GameManager.unlocked_ship_paints
+			var equipped = GameManager.active_ship_paint == it["id"]
+			if equipped:
+				act_btn.text = "EQUIPADO ✓"
+				act_btn.disabled = true
+				_style_menu_button(act_btn, Color(0.2, 0.85, 0.4), Color(0.04, 0.14, 0.08))
+			elif unlocked:
+				act_btn.text = "EQUIPAR"
+				_style_menu_button(act_btn, Color(0.2, 0.75, 1.0), Color(0.04, 0.11, 0.18))
+				act_btn.pressed.connect(func():
+					GameManager.active_ship_paint = it["id"]
+					GameManager.save_player_progression()
+					AudioManager.play("click")
+					_render_store_items()
+				)
+			else:
+				act_btn.text = "%d LUNA COINS" % it["cost"]
+				_style_menu_button(act_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
+				act_btn.pressed.connect(func():
+					if GameManager.spend_luna_coins(it["cost"]):
+						GameManager.unlocked_ship_paints.append(it["id"])
+						GameManager.active_ship_paint = it["id"]
+						GameManager.save_player_progression()
+						AudioManager.play("click")
+						_update_luna_points_ui()
+						_render_store_items()
+					else:
+						if store_status_label:
+							store_status_label.visible = true
+							store_status_label.text = "LUNA COINS INSUFICIENTES (FALTAN %d)" % (it["cost"] - GameManager.luna_points)
+							store_status_label.modulate = Color(1.0, 0.4, 0.4)
+				)
+		elif is_pack:
+			act_btn.text = it["cost_label"]
+			_style_menu_button(act_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
+			act_btn.pressed.connect(func():
+				AudioManager.play("click")
+				GameManager.add_luna_coins(it["reward_coins"])
+				if it.get("no_ads", false):
+					RevenueCatManager.has_purchased_no_ads = true
+				if it.get("unlock_all", false):
+					RevenueCatManager.has_full_game_access = true
+					RevenueCatManager.has_purchased_editor = true
+					RevenueCatManager.has_purchased_no_ads = true
+				_update_luna_points_ui()
+				_render_store_items()
+				if store_status_label:
+					store_status_label.visible = true
+					store_status_label.text = "SUMINISTRO CONFIRMADO: +%d LUNA COINS" % it["reward_coins"]
+					store_status_label.modulate = Color(0.3, 0.95, 0.5)
+			)
+			
+		row.add_child(act_btn)
+		card.add_child(row)
+		store_items_container.add_child(card)
+
+func open_store_modal(title: String, desc: String, _highlight_editor: bool = false) -> void:
+	store_title.text = title if not title.is_empty() else "TIENDA LUNA"
+	_update_luna_points_ui()
+	_switch_store_tab(current_store_tab)
 	store_modal.visible = true
 	if store_status_label:
 		store_status_label.visible = false
-	if highlight_editor and buy_editor_btn:
-		buy_editor_btn.modulate = Color(1.0, 0.88, 0.25)
-		if buy_full_game_btn:
-			buy_full_game_btn.modulate = Color(0.35, 0.95, 1.0)
-	else:
-		if buy_editor_btn:
-			buy_editor_btn.modulate = Color(1.0, 1.0, 1.0)
-		if buy_full_game_btn:
-			buy_full_game_btn.modulate = Color(1.0, 1.0, 1.0)
 
 func _on_close_store_pressed() -> void:
 	AudioManager.play("click")

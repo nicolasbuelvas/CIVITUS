@@ -7,6 +7,9 @@ signal language_changed(new_lang: String)
 signal player_vital_updated(stat_name: String, current: float, maximum: float)
 signal game_over(reason: String)
 signal expedition_completed(summary: Dictionary)
+signal luna_coins_changed(new_amount: int)
+signal game_saved()
+signal game_loaded()
 
 enum Difficulty {
 	LEVEL_0 = 0, # Tierra / Seguro
@@ -219,10 +222,10 @@ const LOCALIZATION: Dictionary = {
 		"storage_title": "CAJÓN DE RECURSOS",
 		"deposit_all": "DEPOSITAR RECURSOS",
 		"crafting_title": "FABRICADOR DE CABINA",
-		"hyperdrive_title": "NÚCLEO DE HIPERIMPULSO",
+		"hyperdrive_title": "HYPERDRIVE",
 		"hyperdrive_status_dmg": "ESTADO: DAÑADO",
 		"hyperdrive_status_ok": "ESTADO: OPERATIVO",
-		"hyperdrive_activate": "🚀 ACTIVAR SALTO HIPERESPACIAL 🚀",
+		"hyperdrive_activate": "🚀 ACTIVAR HYPERDRIVE 🚀",
 		"starmap_title": "MAPA ESTELAR",
 		"game_over_title": "SOPORTE VITAL COMPROMETIDO",
 		"game_over_reason_o2": "Fallo crítico: Asfixia por falta de oxígeno.",
@@ -409,10 +412,10 @@ const LOCALIZATION: Dictionary = {
 		"storage_title": "STORAGE CRATE",
 		"deposit_all": "DEPOSIT ALL",
 		"crafting_title": "SHIP FABRICATOR",
-		"hyperdrive_title": "HYPERDRIVE CORE",
+		"hyperdrive_title": "HYPERDRIVE",
 		"hyperdrive_status_dmg": "STATUS: DAMAGED",
 		"hyperdrive_status_ok": "STATUS: OPERATIONAL",
-		"hyperdrive_activate": "🚀 ACTIVATE HYPERSPACE JUMP 🚀",
+		"hyperdrive_activate": "🚀 ACTIVATE HYPERDRIVE 🚀",
 		"starmap_title": "STAR MAP",
 		"game_over_title": "LIFE SUPPORT OFFLINE",
 		"game_over_reason_o2": "Critical failure: Asphyxiation from oxygen depletion.",
@@ -602,20 +605,32 @@ var active_skin: String = "apollo_white"
 var unlocked_ship_paints: Array = ["capsule_white"]
 var active_ship_paint: String = "capsule_white"
 
+var luna_coins: int:
+	get: return luna_points
+	set(v): luna_points = v
+
 func add_luna_points(amount: int) -> void:
 	if amount <= 0:
 		return
 	luna_points += amount
 	luna_points_changed.emit(luna_points)
+	luna_coins_changed.emit(luna_points)
 	save_player_progression()
+
+func add_luna_coins(amount: int) -> void:
+	add_luna_points(amount)
 
 func spend_luna_points(amount: int) -> bool:
 	if amount <= 0 or luna_points < amount:
 		return false
 	luna_points -= amount
 	luna_points_changed.emit(luna_points)
+	luna_coins_changed.emit(luna_points)
 	save_player_progression()
 	return true
+
+func spend_luna_coins(amount: int) -> bool:
+	return spend_luna_points(amount)
 
 func award_hyperdrive_victory(difficulty_level: int) -> int:
 	var reward = 50
@@ -634,6 +649,7 @@ func award_hyperdrive_victory(difficulty_level: int) -> int:
 func save_player_progression() -> void:
 	var cfg = ConfigFile.new()
 	cfg.set_value("economy", "luna_points", luna_points)
+	cfg.set_value("economy", "luna_coins", luna_points)
 	cfg.set_value("customization", "unlocked_skins", unlocked_skins)
 	cfg.set_value("customization", "active_skin", active_skin)
 	cfg.set_value("customization", "unlocked_ship_paints", unlocked_ship_paints)
@@ -643,11 +659,89 @@ func save_player_progression() -> void:
 func load_player_progression() -> void:
 	var cfg = ConfigFile.new()
 	if cfg.load("user://progression.cfg") == OK:
-		luna_points = cfg.get_value("economy", "luna_points", 0)
+		luna_points = cfg.get_value("economy", "luna_coins", cfg.get_value("economy", "luna_points", 0))
 		unlocked_skins = cfg.get_value("customization", "unlocked_skins", ["apollo_white"])
 		active_skin = cfg.get_value("customization", "active_skin", "apollo_white")
 		unlocked_ship_paints = cfg.get_value("customization", "unlocked_ship_paints", ["capsule_white"])
 		active_ship_paint = cfg.get_value("customization", "active_ship_paint", "capsule_white")
+
+# ----------------- Save / Load Persistent Game State (Continuar / Nueva Partida) -----------------
+const SAVEGAME_PATH: String = "user://civitus_saved_game.json"
+
+func has_save_game() -> bool:
+	return FileAccess.file_exists(SAVEGAME_PATH)
+
+func get_save_summary() -> Dictionary:
+	if not has_save_game():
+		return {}
+	var file = FileAccess.open(SAVEGAME_PATH, FileAccess.READ)
+	if not file:
+		return {}
+	var content = file.get_as_text()
+	file.close()
+	var data = JSON.parse_string(content)
+	if data is Dictionary:
+		return data
+	return {}
+
+func save_game() -> bool:
+	var save_data: Dictionary = {
+		"timestamp": Time.get_datetime_string_from_system(),
+		"current_planet": current_planet,
+		"current_solar_system": current_solar_system,
+		"difficulty": int(current_difficulty),
+		"player_stats": player_stats.duplicate(true),
+		"planet_name": current_planet.get("name", "Gliese Australis III"),
+		"inventory": crafting.inventory.duplicate(true) if crafting else {},
+		"body_slots": crafting.body_slots.duplicate(true) if crafting else {},
+		"ship_storage": crafting.ship_storage.duplicate(true) if crafting else {},
+		"installed_parts": crafting.installed_parts.duplicate(true) if crafting else {},
+		"hyperdrive_requirements": crafting.hyperdrive_requirements.duplicate(true) if crafting else {},
+		"hyperdrive_progress": crafting.get_hyperdrive_progress() if crafting else 0.0,
+	}
+	var file = FileAccess.open(SAVEGAME_PATH, FileAccess.WRITE)
+	if not file:
+		return false
+	file.store_string(JSON.stringify(save_data, "	"))
+	file.close()
+	game_saved.emit()
+	return true
+
+func load_game() -> bool:
+	if not has_save_game():
+		return false
+	var data = get_save_summary()
+	if data.is_empty():
+		return false
+		
+	if data.has("current_planet") and not data["current_planet"].is_empty():
+		current_planet = data["current_planet"]
+	if data.has("current_solar_system") and not data["current_solar_system"].is_empty():
+		current_solar_system = data["current_solar_system"]
+	if data.has("difficulty"):
+		current_difficulty = data["difficulty"] as Difficulty
+	if data.has("player_stats"):
+		player_stats = data["player_stats"]
+		
+	if crafting:
+		if data.has("inventory"):
+			crafting.inventory = data["inventory"]
+		if data.has("body_slots"):
+			crafting.body_slots = data["body_slots"]
+		if data.has("ship_storage"):
+			crafting.ship_storage = data["ship_storage"]
+		if data.has("installed_parts"):
+			crafting.installed_parts = data["installed_parts"]
+		if data.has("hyperdrive_requirements"):
+			crafting.hyperdrive_requirements = data["hyperdrive_requirements"]
+			
+	game_loaded.emit()
+	get_tree().change_scene_to_file("res://scenes/screens/loading_screen.tscn")
+	return true
+
+func new_game() -> void:
+	start_new_game(0)
+	start_expedition()
 
 # ----------------- Difficulty & Interplanetary Travel (Space Agency 2137) -----------------
 

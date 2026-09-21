@@ -538,8 +538,8 @@ func get_cabin_module_interaction(p: CharacterBody3D) -> Dictionary:
 			return {"type": "pilot_seat", "label": label, "target": self}
 		"hyperdrive":
 			var is_ready = GameManager.crafting.is_hyperdrive_complete()
-			var status = " [LISTO]" if is_ready else " [REPARAR]"
-			return {"type": "hyperdrive", "label": "🚀 HIPERDRIVE" + status, "target": self}
+			var status = " [100%]" if is_ready else " [%d%%]" % int(GameManager.crafting.get_hyperdrive_progress() * 100)
+			return {"type": "hyperdrive", "label": "🚀 HYPERDRIVE" + status, "target": self}
 		"oxygen_gen":
 			return {"type": "oxygen_gen", "label": "🫁 GENERADOR O2 [100%]", "target": self}
 		"gravity_device":

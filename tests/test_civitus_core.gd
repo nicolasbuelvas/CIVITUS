@@ -37,6 +37,9 @@ func _ready() -> void:
 	test_twin_jetpacks_realistic_fluid_and_breaststroke_swimming()
 	test_normal_jetpack_behavior_and_selective_jumping()
 	test_waste_of_space_cabin_modules_and_crafting_loop()
+	test_hud_art_style_buttons_hyperdrive_and_body_inventory()
+	test_hud_topbar_cluster_and_3d_body_props_and_dual_storage_modes()
+	test_vertical_menu_luna_coins_save_state_and_helmet_occupancy()
 	
 	print("\n==========================================")
 	print("TEST RESULTS: %d PASSED, %d FAILED" % [passed_count, failed_count])
@@ -1144,6 +1147,400 @@ func test_waste_of_space_cabin_modules_and_crafting_loop() -> void:
 	hud.queue_free()
 	player.queue_free()
 	ship.queue_free()
+
+func test_hud_art_style_buttons_hyperdrive_and_body_inventory() -> void:
+	print("--- 27. Testing HUD Art Style Buttons, Hyperdrive Widget, Astronaut Body Slots & Cargo Drag-and-Drop ---")
+	
+	# 1. Test CircularArtButton
+	var btn = CircularArtButton.new()
+	assert_true(btn != null, "CircularArtButton instantiates successfully")
+	btn.icon_type = CircularArtButton.IconType.SPRINT
+	assert_true(btn.icon_type == CircularArtButton.IconType.SPRINT, "Button accepts SPRINT icon type")
+	btn.icon_name = "mine"
+	assert_true(btn.icon_type == CircularArtButton.IconType.MINE, "Button resolves 'mine' string to MINE icon type")
+	btn.ring_color = Color(0.96, 0.66, 0.16)
+	assert_true(btn.ring_color.r > 0.9, "Button uses signature golden/amber ring")
+	
+	btn.slot_id = "hand_left"
+	btn.slot_owner = "astronaut"
+	btn.enable_drag = true
+	var drag_data = btn._get_drag_data(Vector2(10, 10))
+	assert_true(drag_data is Dictionary and drag_data.get("slot_id") == "hand_left", "CircularArtButton produces drag data dictionary with slot_id")
+	
+	btn.enable_drop = true
+	var can_drop = btn._can_drop_data(Vector2(10, 10), {"slot_id": "hand_right", "slot_owner": "astronaut"})
+	assert_true(can_drop == true, "CircularArtButton accepts drop data from different slot")
+	btn.queue_free()
+	
+	# 2. Test HyperdriveProgressWidget
+	var hd_widget = HyperdriveProgressWidget.new()
+	assert_true(hd_widget != null, "HyperdriveProgressWidget instantiates successfully")
+	hd_widget.progress = 0.65
+	assert_almost_eq(hd_widget.progress, 0.65, 0.01, "Widget tracks progress accurately")
+	hd_widget.progress = 1.0
+	assert_true(hd_widget.progress >= 1.0, "Widget reaches 100% READY state")
+	hd_widget.queue_free()
+	
+	# 3. Test Astronaut Physical Body Slots (Hands & Back Only)
+	var c_sys = GameManager.crafting
+	# Clear out body slots and storage for clean test
+	for s_key in c_sys.body_slots.keys():
+		c_sys.body_slots[s_key] = {"item": "", "count": 0}
+	for k in c_sys.inventory.keys():
+		c_sys.inventory[k] = 0
+	for k in c_sys.ship_storage.keys():
+		c_sys.ship_storage[k] = 0
+		
+	# Fill 4 body slots: hand_right, hand_left, back_1, back_2
+	c_sys.add_resource("iron", 5)
+	assert_true(c_sys.get_body_slot("hand_right")["item"] == "iron", "1st resource placed in Hand Right slot")
+	assert_true(c_sys.get_body_slot("hand_right")["count"] == 5, "Hand Right has 5 iron")
+	assert_true(c_sys.inventory["iron"] == 5, "Total inventory reflects 5 iron")
+	
+	c_sys.add_resource("copper", 5)
+	assert_true(c_sys.get_body_slot("hand_left")["item"] == "copper", "2nd resource placed in Hand Left slot")
+	
+	c_sys.add_resource("silicon", 5)
+	assert_true(c_sys.get_body_slot("back_1")["item"] == "silicon", "3rd resource placed in Upper Back slot")
+	
+	c_sys.add_resource("uranium", 5)
+	assert_true(c_sys.get_body_slot("back_2")["item"] == "uranium", "4th resource placed in Lower Back slot")
+	
+	# All 4 body attachment slots are now occupied!
+	var can_carry_more = c_sys.can_astronaut_carry("wrench", 1)
+	assert_true(can_carry_more == false, "Astronaut cannot carry 5th distinct item because hands and back are full")
+	
+	# Adding another distinct resource triggers inventory_full
+	var inv_full_fired = [false]
+	var on_full_cb = func(_it): inv_full_fired[0] = true
+	c_sys.inventory_full.connect(on_full_cb)
+	c_sys.add_resource("wrench", 1)
+	assert_true(inv_full_fired[0] == true, "inventory_full signal fired when body slots overflow")
+	c_sys.inventory_full.disconnect(on_full_cb)
+	
+	# 4. Test Slot Swap and Transfer to Ship Storage
+	c_sys.swap_body_slots("hand_right", "back_1")
+	assert_true(c_sys.get_body_slot("hand_right")["item"] == "silicon", "Body slots swapped: Hand Right now holds silicon")
+	assert_true(c_sys.get_body_slot("back_1")["item"] == "iron", "Body slots swapped: Back 1 now holds iron")
+	
+	# Deposit Hand Right (5 silicon) to ship storage
+	var dep_ok = c_sys.deposit_body_slot_to_storage("hand_right")
+	assert_true(dep_ok == true, "Hand Right slot successfully deposited to ship cargo")
+	assert_true(c_sys.get_body_slot("hand_right")["count"] == 0, "Hand Right is now free")
+	assert_true(c_sys.ship_storage["silicon"] == 5, "Ship storage received 5 silicon")
+	assert_true(c_sys.can_astronaut_carry("iron", 2) == true, "Astronaut can now carry more resources in freed hand")
+	
+	# Equip from ship storage back to free hand
+	var eq_ok = c_sys.equip_storage_to_body_slot("silicon", "hand_right")
+	assert_true(eq_ok == true, "Retrieved silicon from ship storage to Hand Right")
+	assert_true(c_sys.get_body_slot("hand_right")["item"] == "silicon", "Hand Right equipped with silicon")
+	assert_true(c_sys.ship_storage["silicon"] == 0, "Ship storage silicon cleared")
+	
+	# 5. Test AstronautStorageModal
+	var modal = AstronautStorageModal.new()
+	add_child(modal)
+	assert_true(modal.slot_hand_l != null, "Modal contains Left Hand slot button")
+	assert_true(modal.slot_hand_r != null, "Modal contains Right Hand slot button")
+	assert_true(modal.slot_back_1 != null, "Modal contains Back 1 slot button")
+	assert_true(modal.slot_back_2 != null, "Modal contains Back 2 slot button")
+	assert_true(modal.cargo_slots.size() >= 8, "Modal contains 8 ship cargo slot buttons")
+	modal.open_modal(true)
+	assert_true(modal.visible == true, "Storage modal opens successfully")
+	modal.close_modal()
+	assert_true(modal.visible == false, "Storage modal closes successfully")
+	modal.queue_free()
+	
+	# 6. Test HUD Scene with Circular Art Buttons and Hyperdrive Widget
+	var hud_scene = load("res://scenes/ui/hud.tscn")
+	var hud = hud_scene.instantiate()
+	add_child(hud)
+	
+	assert_true(hud.jump_btn != null, "HUD Jump button exists")
+	assert_true(hud.sprint_btn != null, "HUD Sprint button exists")
+	assert_true(hud.context_action_btn != null, "HUD Context action button exists")
+	assert_true(hud.cam_toggle_btn != null, "HUD Camera toggle button exists")
+	assert_true(hud.pause_btn != null, "HUD Pause button exists")
+	assert_true(hud.hyperdrive_badge != null, "HUD Hyperdrive widget exists")
+	assert_true(hud.hyperdrive_badge is HyperdriveProgressWidget, "Hyperdrive badge is HyperdriveProgressWidget")
+	
+	# Verify Dynamic Interaction Context updates icon and minimal caption
+	hud._on_interaction_available("mine", null)
+	assert_true(hud.context_action_btn.icon_name == "mine", "Context button dynamically updates to 'mine' icon")
+	assert_true(hud.context_action_btn.text == "MINAR" or hud.context_action_btn.text == "MINE", "Context button shows minimal clean caption")
+	
+	hud._on_interaction_available("storage", null)
+	assert_true(hud.context_action_btn.icon_name == "storage", "Context button dynamically updates to 'storage' icon")
+	
+	hud._on_interaction_available("hyperdrive", null)
+	assert_true(hud.context_action_btn.icon_name == "hyperdrive", "Context button dynamically updates to 'hyperdrive' icon")
+	assert_true(hud.context_action_btn.text == "HYPERDRIVE", "Context button keeps untranslated 'HYPERDRIVE'")
+	
+	# Verify Hyperdrive Widget updates progress
+	c_sys.init_level_requirements(0) # Need wrench: 1, wire: 2, uranium: 10
+	hud._update_hyperdrive_ui()
+	assert_almost_eq(hud.hyperdrive_badge.progress, 0.0, 0.01, "Hyperdrive progress initialized to 0%")
+	
+	hud.queue_free()
+
+func test_hud_topbar_cluster_and_3d_body_props_and_dual_storage_modes() -> void:
+	print("--- 28. Testing HUD TopBar Cluster, 3D Body Attachment Props & Dual Storage Modes ---")
+	
+	# 1. Test HUD TopBarCluster Non-Overlapping Layout
+	var hud_scene = load("res://scenes/ui/hud.tscn")
+	var hud = hud_scene.instantiate()
+	add_child(hud)
+	
+	var top_cluster = hud.get_node_or_null("TopLayer/TopBarCluster")
+	assert_true(top_cluster != null, "TopLayer contains TopBarCluster HBoxContainer")
+	assert_true(top_cluster.get_child_count() == 3, "TopBarCluster contains exactly 3 children (Backpack, Hyperdrive, Pause)")
+	
+	var bpack_btn = top_cluster.get_node_or_null("BackpackBtn")
+	var hd_badge = top_cluster.get_node_or_null("HyperdriveBadge")
+	var p_btn = top_cluster.get_node_or_null("PauseBtn")
+	assert_true(bpack_btn != null, "BackpackBtn exists in TopBarCluster")
+	assert_true(hd_badge != null, "HyperdriveBadge exists in TopBarCluster")
+	assert_true(p_btn != null, "PauseBtn exists in TopBarCluster")
+	assert_true(bpack_btn.icon_name == "backpack", "BackpackBtn uses 'backpack' icon")
+	assert_true(p_btn.icon_name == "pause", "PauseBtn uses 'pause' icon")
+	
+	# 2. Test Dual-Mode AstronautStorageModal
+	var modal = AstronautStorageModal.new()
+	add_child(modal)
+	
+	# Mode A: Personal Field Gear (Backpack & Hands Only)
+	modal.open_modal(false)
+	assert_true(modal.visible == true, "Personal backpack modal opens")
+	assert_true(modal.cargo_area.visible == false, "Ship cargo area is hidden when viewing personal field gear")
+	assert_true("EQUIPO" in modal.title_label.text or "GEAR" in modal.title_label.text, "Title identifies as Personal Field Gear")
+	assert_true(modal.main_panel.offset_right <= 250.0, "Panel uses compact focused dimensions for backpack view")
+	
+	# Mode B: Ship Cargo Container (Chest & Transfer)
+	modal.open_modal(true)
+	assert_true(modal.cargo_area.visible == true, "Ship cargo area is shown when interacting with ship storage chest")
+	assert_true("BODEGA" in modal.title_label.text or "CARGO" in modal.title_label.text, "Title identifies as Ship Cargo Container")
+	assert_true(modal.deposit_all_btn != null, "Modal has deposit to chest action button")
+	assert_true(modal.withdraw_all_btn != null, "Modal has withdraw from chest action button")
+	
+	# Verify CenterContainer in AstronautStorageModal guarantees centering
+	var modal_center = modal.get_node_or_null("CenterContainer")
+	assert_true(modal_center != null, "AstronautStorageModal uses CenterContainer for guaranteed screen centering")
+	
+	modal.close_modal()
+	modal.queue_free()
+	
+	# 3. Test Physical 3D Body Attachment Props on Astronaut Model
+	var char_scene = load("res://scenes/entities/character_3d.tscn")
+	var character = char_scene.instantiate()
+	add_child(character)
+	
+	assert_true(character.slot_prop_nodes.has("hand_left"), "Character has hand_left mount node")
+	assert_true(character.slot_prop_nodes.has("hand_right"), "Character has hand_right mount node")
+	assert_true(character.slot_prop_nodes.has("back_1"), "Character has back_1 mount node on PLSS")
+	assert_true(character.slot_prop_nodes.has("back_2"), "Character has back_2 mount node on PLSS")
+	
+	# Equip items onto astronaut body slots
+	var c_sys = GameManager.crafting
+	for s_key in c_sys.body_slots.keys():
+		c_sys.body_slots[s_key] = {"item": "", "count": 0}
+		
+	# Place Iron in Hand Left
+	c_sys.body_slots["hand_left"] = {"item": "iron", "count": 3}
+	# Place Uranium in Back 1 (Upper PLSS)
+	c_sys.body_slots["back_1"] = {"item": "uranium", "count": 2}
+	# Place Wrench in Hand Right
+	c_sys.body_slots["hand_right"] = {"item": "wrench", "count": 1}
+	c_sys.body_slots_changed.emit()
+	
+	var prop_hand_l = character.slot_prop_nodes["hand_left"].get_node_or_null("Prop_iron")
+	assert_true(prop_hand_l != null, "3D physical iron ore prop strapped onto astronaut left hand")
+	
+	var prop_back_1 = character.slot_prop_nodes["back_1"].get_node_or_null("Prop_uranium")
+	assert_true(prop_back_1 != null, "3D physical glowing uranium canister strapped onto astronaut backpack (back_1)")
+	
+	var prop_hand_r = character.slot_prop_nodes["hand_right"].get_node_or_null("Prop_wrench")
+	assert_true(prop_hand_r != null, "3D physical wrench tool held in astronaut right hand")
+	
+	# Clear body slots -> 3D props unstrap/vanish
+	c_sys.body_slots["hand_left"] = {"item": "", "count": 0}
+	c_sys.body_slots_changed.emit()
+	assert_true(character.slot_prop_nodes["hand_left"].get_child_count() == 0, "3D prop removed from left hand when slot is empty")
+	
+	# 4. Test Hyperdrive Modal is strictly progress viewer (NO craft/build buttons, strictly "HYPERDRIVE")
+	GameManager.current_language = "es"
+	assert_true(GameManager.loc("hyperdrive_title") == "HYPERDRIVE", "Hyperdrive title in Spanish is strictly 'HYPERDRIVE'")
+	GameManager.current_language = "en"
+	assert_true(GameManager.loc("hyperdrive_title") == "HYPERDRIVE", "Hyperdrive title in English is strictly 'HYPERDRIVE'")
+	GameManager.current_language = "es"
+	
+	hud._update_hyperdrive_ui()
+	var hd_parts_list = hud.hyperdrive_list_container
+	assert_true(hd_parts_list.get_child_count() > 0, "Hyperdrive list contains requirement items")
+	var has_craft_buttons = false
+	for row in hd_parts_list.get_children():
+		for ch in row.find_children("", "Button", true, false):
+			has_craft_buttons = true
+	assert_true(not has_craft_buttons, "Hyperdrive menu is strictly a telemetry viewer with 0 craft/build buttons")
+	
+	character.queue_free()
+	hud.queue_free()
+
+func test_vertical_menu_luna_coins_save_state_and_helmet_occupancy() -> void:
+	print("--- 29. Testing Vertical Menu, Luna Coins Economy, Save/Load & Helmet Occupancy ---")
+	
+	# 1. Test Hand-Occupancy Helmet Logic
+	var char_scene = load("res://scenes/entities/character_3d.tscn")
+	var character = char_scene.instantiate()
+	add_child(character)
+	
+	var c_sys = GameManager.crafting
+	c_sys.body_slots["hand_left"] = {"item": "iron", "count": 2}
+	c_sys.body_slots["hand_right"] = {"item": "copper", "count": 1}
+	
+	assert_true(character.get_occupied_hands_count() == 2, "Astronaut has both hands occupied carrying resources")
+	
+	# When entering cabin with hands occupied, helmet docks onto the magnetic hip harness
+	character.animate_take_off_helmet()
+	# Simulate tween finish
+	character.helmet.position = character.HELMET_HIP_POS
+	assert_almost_eq(character.helmet.position.x, character.HELMET_HIP_POS.x, 0.05, "Helmet docked on magnetic hip clip when both hands occupied")
+	
+	# Free up one hand
+	c_sys.body_slots["hand_left"] = {"item": "", "count": 0}
+	assert_true(character.get_occupied_hands_count() == 1, "Astronaut has one hand occupied")
+	
+	# Free both hands -> cradled in front of chest
+	c_sys.body_slots["hand_right"] = {"item": "", "count": 0}
+	assert_true(character.get_occupied_hands_count() == 0, "Astronaut has both hands free")
+	character.animate_take_off_helmet()
+	character.helmet.position = character.HELMET_HELD_POS
+	assert_almost_eq(character.helmet.position.y, character.HELMET_HELD_POS.y, 0.05, "Helmet cradled in front of chest when hands free")
+	
+	character.queue_free()
+	
+	# 2. Test Luna Coins Economy Model
+	var prev_coins = GameManager.luna_coins
+	GameManager.add_luna_coins(300)
+	assert_true(GameManager.luna_coins == prev_coins + 300, "Luna Coins balance increases correctly")
+	
+	var spend_ok = GameManager.spend_luna_coins(150)
+	assert_true(spend_ok == true, "Spend Luna Coins returns true when funds sufficient")
+	assert_true(GameManager.luna_coins == prev_coins + 150, "Luna Coins deducted accurately")
+	
+	var spend_fail = GameManager.spend_luna_coins(999999)
+	assert_true(spend_fail == false, "Spend Luna Coins returns false when funds insufficient")
+	
+	# 3. Test Save & Load State System (Continuar / Nueva Partida)
+	c_sys.body_slots["hand_left"] = {"item": "silicon", "count": 4}
+	c_sys.ship_storage[0] = {"item": "reactor_cell", "count": 1}
+	GameManager.current_planet["name"] = "Kepler-Test-9"
+	
+	var saved = GameManager.save_game()
+	assert_true(saved == true, "Game state saved to persistent storage")
+	assert_true(GameManager.has_save_game() == true, "has_save_game() reports true")
+	
+	var summary = GameManager.get_save_summary()
+	assert_true(summary.get("planet_name") == "Kepler-Test-9", "Save summary contains saved planet name")
+	assert_true(summary.has("body_slots"), "Save summary contains body slots")
+	assert_true(summary.has("ship_storage"), "Save summary contains ship storage")
+	
+	# 4. Test Main Menu Vertical Layout, Planet on Right, Submenu & Anti-AI-Slop Typography
+	var menu_scene = load("res://scenes/screens/main_menu.tscn")
+	var menu = menu_scene.instantiate()
+	add_child(menu)
+	
+	# Verify Planet is placed on the RIGHT
+	var planet_pivot = menu.get_node_or_null("SubViewportContainer/SubViewport/World3D/PlanetPivot")
+	assert_true(planet_pivot != null and planet_pivot.position.x > 1.5, "Planet is positioned on the right side of the screen")
+	
+	# Verify Menu & Brand are placed on the LEFT
+	var brand_box = menu.get_node_or_null("MenuLayer/RootLayer/BrandBox")
+	assert_true(brand_box != null and brand_box.offset_left < 150.0, "BrandBox is placed on the left side")
+	var brand_title = brand_box.get_node_or_null("Title")
+	var brand_sub = brand_box.get_node_or_null("Subtitle")
+	assert_true(brand_title != null and "CIVITUS" in brand_title.text.replace(" ", ""), "Title banner contains CIVITUS")
+	assert_true(brand_sub != null and brand_sub.text == "THE UNMILKY WAY HOME", "Subtitle banner is THE UNMILKY WAY HOME")
+	
+	var act_box = menu.get_node_or_null("MenuLayer/RootLayer/ActionButtons")
+	assert_true(act_box is VBoxContainer, "ActionButtons is vertically oriented (VBoxContainer) on the left side")
+	assert_true(act_box.offset_left < 150.0, "ActionButtons is aligned to the left side")
+	
+	var p_btn = act_box.get_node_or_null("PlayBtn")
+	var ed_btn = act_box.get_node_or_null("PlanetEditorBtn")
+	var st_btn = act_box.get_node_or_null("StoreBtn")
+	var set_btn = act_box.get_node_or_null("SettingsBtn")
+	var ex_btn = act_box.get_node_or_null("ExitBtn")
+	
+	assert_true(p_btn != null and p_btn.icon_type == CircularArtButton.IconType.PLAY, "Play button uses PLAY circular art symbol")
+	assert_true(ed_btn != null and ed_btn.icon_type == CircularArtButton.IconType.STARMAP, "Planet Editor button uses STARMAP circular art symbol")
+	assert_true(st_btn != null and st_btn.icon_type == CircularArtButton.IconType.LUNA_COIN, "Store button uses LUNA_COIN circular art symbol")
+	assert_true(set_btn != null and set_btn.icon_type == CircularArtButton.IconType.SETTINGS, "Settings button uses SETTINGS circular art symbol (tuercas)")
+	assert_true(ex_btn != null and ex_btn.icon_type == CircularArtButton.IconType.EXIT, "Exit button uses EXIT circular art symbol")
+	
+	# Test clicking Play opens the new dedicated perspective (PlaySelectLayer) with only 2 options + volver
+	var play_layer = menu.get_node_or_null("MenuLayer/PlaySelectLayer")
+	assert_true(play_layer != null, "PlaySelectLayer exists for dedicated flight perspective")
+	assert_true(play_layer.visible == false, "PlaySelectLayer is initially hidden in root menu")
+	
+	menu._on_play_pressed()
+	assert_true(menu.current_view == menu.ViewState.PLAY_SELECT, "current_view switched to PLAY_SELECT")
+	assert_true(play_layer.visible == true, "PlaySelectLayer becomes visible in dedicated perspective")
+	assert_true(menu.root_layer.visible == false, "RootLayer hides when entering play perspective")
+	
+	var c_btn = play_layer.get_node_or_null("ActionButtons/ContinueRow/ContinueBtn")
+	var new_btn = play_layer.get_node_or_null("ActionButtons/NewGameRow/NewGameBtn")
+	var back_btn = play_layer.get_node_or_null("ActionButtons/BackRow/BackFromPlayBtn")
+	
+	assert_true(c_btn != null and c_btn.icon_type == CircularArtButton.IconType.PLAY, "Continue button uses PLAY symbol")
+	assert_true(new_btn != null and new_btn.icon_type == CircularArtButton.IconType.THRUST, "New Game button uses rocket THRUST symbol")
+	assert_true(back_btn != null and back_btn.icon_type == CircularArtButton.IconType.ARROW_LEFT, "Back button uses ARROW_LEFT return symbol")
+	
+	# Test returning from play perspective to root menu
+	menu._on_back_from_play_pressed()
+	assert_true(menu.current_view == menu.ViewState.ROOT_MENU, "current_view restored to ROOT_MENU")
+	assert_true(menu.root_layer.visible == true, "RootLayer restored")
+	assert_true(play_layer.visible == false, "PlaySelectLayer hidden")
+	
+	# Test In-Place Planet Drag (Camera stays completely stationary, YO no giro con el)
+	var initial_cam_pos = menu.camera_3d.position
+	var initial_planet_rot_y = menu.planet_mesh.rotation.y
+	assert_true(initial_cam_pos == Vector3(0.0, 0.0, 12.0), "Camera stays at fixed (0, 0, 12) in root menu")
+	
+	# Simulate drag on the planet zone (right side: x = 1200 on 1920 viewport)
+	var drag_evt = InputEventMouseMotion.new()
+	drag_evt.position = Vector2(1200, 540)
+	drag_evt.relative = Vector2(50, 20)
+	menu.is_dragging_planet = true
+	menu._gui_input(drag_evt)
+	assert_true(menu.planet_mesh.rotation.y != initial_planet_rot_y, "Dragging in planet zone rotates 3D planet in place")
+	assert_true(menu.camera_3d.position == Vector3(0.0, 0.0, 12.0), "Camera position NEVER moved during planet drag")
+	
+	# Test Luna Coins Pill Badge: only circular coin icon + number
+	var pill = menu.get_node_or_null("MenuLayer/RootLayer/LunaCoinsPill")
+	assert_true(pill != null, "Luna Coins Pill badge exists at top-right")
+	var pill_num = pill.get_node_or_null("HBox/CoinsNum")
+	assert_true(pill_num != null, "Pill contains numeric label")
+	assert_true(pill_num.text.is_valid_int(), "Pill displays ONLY the number (%s)" % pill_num.text)
+	var pill_icon = pill.get_node_or_null("HBox/CoinIcon")
+	assert_true(pill_icon != null and pill_icon.icon_type == CircularArtButton.IconType.LUNA_COIN, "Pill contains circular art coin icon")
+	
+	# Test Planet Selector: Centered planet (x=0.0) & Pure Symbology Circular Art Buttons
+	menu._show_view(menu.ViewState.PLANET_SELECTOR)
+	assert_true(menu.planet_pivot.position.x == 0.0, "Planet is centered at x=0.0 in PLANET_SELECTOR view")
+	assert_true(menu.new_system_btn.icon_type == CircularArtButton.IconType.GALAXY, "NewSystemBtn uses GALAXY circular art symbol")
+	assert_true(menu.prev_planet_btn.icon_type == CircularArtButton.IconType.ARROW_LEFT, "PrevBtn uses ARROW_LEFT circular art symbol")
+	assert_true(menu.next_planet_btn.icon_type == CircularArtButton.IconType.ARROW_RIGHT, "NextBtn uses ARROW_RIGHT circular art symbol")
+	assert_true(menu.planet_tab_btn.icon_type == CircularArtButton.IconType.PLANET, "PlanetTabBtn uses PLANET circular art symbol")
+	assert_true(menu.system_tab_btn.icon_type == CircularArtButton.IconType.SOLAR_SYSTEM, "SystemTabBtn uses SOLAR_SYSTEM circular art symbol")
+	assert_true(menu.toggle_details_btn.icon_type == CircularArtButton.IconType.INFO, "ToggleDetailsBtn uses INFO circular art symbol")
+	assert_true(menu.back_btn.icon_type == CircularArtButton.IconType.ARROW_LEFT, "BackBtn uses ARROW_LEFT circular art symbol")
+	assert_true(menu.launch_btn.icon_type == CircularArtButton.IconType.THRUST, "LaunchBtn uses rocket THRUST circular art symbol")
+	
+	# Return to root menu and verify planet glides back to right side
+	menu._show_view(menu.ViewState.ROOT_MENU)
+	assert_true(menu.planet_pivot.position.x > 1.5, "Planet returned to right side in root menu")
+	
+	menu.queue_free()
+
 
 
 

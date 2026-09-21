@@ -1,10 +1,12 @@
-[gd_scene load_steps=19 format=3 uid="uid://chud01"]
+[gd_scene load_steps=21 format=3 uid="uid://chud01"]
 
 [ext_resource type="Script" path="res://scripts/ui/hud.gd" id="1_hud"]
 [ext_resource type="PackedScene" uid="uid://cjoystick01" path="res://scenes/ui/virtual_joystick.tscn" id="2_joy"]
 [ext_resource type="Texture2D" path="res://assets/sprites/icon_thrust.png" id="3_thrust"]
 [ext_resource type="Script" path="res://scripts/ui/helmet_visor.gd" id="4_visor"]
 [ext_resource type="Texture2D" path="res://assets/sprites/icon_run.png" id="5_run"]
+[ext_resource type="Script" path="res://scripts/ui/circular_art_button.gd" id="6_art_btn"]
+[ext_resource type="Script" path="res://scripts/ui/hyperdrive_progress_widget.gd" id="7_hd_widget"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ContextBtn"]
 bg_color = Color(0.12, 0.15, 0.22, 0.9)
@@ -152,15 +154,15 @@ grow_vertical = 0
 mouse_filter = 2
 
 [node name="JumpBtn" type="TextureButton" parent="MobileLayer/ActionCluster"]
-custom_minimum_size = Vector2(90, 90)
+custom_minimum_size = Vector2(88, 88)
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -100.0
-offset_top = -100.0
+offset_left = -98.0
+offset_top = -98.0
 offset_right = -10.0
 offset_bottom = -10.0
 grow_horizontal = 0
@@ -169,25 +171,42 @@ texture_normal = ExtResource("3_thrust")
 ignore_texture_size = true
 stretch_mode = 5
 
-[node name="ContextActionBtn" type="Button" parent="MobileLayer/ActionCluster"]
-custom_minimum_size = Vector2(170, 60)
+[node name="ContextActionBtn" type="BaseButton" parent="MobileLayer/ActionCluster"]
+custom_minimum_size = Vector2(80, 80)
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -365.0
-offset_top = -84.0
-offset_right = -195.0
-offset_bottom = -24.0
+offset_left = -276.0
+offset_top = -92.0
+offset_right = -196.0
+offset_bottom = -12.0
 grow_horizontal = 0
 grow_vertical = 0
-theme_override_font_sizes/font_size = 14
-theme_override_styles/normal = SubResource("StyleBoxFlat_ContextBtn")
-text = "MINAR"
+script = ExtResource("6_art_btn")
+icon_name = "mine"
 
 [node name="SprintBtn" type="TextureButton" parent="MobileLayer/ActionCluster"]
+custom_minimum_size = Vector2(74, 74)
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -184.0
+offset_top = -88.0
+offset_right = -110.0
+offset_bottom = -14.0
+grow_horizontal = 0
+grow_vertical = 0
+texture_normal = ExtResource("5_run")
+ignore_texture_size = true
+stretch_mode = 5
+
+[node name="CamToggleBtn" type="BaseButton" parent="MobileLayer/ActionCluster"]
 custom_minimum_size = Vector2(68, 68)
 layout_mode = 1
 anchors_preset = 3
@@ -195,33 +214,14 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -175.0
-offset_top = -88.0
-offset_right = -107.0
-offset_bottom = -20.0
+offset_left = -88.0
+offset_top = -178.0
+offset_right = -20.0
+offset_bottom = -110.0
 grow_horizontal = 0
 grow_vertical = 0
-texture_normal = ExtResource("5_run")
-ignore_texture_size = true
-stretch_mode = 5
-
-[node name="CamToggleBtn" type="Button" parent="MobileLayer/ActionCluster"]
-custom_minimum_size = Vector2(72, 72)
-layout_mode = 1
-anchors_preset = 3
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -98.0
-offset_top = -188.0
-offset_right = -26.0
-offset_bottom = -116.0
-grow_horizontal = 0
-grow_vertical = 0
-theme_override_font_sizes/font_size = 28
-theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
-text = "👁"
+script = ExtResource("6_art_btn")
+icon_name = "camera"
 
 [node name="TopLayer" type="Control" parent="."]
 layout_mode = 1
@@ -357,35 +357,35 @@ theme_override_font_sizes/font_size = 15
 text = "Civitus-Alpha"
 horizontal_alignment = 1
 
-[node name="PauseBtn" type="Button" parent="TopLayer"]
-custom_minimum_size = Vector2(44, 44)
+[node name="TopBarCluster" type="HBoxContainer" parent="TopLayer"]
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -60.0
+offset_left = -310.0
 offset_top = 14.0
-offset_right = -16.0
-offset_bottom = 58.0
+offset_right = -14.0
+offset_bottom = 60.0
 grow_horizontal = 0
-theme_override_font_sizes/font_size = 14
-theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
-text = "||"
+theme_override_constants/separation = 12
+alignment = 2
 
-[node name="HyperdriveBadge" type="Button" parent="TopLayer"]
-custom_minimum_size = Vector2(110, 36)
-layout_mode = 1
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -180.0
-offset_top = 18.0
-offset_right = -70.0
-offset_bottom = 54.0
-grow_horizontal = 0
-theme_override_font_sizes/font_size = 11
-theme_override_styles/normal = SubResource("StyleBoxFlat_ZoomBtn")
-text = "HYPERDRIVE 0%"
+[node name="BackpackBtn" type="BaseButton" parent="TopLayer/TopBarCluster"]
+custom_minimum_size = Vector2(46, 46)
+layout_mode = 2
+script = ExtResource("6_art_btn")
+icon_name = "backpack"
+
+[node name="HyperdriveBadge" type="BaseButton" parent="TopLayer/TopBarCluster"]
+custom_minimum_size = Vector2(170, 46)
+layout_mode = 2
+script = ExtResource("7_hd_widget")
+
+[node name="PauseBtn" type="BaseButton" parent="TopLayer/TopBarCluster"]
+custom_minimum_size = Vector2(46, 46)
+layout_mode = 2
+script = ExtResource("6_art_btn")
+icon_name = "pause"
 
 [node name="JarvisVisorOverlay" type="Control" parent="."]
 visible = false
@@ -730,10 +730,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -260.0
-offset_top = -180.0
-offset_right = 260.0
-offset_bottom = 180.0
+offset_left = -280.0
+offset_top = -220.0
+offset_right = 280.0
+offset_bottom = 220.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -752,19 +752,22 @@ theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="Modals/HyperdriveModal/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.2, 0.8, 1, 1)
+theme_override_colors/font_color = Color(0.96, 0.66, 0.16, 1)
 theme_override_font_sizes/font_size = 18
-text = "NÚCLEO DEL HYPERDRIVE"
+text = "HYPERDRIVE"
 horizontal_alignment = 1
 
 [node name="StatusLabel" type="Label" parent="Modals/HyperdriveModal/VBox"]
 layout_mode = 2
+theme_override_colors/font_color = Color(1.0, 0.75, 0.2, 1)
+theme_override_font_sizes/font_size = 13
 text = "ESTADO: DAÑADO"
 horizontal_alignment = 1
 
 [node name="PartsList" type="VBoxContainer" parent="Modals/HyperdriveModal/VBox"]
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/separation = 8
 
 [node name="LaunchBtn" type="Button" parent="Modals/HyperdriveModal/VBox"]
 visible = false
@@ -772,7 +775,7 @@ custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.2, 1, 0.4, 1)
 theme_override_font_sizes/font_size = 16
-text = "🚀 ACTIVAR SALTO HIPERESPACIAL 🚀"
+text = "🚀 ACTIVAR HYPERDRIVE 🚀"
 
 [node name="CloseHyperBtn" type="Button" parent="Modals/HyperdriveModal/VBox"]
 layout_mode = 2
@@ -933,8 +936,9 @@ text = "Siguiente Sector"
 [connection signal="button_up" from="MobileLayer/ActionCluster/JumpBtn" to="." method="_on_jump_up"]
 [connection signal="button_down" from="MobileLayer/ActionCluster/ContextActionBtn" to="." method="_on_context_btn_down"]
 [connection signal="button_up" from="MobileLayer/ActionCluster/ContextActionBtn" to="." method="_on_context_btn_up"]
-[connection signal="pressed" from="TopLayer/PauseBtn" to="." method="_on_pause_btn_pressed"]
-[connection signal="pressed" from="TopLayer/HyperdriveBadge" to="." method="_on_hyperdrive_badge_pressed"]
+[connection signal="pressed" from="TopLayer/TopBarCluster/PauseBtn" to="." method="_on_pause_btn_pressed"]
+[connection signal="pressed" from="TopLayer/TopBarCluster/HyperdriveBadge" to="." method="_on_hyperdrive_badge_pressed"]
+[connection signal="pressed" from="TopLayer/TopBarCluster/BackpackBtn" to="." method="_on_backpack_btn_pressed"]
 [connection signal="pressed" from="MobileLayer/ActionCluster/SprintBtn" to="." method="_on_sprint_btn_pressed"]
 [connection signal="pressed" from="Modals/PauseModal/VBox/ResumeBtn" to="." method="_on_pause_resume_pressed"]
 [connection signal="pressed" from="Modals/PauseModal/VBox/SettingsBtn" to="." method="_on_pause_settings_pressed"]

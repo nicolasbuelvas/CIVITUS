@@ -1259,7 +1259,7 @@ func test_hud_art_style_buttons_hyperdrive_and_body_inventory() -> void:
 	assert_true(hud.jump_btn != null, "HUD Jump button exists")
 	assert_true(hud.sprint_btn != null, "HUD Sprint button exists")
 	assert_true(hud.context_action_btn != null, "HUD Context action button exists")
-	assert_true(hud.cam_toggle_btn != null, "HUD Camera toggle button exists")
+	assert_true(hud.cam_toggle_btn == null, "Redundant Camera toggle button removed from HUD (zoom controls camera mode)")
 	assert_true(hud.pause_btn != null, "HUD Pause button exists")
 	assert_true(hud.hyperdrive_badge != null, "HUD Hyperdrive widget exists")
 	assert_true(hud.hyperdrive_badge is HyperdriveProgressWidget, "Hyperdrive badge is HyperdriveProgressWidget")
@@ -1658,6 +1658,9 @@ func test_suit_alerts_helmet_visor_frame_and_headlamp_illumination() -> void:
 	hud._on_first_person_toggled(true)
 	assert_true(hud.suit_alert_btn.is_active == false, "Suit alert acknowledged and cleared upon entering visor mode")
 	assert_true(hud.jarvis_overlay.visible == true, "Helmet visor overlay visible in first person")
+	assert_true(hud.suit_alert_btn.visible == false, "Suit alert helmet button hidden in first person")
+	assert_true(hud.vitals_pod.visible == true, "Vitals pod visible in first person for key stats")
+	assert_true(hud.header_node.visible == false, "Planet header hidden in first person to prevent clutter")
 	
 	# Test Headlamp Button on HUD toggles character lights
 	character.set_headlamp(false)
@@ -1666,8 +1669,8 @@ func test_suit_alerts_helmet_visor_frame_and_headlamp_illumination() -> void:
 	assert_true(character.is_headlamp_on == true, "HUD headlamp button toggles astronaut lights ON")
 	assert_true(hud.headlamp_btn.is_active == true, "HUD headlamp button reflects active state")
 	
-	# Verify ZERO emojis in HUD camera toggle or pause actions
-	assert_true(hud.cam_toggle_btn.text == "", "Camera toggle button text has zero emojis")
+	# Verify ZERO emojis in HUD pause actions
+	assert_true(hud.cam_toggle_btn == null, "Camera toggle button removed from HUD")
 	assert_true(not hud.pause_resume_btn.text.contains("▶"), "Pause resume button has zero emoji icons")
 	assert_true(not hud.pause_settings_btn.text.contains("⚙"), "Pause settings button has zero emoji icons")
 	

@@ -74,50 +74,35 @@ func _draw() -> void:
 	# Draw the signature Rocket icon inside the circular badge
 	_draw_rocket_icon(icon_center, radius / 22.0)
 	
-	# 3. Text: "HYPERDRIVE" (strictly untranslated, same in all languages)
-	var font = ThemeDB.fallback_font
-	var title_font_size = 11
-	var title_text = "HYPERDRIVE"
-	var title_pos = Vector2(icon_center.x + radius + 10.0, 16.0)
-	draw_string(font, title_pos, title_text, HORIZONTAL_ALIGNMENT_LEFT, -1, title_font_size, Color(0.95, 0.85, 0.45))
-	
-	# Percentage Text (e.g. "45%" or "READY")
-	var pct_font_size = 11
-	var pct_text = "%d%%" % int(progress * 100) if not is_ready else "READY"
-	var pct_color = Color(0.3, 1.0, 0.5) if is_ready else Color(0.9, 0.95, 1.0)
-	var pct_str_w = font.get_string_size(pct_text, HORIZONTAL_ALIGNMENT_LEFT, -1, pct_font_size).x
-	var pct_pos = Vector2(w - pct_str_w - 24.0, 16.0)
-	draw_string(font, pct_pos, pct_text, HORIZONTAL_ALIGNMENT_LEFT, -1, pct_font_size, pct_color)
-	
-	# 4. Progress Bar Track & Fill
-	var bar_x = icon_center.x + radius + 8.0
-	var bar_y = 23.0
-	var bar_w = w - bar_x - 24.0
-	var bar_h = 10.0
+	# 3. Purely Graphical Progress Bar (Zero Text / Percent Clutter)
+	var bar_x = icon_center.x + radius + 10.0
+	var bar_h = 14.0
+	var bar_y = (h - bar_h) * 0.5
+	var bar_w = w - bar_x - 16.0
 	var bar_rect = Rect2(bar_x, bar_y, bar_w, bar_h)
 	
-	# Track background (rounded)
+	# Track background (rounded aerospace capsule)
 	var track_sb = StyleBoxFlat.new()
-	track_sb.bg_color = Color(0.04, 0.04, 0.08, 0.9)
+	track_sb.bg_color = Color(0.04, 0.04, 0.08, 0.95)
 	track_sb.border_color = Color(0.35, 0.28, 0.18, 0.85)
 	track_sb.set_border_width_all(1)
-	track_sb.set_corner_radius_all(5)
+	track_sb.set_corner_radius_all(int(bar_h * 0.5))
 	draw_style_box(track_sb, bar_rect)
 	
 	# Fill Bar
 	if progress > 0.001:
-		var fill_w = maxf(6.0, bar_w * progress)
+		var fill_w = maxf(8.0, bar_w * progress)
 		var fill_rect = Rect2(bar_x + 1, bar_y + 1, fill_w - 2, bar_h - 2)
 		var fill_col = Color(0.2, 0.85, 1.0).lerp(Color(1.0, 0.78, 0.2), progress)
 		if is_ready:
 			fill_col = Color(0.25, 1.0, 0.45)
 		var fill_sb = StyleBoxFlat.new()
 		fill_sb.bg_color = fill_col
-		fill_sb.set_corner_radius_all(4)
+		fill_sb.set_corner_radius_all(int((bar_h - 2) * 0.5))
 		draw_style_box(fill_sb, fill_rect)
 		
-		# Glowing top highlight
-		draw_line(Vector2(bar_x + 3, bar_y + 2), Vector2(bar_x + fill_w - 4, bar_y + 2), Color(1.0, 1.0, 1.0, 0.6), 1.2)
+		# Glowing top specular highlight
+		draw_line(Vector2(bar_x + 4, bar_y + 3), Vector2(bar_x + fill_w - 5, bar_y + 3), Color(1.0, 1.0, 1.0, 0.65), 1.5)
 
 func _draw_rocket_icon(c: Vector2, s: float) -> void:
 	var white = Color(0.96, 0.96, 1.0)

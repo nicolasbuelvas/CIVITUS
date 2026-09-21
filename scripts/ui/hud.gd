@@ -19,6 +19,7 @@ var swim_icon = preload("res://assets/sprites/icon_swim.png")
 @onready var hull_val_label: Label = $TopLayer/VitalsPod/Margin/VBox/HullRow/Val
 
 @onready var planet_name_label: Label = $TopLayer/Header/PlanetLabel
+@onready var header_node: Control = $TopLayer/Header if has_node("TopLayer/Header") else null
 @onready var hyperdrive_badge = $TopLayer/TopBarCluster/HyperdriveBadge if has_node("TopLayer/TopBarCluster/HyperdriveBadge") else $TopLayer/HyperdriveBadge
 @onready var pause_btn = $TopLayer/TopBarCluster/PauseBtn if has_node("TopLayer/TopBarCluster/PauseBtn") else $TopLayer/PauseBtn
 @onready var suit_alert_btn = $TopLayer/TopBarCluster/SuitAlertBtn if has_node("TopLayer/TopBarCluster/SuitAlertBtn") else null
@@ -286,12 +287,16 @@ func _on_first_person_toggled(is_fps: bool) -> void:
 		top_layer.visible = true
 	if vitals_pod:
 		vitals_pod.visible = is_fps
+	if header_node:
+		header_node.visible = not is_fps
+	if suit_alert_btn:
+		suit_alert_btn.visible = not is_fps
+		if is_fps:
+			suit_alert_btn.is_active = false
 	if cam_toggle_btn:
 		if "is_active" in cam_toggle_btn:
 			cam_toggle_btn.is_active = is_fps
 		cam_toggle_btn.text = ""
-	if suit_alert_btn and is_fps:
-		suit_alert_btn.is_active = false
 	if jarvis_overlay:
 		jarvis_overlay.visible = is_fps
 		if is_fps and visible:

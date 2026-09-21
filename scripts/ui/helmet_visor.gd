@@ -33,13 +33,11 @@ func _draw() -> void:
 	if has_helmet:
 		# 1. Authentic Curved Helmet Visor Frame & Polycarbonate Bezel
 		_draw_helmet_visor_frame(w, h)
-		# 2. Aerospace Technical Telemetry (Anti-AI-Slop, Pure Data)
-		_draw_tactical_telemetry(w, h, player)
 	
-	# 3. Minimal High-Precision Tactical Reticle
+	# 2. Minimal High-Precision Tactical Reticle
 	_draw_center_reticle(w * 0.5, h * 0.5, player)
 	
-	# 4. Critical Emergency Warnings
+	# 3. Critical Emergency Warnings (Suffocation / Depressurization)
 	_draw_tactical_status(w, h, o2)
 
 func _get_player() -> Node3D:

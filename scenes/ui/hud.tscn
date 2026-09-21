@@ -206,23 +206,6 @@ texture_normal = ExtResource("5_run")
 ignore_texture_size = true
 stretch_mode = 5
 
-[node name="CamToggleBtn" type="BaseButton" parent="MobileLayer/ActionCluster"]
-custom_minimum_size = Vector2(68, 68)
-layout_mode = 1
-anchors_preset = 3
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -88.0
-offset_top = -178.0
-offset_right = -20.0
-offset_bottom = -110.0
-grow_horizontal = 0
-grow_vertical = 0
-script = ExtResource("6_art_btn")
-icon_name = "camera"
-
 [node name="TopLayer" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 10

@@ -30,6 +30,7 @@ var is_mining: bool = false
 var is_first_person: bool = false
 var is_sprinting: bool = false
 var is_dead: bool = false
+var is_seated_in_cockpit: bool = false
 var is_in_liquid: bool = false
 var was_in_liquid: bool = false
 var nearby_interactable: Node3D = null
@@ -82,6 +83,7 @@ var suit_effect_intensity: float = 0.0
 
 var laser_immediate: ImmediateMesh = ImmediateMesh.new()
 var is_action_locked: bool = false
+var carried_creature: Node3D = null
 
 # Orbit camera & zoom state
 var cam_yaw: float = 0.0
@@ -491,6 +493,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			toggle_headlamp()
 
 func _physics_process(delta: float) -> void:
+	if is_seated_in_cockpit:
+		velocity = Vector3.ZERO
+		if is_instance_valid(left_leg): left_leg.rotation.x = deg_to_rad(-85.0)
+		if is_instance_valid(right_leg): right_leg.rotation.x = deg_to_rad(-85.0)
+		if is_instance_valid(left_arm): left_arm.rotation.x = deg_to_rad(-45.0)
+		if is_instance_valid(right_arm): right_arm.rotation.x = deg_to_rad(-45.0)
+		return
+
 	if is_instance_valid(GameManager) and (GameManager.current_planet.size() > 0 or planet.is_empty()):
 		planet = GameManager.current_planet
 	var gravity_val: float = planet.get("gravity", 9.8)
@@ -499,6 +509,10 @@ func _physics_process(delta: float) -> void:
 	if up_dir.length_squared() < 0.001:
 		up_dir = Vector3.UP
 	up_direction = up_dir
+
+	if is_instance_valid(carried_creature):
+		carried_creature.global_position = global_position + up_dir * 1.85
+		carried_creature.global_transform.basis = global_transform.basis
 
 	# Keyboard camera rotation
 	if Input.is_action_pressed("rotate_cam_left"):
@@ -1126,7 +1140,7 @@ func _physics_process(delta: float) -> void:
 		_draw_laser(nearby_interactable.global_position)
 		AudioManager.start_laser_loop()
 	else:
-		laser_mesh.visible = false
+		if laser_mesh: laser_mesh.visible = false
 		AudioManager.stop_laser_loop()
 
 	stats_changed.emit(GameManager.player_stats.oxygen, GameManager.player_stats.fuel, GameManager.player_stats.hull)
@@ -1135,7 +1149,7 @@ func check_nearby_interactables() -> void:
 	var ship = get_tree().get_first_node_in_group("spaceship")
 	
 	# 1. Inside Spaceship Cabin: Check Cabin Modules (Pilot Seat, Hyperdrive, O2, Gravity, Fabricator, Storage, Hatch)
-	if ship and bool(ship.get("is_player_in_cabin")):
+	if ship and ship.get("is_player_in_cabin") == true and global_position.distance_to(ship.global_position) < 8.0:
 		if ship.has_method("get_cabin_module_interaction"):
 			var mod_info = ship.get_cabin_module_interaction(self)
 			if not mod_info.is_empty():
@@ -1160,46 +1174,55 @@ func check_nearby_interactables() -> void:
 			interaction_lost.emit()
 		return
 
-	# 2. Outside Spaceship: Check Hatch from ramp/doorstep
-	if ship and ship.has_method("get_hatch_interaction_state"):
+	# 2. Outside Actions: Prioritize carried creature or closest entity
+	if is_instance_valid(carried_creature):
+		if nearby_interactable != carried_creature or current_interactable_type != "drop":
+			nearby_interactable = carried_creature
+			current_interactable_type = "drop"
+			interaction_available.emit("drop", carried_creature)
+		return
+
+	var best_target: Node3D = null
+	var best_dist: float = 3.6
+	var best_type: String = ""
+
+	# A. Check nearby creatures directly (highest priority when exploring)
+	for c in get_tree().get_nodes_in_group("creatures"):
+		if is_instance_valid(c) and not c.get("is_dead"):
+			var d = global_position.distance_to(c.global_position)
+			if d < best_dist:
+				best_dist = d
+				best_target = c
+				if c.get("is_aggressive"):
+					best_type = "attack"
+				elif c.has_method("can_be_carried") and c.can_be_carried():
+					best_type = "lift"
+				else:
+					best_type = "feed"
+
+	# B. Check nearby mineable resource chunks
+	if best_target == null:
+		for r in get_tree().get_nodes_in_group("resource_nodes"):
+			if is_instance_valid(r):
+				var d = global_position.distance_to(r.global_position)
+				if d < 3.2 and d < best_dist:
+					best_dist = d
+					best_target = r
+					best_type = "mine"
+
+	# C. Check spaceship hatch ONLY if close to the doorstep and no creature/ore in front
+	if best_target == null and ship and ship.has_method("get_hatch_interaction_state"):
 		var h_state = ship.get_hatch_interaction_state(self)
 		if h_state != "":
-			if nearby_interactable != ship or current_interactable_type != h_state:
-				nearby_interactable = ship
-				current_interactable_type = h_state
-				interaction_available.emit(h_state, ship)
-			return
+			best_target = ship
+			best_type = h_state
 
-	# 3. Mineable Resource Chunks & Creatures
-	var space = get_world_3d().direct_space_state
-	var q = PhysicsShapeQueryParameters3D.new()
-	var sphere = SphereShape3D.new()
-	sphere.radius = 4.0
-	q.shape = sphere
-	q.transform = global_transform
-	q.collision_mask = 2 | 4
-	
-	var hits = space.intersect_shape(q, 4)
-	if hits.size() > 0:
-		for hit in hits:
-			var target = hit.get("collider")
-			if not target:
-				continue
-			# Check creatures first
-			if target.is_in_group("creatures") and not target.get("is_dead"):
-				var act_type = "attack" if target.get("is_aggressive") else "feed"
-				if nearby_interactable != target or current_interactable_type != act_type:
-					nearby_interactable = target
-					current_interactable_type = act_type
-					interaction_available.emit(act_type, target)
-				return
-			# Check mineable ores
-			elif target.has_method("mine_tick"):
-				if nearby_interactable != target or current_interactable_type != "mine":
-					nearby_interactable = target
-					current_interactable_type = "mine"
-					interaction_available.emit("mine", target)
-				return
+	if best_target != null and best_type != "":
+		if nearby_interactable != best_target or current_interactable_type != best_type:
+			nearby_interactable = best_target
+			current_interactable_type = best_type
+			interaction_available.emit(best_type, best_target)
+		return
 
 	if nearby_interactable != null:
 		nearby_interactable = null
@@ -1208,6 +1231,9 @@ func check_nearby_interactables() -> void:
 
 func attack_nearest_target() -> void:
 	if is_action_locked:
+		return
+	if is_instance_valid(carried_creature):
+		throw_carried_creature()
 		return
 	AudioManager.play("thruster", 1.8, -2.0)
 	var forward = -global_transform.basis.z
@@ -1223,11 +1249,80 @@ func attack_nearest_target() -> void:
 	q.collision_mask = 4 # Creature collision layer
 	
 	var hits = space.intersect_shape(q, 4)
+	var dealt_damage = false
 	for hit in hits:
 		var col = hit.get("collider")
 		if col and col.has_method("take_damage"):
 			col.take_damage(35.0)
+			dealt_damage = true
 			break
+			
+	if not dealt_damage:
+		# Direct distance fallback for immediate execution
+		var closest_cr: Node3D = null
+		var min_d: float = 6.0
+		for cr in get_tree().get_nodes_in_group("creatures"):
+			if is_instance_valid(cr) and not cr.is_queued_for_deletion() and not cr.get("is_dead"):
+				var d = global_position.distance_to(cr.global_position)
+				if d < min_d:
+					min_d = d
+					closest_cr = cr
+		if closest_cr and closest_cr.has_method("take_damage"):
+			closest_cr.take_damage(35.0)
+
+func pick_up_creature(creature: Node3D) -> void:
+	if not is_instance_valid(creature):
+		return
+	carried_creature = creature
+	if creature.has_method("pick_up"):
+		creature.pick_up(self)
+	nearby_interactable = creature
+	current_interactable_type = "drop"
+	interaction_available.emit("drop", creature)
+
+func lift_creature(target_creature: Node3D = null) -> void:
+	if is_instance_valid(target_creature):
+		pick_up_creature(target_creature)
+	elif is_instance_valid(nearby_interactable) and nearby_interactable.is_in_group("creatures"):
+		pick_up_creature(nearby_interactable)
+
+func set_seated_in_cockpit(seated: bool, seat_transform: Transform3D = Transform3D()) -> void:
+	is_seated_in_cockpit = seated
+	is_action_locked = seated
+	if seated:
+		global_transform = seat_transform
+		velocity = Vector3.ZERO
+		if is_instance_valid(left_leg): left_leg.rotation.x = deg_to_rad(-85.0)
+		if is_instance_valid(right_leg): right_leg.rotation.x = deg_to_rad(-85.0)
+		if is_instance_valid(left_arm): left_arm.rotation.x = deg_to_rad(-45.0)
+		if is_instance_valid(right_arm): right_arm.rotation.x = deg_to_rad(-45.0)
+	else:
+		if is_instance_valid(left_leg): left_leg.rotation.x = 0.0
+		if is_instance_valid(right_leg): right_leg.rotation.x = 0.0
+		if is_instance_valid(left_arm): left_arm.rotation.x = 0.0
+		if is_instance_valid(right_arm): right_arm.rotation.x = 0.0
+
+func drop_carried_creature() -> void:
+	if not is_instance_valid(carried_creature):
+		return
+	if carried_creature.has_method("drop_gently"):
+		carried_creature.drop_gently()
+	carried_creature = null
+	nearby_interactable = null
+	current_interactable_type = ""
+	interaction_lost.emit()
+
+func throw_carried_creature() -> void:
+	if not is_instance_valid(carried_creature):
+		return
+	var forward = -global_transform.basis.z
+	var impulse = (forward + up_direction * 0.45).normalized() * 15.0
+	if carried_creature.has_method("throw_ballistic"):
+		carried_creature.throw_ballistic(impulse)
+	carried_creature = null
+	nearby_interactable = null
+	current_interactable_type = ""
+	interaction_lost.emit()
 
 func _draw_laser(target_pos: Vector3) -> void:
 	laser_mesh.visible = true
@@ -1289,13 +1384,34 @@ func prefers_lunar_hopping() -> bool:
 		var grav_g = float(p_params.get("gravity_g", p_params.get("gravity", 9.8) / 9.8))
 		return grav_g < 0.78
 
+func respawn_at_cloning_bay(cloning_pos: Vector3, cabin_up: Vector3 = Vector3.UP) -> void:
+	is_dead = false
+	is_action_locked = false
+	velocity = Vector3.ZERO
+	global_position = cloning_pos + cabin_up * 0.25
+	GameManager.player_stats.hull = 100.0
+	GameManager.player_stats.oxygen = 100.0
+	GameManager.player_vital_updated.emit("hull", 100.0, 100.0)
+	GameManager.player_vital_updated.emit("oxygen", 100.0, 100.0)
+	if visuals:
+		visuals.rotation = Vector3.ZERO
+		visuals.position = Vector3.ZERO
+		if left_arm: left_arm.rotation = Vector3.ZERO
+		if right_arm: right_arm.rotation = Vector3.ZERO
+		if left_leg: left_leg.rotation = Vector3.ZERO
+		if right_leg: right_leg.rotation = Vector3.ZERO
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("🧬 BIOCLONACIÓN COMPLETA: Sujeto reensamblado en la nave.")
+	AudioManager.play("craft", 1.2, 2.0)
+
 func _die(reason: String) -> void:
 	is_dead = true
 	is_action_locked = true
 	velocity = Vector3.ZERO
 	AudioManager.play("click", 0.5, 4.0)
 	
-	# Ragdoll fall animation
+	# Radial ragdoll collapse along spherical gravity
 	if visuals:
 		var tw = create_tween().set_parallel(true)
 		tw.tween_property(visuals, "rotation:z", deg_to_rad(85.0), 0.7).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
@@ -1304,6 +1420,15 @@ func _die(reason: String) -> void:
 		if right_arm: tw.tween_property(right_arm, "rotation:x", 1.4, 0.5)
 		if left_leg: tw.tween_property(left_leg, "rotation:x", 0.5, 0.5)
 		if right_leg: tw.tween_property(right_leg, "rotation:x", -0.4, 0.5)
+		
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if is_instance_valid(ship) and ship.has_method("get_cloning_bay_position") and int(GameManager.current_planet.get("level", 0)) < 5:
+		var timer = get_tree().create_timer(1.8)
+		timer.timeout.connect(func():
+			var cb_pos = ship.get_cloning_bay_position()
+			respawn_at_cloning_bay(cb_pos, ship.global_transform.basis.y)
+		)
+		return
 		
 	var timer = get_tree().create_timer(0.9)
 	timer.timeout.connect(func():

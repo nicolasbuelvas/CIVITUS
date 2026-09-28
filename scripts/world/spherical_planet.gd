@@ -21,6 +21,7 @@ var hud_scene: PackedScene = null
 var cave_scene: PackedScene = null
 var creature_scene: PackedScene = null
 var basalt_scene: PackedScene = null
+var flora_scene: PackedScene = null
 
 var spaceship_instance: Node3D = null
 var ocean_instance: MeshInstance3D = null
@@ -33,10 +34,12 @@ var noise: FastNoiseLite = FastNoiseLite.new()
 var is_generating: bool = false
 
 var spawned_trees: Array = []
+var spawned_flora: Array = []
 var spawned_ores_tier1: Array = []
 var spawned_ores_tier2: Array = []
 var spawned_caves: Array = []
 var spawned_creatures: Array = []
+var is_orbital_lod_active: bool = false
 
 # Meteor streak timer
 var meteor_timer: float = 8.0
@@ -109,6 +112,7 @@ func _ensure_resource_references() -> void:
 	if not cave_scene: cave_scene = load("res://scenes/entities/cave_grotto.tscn")
 	if not creature_scene: creature_scene = load("res://scenes/entities/alien_creature.tscn")
 	if not basalt_scene: basalt_scene = load("res://scenes/entities/basalt_column.tscn")
+	if not flora_scene: flora_scene = load("res://scenes/entities/procedural_flora.tscn")
 
 func _process(delta: float) -> void:
 	# Update dynamic tidal oscillation on planetary fluid
@@ -172,12 +176,62 @@ func _process(delta: float) -> void:
 				if ground_plume_dust: ground_plume_dust.emitting = false
 				if ground_plume_sparks: ground_plume_sparks.emitting = false
 
-	# Procedural Meteor Streaks (Bloque F)
+	# Procedural Meteor Streaks & Dynamic Clouds (Fase 5)
+	if cloud_instance and is_instance_valid(cloud_instance):
+		cloud_instance.rotate_y(delta * 0.006)
+		
 	if not is_generating:
 		meteor_timer -= delta
 		if meteor_timer <= 0.0:
-			meteor_timer = randf_range(12.0, 22.0)
-			_spawn_shooting_star()
+			meteor_timer = randf_range(16.0, 32.0)
+			var lvl = GameManager.current_planet.get("level", 0)
+			if lvl >= 2 and randf() < 0.45:
+				_spawn_active_meteorite()
+			else:
+				_spawn_shooting_star()
+
+	# Dynamic Orbital LOD based on active Camera3D distance
+	var active_cam = get_viewport().get_camera_3d()
+	if is_instance_valid(active_cam):
+		var cam_dist = active_cam.global_position.distance_to(global_position)
+		if cam_dist > radius + 55.0:
+			if not is_orbital_lod_active:
+				set_orbital_lod(true)
+		elif cam_dist < radius + 42.0:
+			if is_orbital_lod_active:
+				set_orbital_lod(false)
+
+func set_orbital_lod(active: bool) -> void:
+	if is_orbital_lod_active == active:
+		return
+	is_orbital_lod_active = active
+	
+	for c in spawned_creatures:
+		if is_instance_valid(c):
+			c.visible = not active
+			c.set_physics_process(not active)
+			c.set_process(not active)
+			
+	for f in spawned_flora:
+		if is_instance_valid(f):
+			f.visible = not active
+			f.set_process(not active)
+			
+	for t in spawned_trees:
+		if is_instance_valid(t):
+			t.visible = not active
+			
+	for o in spawned_ores_tier1:
+		if is_instance_valid(o):
+			o.visible = not active
+			
+	for o in spawned_ores_tier2:
+		if is_instance_valid(o):
+			o.visible = not active
+			
+	for cv in spawned_caves:
+		if is_instance_valid(cv):
+			cv.visible = not active
 
 func _init_planet_world() -> void:
 	if is_generating:
@@ -300,9 +354,48 @@ func _init_planet_world() -> void:
 		ocean_instance.visible = false
 		add_child(ocean_instance)
 
-	# Atmospheric scattering and cloud dynamics are rendered cleanly via celestial sky & shaders
+	# Dynamic Spherical Cloud Layer (Fase 5.1)
+	if planet_params.get("has_atmosphere", true):
+		var c_mesh = SphereMesh.new()
+		c_mesh.radius = radius + 6.8
+		c_mesh.height = (radius + 6.8) * 2.0
+		c_mesh.radial_segments = 40
+		c_mesh.rings = 20
+		
+		var c_mat = StandardMaterial3D.new()
+		c_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		c_mat.cull_mode = BaseMaterial3D.CULL_BACK
+		c_mat.roughness = 0.95
+		
+		var ocean_cov = planet_params.get("ocean_coverage", 0.0)
+		var is_oc_world = planet_params.get("is_ocean_world", false)
+		var cloud_alpha = 0.24
+		if is_oc_world:
+			cloud_alpha = 0.60
+		elif ocean_cov > 0.4:
+			cloud_alpha = 0.40
+		elif water_stat == "Seco / Desolado":
+			cloud_alpha = 0.12
+		
+		var cloud_tint = Color(0.96, 0.97, 1.0, cloud_alpha)
+		var p_type = planet_params.get("type", "")
+		if p_type.contains("Toxic") or p_type.contains("Acido"):
+			cloud_tint = Color(0.85, 0.95, 0.40, cloud_alpha * 1.1)
+		elif p_type.contains("Desert") or p_type.contains("Desierto"):
+			cloud_tint = Color(0.92, 0.78, 0.62, cloud_alpha)
+			
+		c_mat.albedo_color = cloud_tint
+		
+		cloud_instance = MeshInstance3D.new()
+		cloud_instance.name = "CloudLayer3D"
+		cloud_instance.mesh = c_mesh
+		cloud_instance.material_override = c_mat
+		cloud_instance.visible = false
+		add_child(cloud_instance)
+	else:
+		cloud_instance = null
+		
 	atmosphere_instance = null
-	cloud_instance = null
 		
 	if is_inside_tree():
 		await get_tree().process_frame
@@ -373,7 +466,7 @@ func _init_planet_world() -> void:
 	if atmosphere_instance:
 		atmosphere_instance.visible = true
 	if cloud_instance:
-		cloud_instance.visible = true
+		cloud_instance.visible = false # Keep hidden on surface to prevent geometric camera clipping; clouds rendered via sky shader
 	if is_inside_tree():
 		await get_tree().process_frame
 
@@ -407,17 +500,16 @@ func _init_planet_world() -> void:
 	if is_inside_tree():
 		await get_tree().process_frame
 
-	# Sub 33: Precalentar biosfera vegetal de forma diferida en 2 sub-lotes (Bloque H: Cero freeze)
+	# Sub 33: Precalentar biosfera vegetal de forma diferida en sub-lotes atómicos (Bloque H: Cero freeze)
 	generation_step_changed.emit(33, TOTAL_SUBSTEPS, GameManager.loc("shader_sub_7"))
-	var half_trees = spawned_trees.size() / 2
-	for idx in range(half_trees):
-		spawned_trees[idx].visible = true
-	if is_inside_tree():
-		await get_tree().process_frame
-	for idx in range(half_trees, spawned_trees.size()):
-		spawned_trees[idx].visible = true
-	if is_inside_tree():
-		await get_tree().process_frame
+	var tree_batch_size = 6
+	for start_idx in range(0, spawned_trees.size(), tree_batch_size):
+		var end_idx = min(start_idx + tree_batch_size, spawned_trees.size())
+		for idx in range(start_idx, end_idx):
+			if is_instance_valid(spawned_trees[idx]):
+				spawned_trees[idx].visible = true
+		if is_inside_tree():
+			await get_tree().process_frame
 
 	# Sub 34: Precalentar cinemática y traje de astronauta
 	generation_step_changed.emit(34, TOTAL_SUBSTEPS, GameManager.loc("shader_sub_8"))
@@ -621,8 +713,8 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 	rng.seed = planet_params.get("seed", 1337) + 101
 	
 	var batch_messages = ["bio_sub_1", "bio_sub_2", "bio_sub_3", "bio_sub_4", "bio_sub_5", "bio_sub_6"]
-	var total_items = 180
-	var items_per_batch = 30
+	var total_items = 300
+	var items_per_batch = 50
 	var p_beach: Color = planet_params.get("beach_color", Color(0.82, 0.75, 0.52))
 	var p_land: Color = planet_params.get("land_color", Color(0.28, 0.55, 0.22))
 	var p_mount: Color = planet_params.get("mountain_color", Color(0.48, 0.42, 0.38))
@@ -635,8 +727,8 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 			
 		# Dedicated Starter Grove & Mines around Landing Site (Bloque Obbe Vermeij: Ecosistema Vivo Inmediato)
 		if b == 0:
-			for s_i in range(5):
-				var s_ang = float(s_i) * (TAU / 5.0) + 0.45
+			for s_i in range(6):
+				var s_ang = float(s_i) * (TAU / 6.0) + 0.35
 				var s_dist_factor = 0.14 # ~22 meters from ship
 				var s_dir = Vector3(sin(s_ang) * s_dist_factor, 0.975, cos(s_ang) * s_dist_factor).normalized()
 				var s_elev = _get_elevation(s_dir)
@@ -645,22 +737,22 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 				if resource_scene:
 					var ore = resource_scene.instantiate()
 					ore.ore_type = 0 if s_i % 2 == 0 else 1 # Iron and Copper starter nodes
-					ore.position = s_pos
+					ore.position = s_pos - s_dir * 0.12 # Physically embedded in rock
 					ore.visible = false
 					_align_node_to_up(ore, s_dir)
 					add_child(ore)
 					spawned_ores_tier1.append(ore)
 					
-			for t_i in range(8):
-				var t_ang = float(t_i) * (TAU / 8.0) + 0.2
-				var t_dist_factor = 0.18 # ~28 meters from ship
+			for t_i in range(12):
+				var t_ang = float(t_i) * (TAU / 12.0) + 0.15
+				var t_dist_factor = 0.16 + (t_i % 3) * 0.04 # 25-35 meters from ship
 				var t_dir = Vector3(sin(t_ang) * t_dist_factor, 0.965, cos(t_ang) * t_dist_factor).normalized()
 				var t_elev = _get_elevation(t_dir)
 				var p_type_start = planet_params.get("type", "Habitable")
-				var is_start_tree_viable = (p_type_start.contains("Habitable") or p_type_start.contains("Tierra") or planet_params.get("has_oxygen", false)) and not planet_params.get("is_molten", false) and not p_type_start.contains("Vacío") and not planet_params.get("is_ocean_world", false)
+				var is_start_tree_viable = not planet_params.get("is_molten", false) and not p_type_start.contains("Vacío") and not p_type_start.contains("Gaseoso") and not planet_params.get("is_ocean_world", false)
 				if is_start_tree_viable and t_elev >= -0.5 and tree_scene:
 					var tree = tree_scene.instantiate()
-					tree.position = t_dir * (radius + t_elev)
+					tree.position = t_dir * (radius + t_elev - 0.25) # Roots buried in crust
 					tree.visible = false
 					_align_node_to_up(tree, t_dir)
 					if tree.has_method("setup_theme"):
@@ -669,16 +761,31 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 					spawned_trees.append(tree)
 					
 			if creature_scene and spawned_creatures.is_empty():
-				var c_dir = Vector3(0.12, 0.975, -0.12).normalized()
-				var c_elev = _get_elevation(c_dir)
-				var creature = creature_scene.instantiate()
-				creature.position = c_dir * (radius + c_elev + 0.8)
-				creature.visible = false
-				_align_node_to_up(creature, c_dir)
-				if creature.has_method("setup_creature"):
-					creature.setup_creature(planet_params, false) # Peaceful starter alien
-				add_child(creature)
-				spawned_creatures.append(creature)
+				# Starter terrestrial herd
+				for c_idx in range(2):
+					var c_dir = Vector3(0.10 + c_idx * 0.08, 0.975, -0.12 - c_idx * 0.05).normalized()
+					var c_elev = _get_elevation(c_dir)
+					var creature = creature_scene.instantiate()
+					creature.position = c_dir * (radius + c_elev + 0.5)
+					creature.visible = false
+					_align_node_to_up(creature, c_dir)
+					add_child(creature)
+					if creature.has_method("setup_creature"):
+						creature.setup_creature(planet_params, false, 0) # Peaceful starter terrestrial
+					spawned_creatures.append(creature)
+				
+				# Starter aerial bird/flyer if atmosphere present
+				if planet_params.get("has_atmosphere", true):
+					var a_dir = Vector3(-0.14, 0.965, 0.18).normalized()
+					var a_elev = _get_elevation(a_dir)
+					var flyer = creature_scene.instantiate()
+					flyer.position = a_dir * (radius + a_elev + 6.0)
+					flyer.visible = false
+					_align_node_to_up(flyer, a_dir)
+					add_child(flyer)
+					if flyer.has_method("setup_creature"):
+						flyer.setup_creature(planet_params, false, 3) # AERIAL_FLOAT
+					spawned_creatures.append(flyer)
 				
 			if basalt_scene:
 				var b_dir = Vector3(-0.16, 0.972, 0.14).normalized()
@@ -707,21 +814,50 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 			var elev = _get_elevation(dir)
 			var surf_pos = dir * (radius + elev)
 			
-			# Flora spawns in valleys/plains: 0.0m <= elev <= 6.5m (strictly on habitable/viable worlds without global ocean)
+			# Multi-Domain Procedural Flora (21 Types: 7 Terrestrial, 7 Aquatic, 7 Exotic)
 			var p_type = planet_params.get("type", "Habitable")
-			var is_tree_viable = (p_type.contains("Habitable") or p_type.contains("Tierra") or planet_params.get("has_oxygen", false)) and not planet_params.get("is_molten", false) and not p_type.contains("Vacío") and not planet_params.get("is_ocean_world", false)
+			var is_flora_viable = not planet_params.get("is_molten", false) and not p_type.contains("Vacío") and not p_type.contains("Gaseoso")
+			var has_liquid = str(planet_params.get("water_status", "")) != "Seco / Desolado" and str(planet_params.get("water_status", "")) != ""
 			
-			if is_tree_viable and elev >= 0.0 and elev <= 6.5 and rng.randf() < 0.65:
-				if tree_scene:
-					var tree = tree_scene.instantiate()
-					tree.position = surf_pos
-					tree.visible = false
-					_align_node_to_up(tree, dir)
-					if tree.has_method("setup_theme"):
-						tree.setup_theme(planet_params)
-					add_child(tree)
-					spawned_trees.append(tree)
-			elif elev > 1.5 or elev < -1.5:
+			if is_flora_viable and flora_scene and rng.randf() < 0.65:
+				var flora = flora_scene.instantiate()
+				var chosen_type: int = 0
+				
+				if has_liquid and elev < -0.3:
+					# 7 Aquatic Flora types (7 to 13)
+					chosen_type = 7 + (rng.randi() % 7)
+					flora.position = surf_pos
+				elif rng.randf() < 0.28:
+					# 7 Exotic Flora types (14 to 20: Snappers, Tumbleweeds, Floaters, Spores, etc.)
+					chosen_type = 14 + (rng.randi() % 7)
+					flora.position = surf_pos - dir * 0.1
+				elif elev >= -0.2 and elev <= 6.5:
+					# 7 Terrestrial Flora types (0 to 6: Fractal Trees, Pines, Bushes, Ferns, Cacti, Shrooms, Reeds)
+					chosen_type = rng.randi() % 7
+					flora.position = surf_pos - dir * 0.2
+				else:
+					chosen_type = 0
+					flora.position = surf_pos - dir * 0.2
+					
+				flora.visible = false
+				_align_node_to_up(flora, dir)
+				flora.planet_radius = radius
+				if flora.has_method("setup_flora"):
+					flora.setup_flora(chosen_type, planet_params, dir)
+				add_child(flora)
+				spawned_flora.append(flora)
+				
+			# Standard Fractal Paper Trees for high-density forest clusters
+			elif is_flora_viable and elev >= -0.2 and elev <= 6.5 and tree_scene and rng.randf() < 0.55:
+				var tree = tree_scene.instantiate()
+				tree.position = surf_pos - dir * 0.25 # Roots solidly anchored in ground
+				tree.visible = false
+				_align_node_to_up(tree, dir)
+				if tree.has_method("setup_theme"):
+					tree.setup_theme(planet_params)
+				add_child(tree)
+				spawned_trees.append(tree)
+			elif elev > 1.2 or elev < -1.0:
 				# Mineral deposits exposed in mountain slopes, canyon cliffs or shores
 				if resource_scene:
 					var ore = resource_scene.instantiate()
@@ -734,7 +870,7 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 						"uranium": ore.ore_type = 3
 						_: ore.ore_type = 0
 					
-					ore.position = surf_pos
+					ore.position = surf_pos - dir * 0.12 # Crystalline vein embedded in rock
 					ore.visible = false
 					_align_node_to_up(ore, dir)
 					add_child(ore)
@@ -754,19 +890,42 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 						basalt.setup_formation(p_mount if elev > 3.0 else p_beach)
 					add_child(basalt)
 
-			# Alien Creatures spawning across terrestrial and highland domains
-			if b >= 3 and creature_scene and spawned_creatures.size() < 6 and rng.randf() < 0.28:
+			# Multi-Domain Procedural Fauna (21 Types: 7 Terrestrial, 7 Aquatic & 7 Aerial)
+			if creature_scene and spawned_creatures.size() < 42 and rng.randf() < 0.55:
+				var is_aggro = (elev > 3.0 or planet_params.get("level", 0) >= 2) and (rng.randf() < 0.35)
+				var has_atmo = planet_params.get("has_atmosphere", true)
+				
 				var creature = creature_scene.instantiate()
-				var is_aggro = (elev > 3.0 or planet_params.get("level", 0) >= 2) and (rng.randf() < 0.55)
-				creature.position = surf_pos + dir * 0.8
-				creature.visible = false
-				_align_node_to_up(creature, dir)
-				if creature.has_method("setup_creature"):
-					creature.setup_creature(planet_params, is_aggro)
-				add_child(creature)
-				spawned_creatures.append(creature)
+				creature.planet_radius = radius
+				if has_liquid and elev < -0.4:
+					# Aquatic creature cruising inside ocean liquid volume (7 Marine species)
+					creature.position = dir * (radius - 1.2)
+					creature.visible = false
+					_align_node_to_up(creature, dir)
+					add_child(creature)
+					if creature.has_method("setup_creature"):
+						creature.setup_creature(planet_params, is_aggro, 2) # AQUATIC_SWIMMER
+					spawned_creatures.append(creature)
+				elif has_atmo and rng.randf() < 0.35:
+					# Aerial creature gliding in planetary sky (7 Flying species)
+					creature.position = surf_pos + dir * 5.5
+					creature.visible = false
+					_align_node_to_up(creature, dir)
+					add_child(creature)
+					if creature.has_method("setup_creature"):
+						creature.setup_creature(planet_params, is_aggro, 3) # AERIAL_FLOAT
+					spawned_creatures.append(creature)
+				elif elev >= -0.2:
+					# Terrestrial quadruped/biped walking on ground (7 Land species)
+					creature.position = surf_pos + dir * 0.65
+					creature.visible = false
+					_align_node_to_up(creature, dir)
+					add_child(creature)
+					if creature.has_method("setup_creature"):
+						creature.setup_creature(planet_params, is_aggro, 0 if rng.randf() > 0.3 else 1)
+					spawned_creatures.append(creature)
 						
-		# Procedural Subterranean Caverns anchored precisely in planetary karst cenotes
+		# Procedural Subterranean Caverns & Mining Shaft Structures
 		if b == 4 and cave_scene and spawned_caves.is_empty():
 			var p_seed = planet_params.get("seed", 1337)
 			for c_idx in range(3):
@@ -787,44 +946,151 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 
 func _setup_weather_particles(planet_params: Dictionary, center_pos: Vector3) -> void:
 	if not planet_params.get("has_atmosphere", true):
+		GameManager.current_weather = "clear"
+		GameManager.current_weather_intensity = 0.0
 		return
 		
 	var lvl = planet_params.get("level", 0)
-	if lvl == 0:
-		# Temperate habitable world has clear crisp air; zero water droplets falling on dry land
-		return
-		
+	var ocean_cov = planet_params.get("ocean_coverage", 0.0)
+	var p_type = planet_params.get("type", "")
+	
 	weather_system = CPUParticles3D.new()
 	weather_system.name = "WeatherParticles"
 	weather_system.position = center_pos + Vector3.UP * 8.0
-	weather_system.amount = 48
-	weather_system.lifetime = 4.0
+	weather_system.amount = 54
+	weather_system.lifetime = 3.5
 	weather_system.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
 	weather_system.emission_sphere_radius = 28.0
 	
-	match lvl:
-		1: # Desert: red dust storm
-			weather_system.color = Color(0.85, 0.45, 0.22, 0.55)
-			weather_system.gravity = Vector3(4.5, -0.5, 0) # horizontal wind
-			weather_system.initial_velocity_min = 4.0
-			weather_system.initial_velocity_max = 8.0
-		2: # Toxic: corrosive drizzle
-			weather_system.color = Color(0.75, 0.82, 0.15, 0.45)
-			weather_system.gravity = Vector3(0, -4.5, 0)
-			weather_system.initial_velocity_min = 1.0
-			weather_system.initial_velocity_max = 3.0
-		3: # Cryo: methane snow flakes
-			weather_system.color = Color(0.85, 0.95, 1.0, 0.65)
-			weather_system.gravity = Vector3(1.2, -2.5, 0)
-			weather_system.initial_velocity_min = 1.5
-			weather_system.initial_velocity_max = 4.0
-		4, 5: # Igneous / Molten: glowing embers
-			weather_system.color = Color(1.0, 0.45, 0.10, 0.85)
-			weather_system.gravity = Vector3(0, 2.5, 0) # rising embers
-			weather_system.initial_velocity_min = 1.0
-			weather_system.initial_velocity_max = 3.5
-			
+	if p_type.contains("Toxic") or p_type.contains("Acido") or lvl == 2:
+		# Acid rain
+		GameManager.current_weather = "acid_rain"
+		GameManager.current_weather_intensity = 0.85
+		weather_system.color = Color(0.75, 0.88, 0.20, 0.65)
+		weather_system.gravity = Vector3(0, -6.5, 0)
+		weather_system.initial_velocity_min = 2.0
+		weather_system.initial_velocity_max = 5.0
+	elif p_type.contains("Cryo") or p_type.contains("Hielo") or lvl == 3:
+		# Cryogenic blizzard / methane flurries
+		GameManager.current_weather = "blizzard"
+		GameManager.current_weather_intensity = 0.9
+		weather_system.color = Color(0.85, 0.95, 1.0, 0.75)
+		weather_system.gravity = Vector3(2.0, -3.0, 0)
+		weather_system.initial_velocity_min = 2.0
+		weather_system.initial_velocity_max = 5.5
+	elif p_type.contains("Volcan") or p_type.contains("Lava") or lvl >= 4:
+		# Magma embers & ash
+		GameManager.current_weather = "ash_embers"
+		GameManager.current_weather_intensity = 1.0
+		weather_system.color = Color(1.0, 0.45, 0.10, 0.85)
+		weather_system.gravity = Vector3(0, 2.5, 0)
+		weather_system.initial_velocity_min = 1.0
+		weather_system.initial_velocity_max = 3.5
+	elif p_type.contains("Desert") or p_type.contains("Desierto") or lvl == 1:
+		# Sandstorm / dust storm
+		GameManager.current_weather = "sandstorm"
+		GameManager.current_weather_intensity = 0.8
+		weather_system.color = Color(0.85, 0.50, 0.25, 0.65)
+		weather_system.gravity = Vector3(6.0, -0.8, 0)
+		weather_system.initial_velocity_min = 5.0
+		weather_system.initial_velocity_max = 9.0
+	elif ocean_cov > 0.2 or planet_params.get("is_ocean_world", false):
+		# Maritime rain
+		GameManager.current_weather = "rain"
+		GameManager.current_weather_intensity = 0.75
+		weather_system.color = Color(0.70, 0.85, 1.0, 0.60)
+		weather_system.gravity = Vector3(0.5, -8.0, 0)
+		weather_system.initial_velocity_min = 3.0
+		weather_system.initial_velocity_max = 6.5
+	else:
+		GameManager.current_weather = "clear"
+		GameManager.current_weather_intensity = 0.0
+		weather_system.queue_free()
+		weather_system = null
+		return
+		
 	add_child(weather_system)
+
+func _spawn_active_meteorite() -> void:
+	if is_generating or not is_inside_tree():
+		return
+		
+	var rng = RandomNumberGenerator.new()
+	rng.randomize()
+	
+	var target_dir = Vector3.UP
+	if player_instance and is_instance_valid(player_instance):
+		target_dir = player_instance.global_position.normalized()
+	else:
+		target_dir = landing_up_dir
+		
+	var rand_offset = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-0.5, 0.5), rng.randf_range(-1.0, 1.0)).normalized()
+	var strike_dir = (target_dir + rand_offset * 0.28).normalized()
+	var strike_elev = _get_elevation(strike_dir)
+	var strike_pos = strike_dir * (radius + strike_elev)
+	var entry_start = strike_pos + strike_dir * 85.0 + Vector3(rng.randf_range(-25.0, 25.0), 0, rng.randf_range(-25.0, 25.0))
+	
+	var meteor = Node3D.new()
+	meteor.name = "ActiveMeteorite"
+	add_child(meteor)
+	meteor.global_position = entry_start
+	
+	var m_mesh = MeshInstance3D.new()
+	var sphere = SphereMesh.new()
+	sphere.radius = 0.65
+	sphere.height = 1.3
+	m_mesh.mesh = sphere
+	
+	var mat = StandardMaterial3D.new()
+	mat.albedo_color = Color(0.12, 0.08, 0.06)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.45, 0.1)
+	mat.emission_energy_multiplier = 3.5
+	m_mesh.material_override = mat
+	meteor.add_child(m_mesh)
+	
+	var trail = CPUParticles3D.new()
+	trail.amount = 32
+	trail.lifetime = 0.6
+	trail.color = Color(1.0, 0.6, 0.15, 0.8)
+	trail.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	trail.emission_sphere_radius = 0.4
+	trail.gravity = -strike_dir * 12.0
+	meteor.add_child(trail)
+	
+	AudioManager.play("reentry", 1.4, -2.0)
+	
+	var fall_time = 1.6
+	var tw = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(meteor, "global_position", strike_pos, fall_time)
+	tw.tween_callback(func():
+		_on_meteorite_impact(strike_pos, strike_dir)
+		meteor.queue_free()
+	)
+
+func _on_meteorite_impact(pos: Vector3, up_dir: Vector3) -> void:
+	AudioManager.play("thruster", 0.6, 4.0)
+	AudioManager.play("mine", 0.8, 3.0)
+	
+	var local_pos = to_local(pos) if is_inside_tree() else pos
+	var local_up = (global_transform.basis.inverse() * up_dir).normalized() if is_inside_tree() else up_dir
+	
+	_init_ground_scorch(local_pos, local_up)
+	_spawn_ground_impact_effects(pos, up_dir)
+	
+	if resource_scene:
+		var ore = resource_scene.instantiate()
+		var rng = randf()
+		if rng < 0.35:
+			ore.ore_type = 3 # Uranium
+		elif rng < 0.70:
+			ore.ore_type = 2 # Silicon
+		else:
+			ore.ore_type = 0 # Iron
+		ore.position = local_pos + local_up * 0.2
+		_align_node_to_up(ore, local_up)
+		add_child(ore)
+		spawned_ores_tier2.append(ore)
 
 func _spawn_shooting_star() -> void:
 	# Small ephemeral shooting star streak across upper horizon

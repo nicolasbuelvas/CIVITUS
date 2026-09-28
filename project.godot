@@ -14,13 +14,14 @@ config/name="CIVITUS: Procedural Exploration"
 config/description="CIVITUS: Procedural Space Survival and Exploration."
 run/main_scene="res://scenes/screens/boot_splash.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
-boot_splash/show_image=false
 boot_splash/bg_color=Color(0.04, 0.04, 0.08, 1)
+boot_splash/show_image=false
 config/icon="res://icon.png"
 
 [autoload]
 
 RevenueCatManager="*res://scripts/autoloads/revenuecat_manager.gd"
+AdManager="*res://scripts/autoloads/ad_manager.gd"
 GameManager="*res://scripts/autoloads/game_manager.gd"
 AudioManager="*res://scripts/autoloads/audio_manager.gd"
 
@@ -76,9 +77,20 @@ sprint={
 ]
 }
 
+[physics]
+
+common/max_physics_steps_per_frame=4
+
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="mobile"
 textures/vram_compression/import_etc2_astc=true
+lights_and_shadows/directional_shadow/size=1024
+lights_and_shadows/directional_shadow/size.mobile=1024
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=0
+scaling_3d/scale=0.9
 environment/defaults/default_clear_color=Color(0.04, 0.04, 0.07, 1)
+anti_aliasing/quality/msaa_3d.mobile=0
+anti_aliasing/quality/screen_space_aa.mobile=0
+scaling_3d/scale.mobile=0.85

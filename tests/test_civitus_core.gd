@@ -41,6 +41,16 @@ func _ready() -> void:
 	test_hud_topbar_cluster_and_3d_body_props_and_dual_storage_modes()
 	test_vertical_menu_luna_coins_save_state_and_helmet_occupancy()
 	test_suit_alerts_helmet_visor_frame_and_headlamp_illumination()
+	test_dynamic_clouds_weather_and_meteorites()
+	test_procedural_fauna_carrying_and_ecology()
+	test_cabin_modules_cloning_bay_and_difficulty_degradation()
+	test_exterior_engine_states_and_ramp_clearance()
+	test_modular_crafting_catalog_and_consumables()
+	test_plasma_combat_hit_feedback_and_radial_ragdoll()
+	test_mineral_vein_lod_progressive_mining_and_scanner()
+	test_space_flight_energy_o2_and_save_wipe()
+	test_fauna_flora_rework_and_subterranean_mines()
+	test_cockpit_pilot_controls_keplerian_orbit_and_orbital_lod()
 	
 	print("\n==========================================")
 	print("TEST RESULTS: %d PASSED, %d FAILED" % [passed_count, failed_count])
@@ -1674,6 +1684,680 @@ func test_suit_alerts_helmet_visor_frame_and_headlamp_illumination() -> void:
 	hud.queue_free()
 	visor.queue_free()
 	character.queue_free()
+
+# 31. Test Dynamic Clouds, Variable Weather & Meteorite Impacts (Fase 5)
+func test_dynamic_clouds_weather_and_meteorites() -> void:
+	print("--- 31. Testing Dynamic Clouds, Variable Weather & Meteorite Impacts ---")
+	
+	var planet_scene = load("res://scenes/world/spherical_planet.tscn")
+	var planet = planet_scene.instantiate()
+	add_child(planet)
+	
+	# 1. Dynamic Spherical Cloud Layer
+	var ocean_planet_params = {
+		"has_atmosphere": true,
+		"is_ocean_world": true,
+		"ocean_coverage": 1.0,
+		"water_status": "Agua H2O",
+		"level": 0
+	}
+	planet.radius = 160.0
+	planet._calc_tide_parameters(ocean_planet_params)
+	
+	# Cloud Layer 3D instantiation
+	var c_mesh = SphereMesh.new()
+	c_mesh.radius = 166.8
+	c_mesh.height = 333.6
+	var c_mat = StandardMaterial3D.new()
+	c_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	c_mat.albedo_color = Color(0.96, 0.97, 1.0, 0.58)
+	var clouds = MeshInstance3D.new()
+	clouds.name = "CloudLayer3D"
+	clouds.mesh = c_mesh
+	clouds.material_override = c_mat
+	planet.cloud_instance = clouds
+	planet.add_child(clouds)
+	
+	assert_true(planet.cloud_instance != null, "Spherical planet has cloud_instance")
+	assert_true(planet.cloud_instance.mesh is SphereMesh, "Cloud layer uses spherical geometry")
+	assert_almost_eq((planet.cloud_instance.mesh as SphereMesh).radius, 166.8, 0.1, "Clouds hover at atmospheric altitude above crust")
+	var initial_rot_y = clouds.rotation.y
+	clouds.rotate_y(0.015)
+	assert_true(clouds.rotation.y > initial_rot_y, "Cloud layer rotates with global planetary trade winds")
+	
+	# 2. Variable Weather Precipitation
+	planet._setup_weather_particles(ocean_planet_params, Vector3.UP * 160.0)
+	assert_true(GameManager.current_weather == "rain", "Ocean world with atmosphere triggers maritime rain weather")
+	assert_true(planet.weather_system != null, "Weather particle system active")
+	
+	var toxic_params = { "has_atmosphere": true, "type": "Tóxico / Ácido", "level": 2 }
+	planet._setup_weather_particles(toxic_params, Vector3.UP * 160.0)
+	assert_true(GameManager.current_weather == "acid_rain", "Toxic world triggers acid rain weather")
+	
+	var cryo_params = { "has_atmosphere": true, "type": "Criogénico / Hielo", "level": 3 }
+	planet._setup_weather_particles(cryo_params, Vector3.UP * 160.0)
+	assert_true(GameManager.current_weather == "blizzard", "Cryogenic world triggers blizzard weather")
+	
+	# Test Helmet Visor Droplets Simulation
+	var HelmetVisorClass = load("res://scripts/ui/helmet_visor.gd")
+	var visor = HelmetVisorClass.new()
+	visor.size = Vector2(1280, 720)
+	add_child(visor)
+	visor._update_visor_droplets(0.016)
+	# Force add a droplet to test simulation
+	visor.visor_droplets.append({
+		"pos": Vector2(640, 100),
+		"speed": 50.0,
+		"radius": 2.5,
+		"trail_len": 10.0,
+		"alpha": 0.8,
+		"life": 4.0
+	})
+	assert_true(visor.visor_droplets.size() >= 1, "Visor holds active moisture droplet")
+	var prev_y = visor.visor_droplets[0]["pos"].y
+	visor._update_visor_droplets(0.1)
+	assert_true(visor.visor_droplets[0]["pos"].y > prev_y, "Rain droplet slides down the curved visor glass")
+	
+	# 3. Active Meteorite Strike & Mineral Deposit
+	var strike_pos = Vector3(0, 160.0, 0)
+	var strike_up = Vector3.UP
+	planet._on_meteorite_impact(strike_pos, strike_up)
+	
+	var spawned_ore = null
+	for child in planet.get_children():
+		if child.is_in_group("resource_nodes") or child.name.contains("ResourceChunk") or child is StaticBody3D:
+			spawned_ore = child
+			break
+	assert_true(spawned_ore != null, "Meteorite impact generates harvestable ore chunk")
+	
+	visor.queue_free()
+	planet.queue_free()
+
+# 32. Test Procedural Fauna, Carrying & Ecological Actions (Fase 7)
+func test_procedural_fauna_carrying_and_ecology() -> void:
+	print("--- 32. Testing Procedural Fauna, Carrying & Ecological Actions ---")
+	
+	var CreatureClass = load("res://scripts/entities/alien_creature.gd")
+	var creature = CreatureClass.new()
+	add_child(creature)
+	
+	# 1. Morphological Generation & Sizes (Fase 7.1)
+	var hab_params = { "type": "Habitable", "level": 1, "seed": 42 }
+	creature.setup_creature(hab_params, false)
+	assert_true(creature.elemental_type == CreatureClass.ElementalType.ORGANIC_CARBON, "Habitable creature is carbon-based organic")
+	
+	# Small size check
+	creature.creature_size = CreatureClass.CreatureSize.SMALL
+	assert_true(creature.can_be_carried(), "Small peaceful creature can be lifted and carried")
+	
+	# Colossal size check
+	creature.creature_size = CreatureClass.CreatureSize.COLOSSAL
+	assert_true(not creature.can_be_carried(), "Colossal creature cannot be lifted by astronaut")
+	
+	# 2. Elemental Types & Hazards (Fase 7.2)
+	var volcano_params = { "type": "Volcánico / Lava", "level": 2, "seed": 99 }
+	creature.setup_creature(volcano_params, false)
+	assert_true(creature.elemental_type == CreatureClass.ElementalType.MAGMA_PYRO, "Volcanic world generates magma pyro entity")
+	
+	var radioactive_params = { "type": "Tóxico / Radiactivo", "level": 4, "seed": 77 }
+	creature.setup_creature(radioactive_params, false)
+	creature.elemental_type = CreatureClass.ElementalType.RADIOACTIVE_URANIUM
+	assert_true(creature.elemental_type == CreatureClass.ElementalType.RADIOACTIVE_URANIUM, "Extreme world generates radioactive uranium entity")
+	
+	# 3. AI Behavior Archetypes (Fase 7.3)
+	creature.setup_creature(hab_params, false)
+	creature.ai_archetype = CreatureClass.AIArchetype.NEUTRAL
+	creature.is_aggressive = false
+	assert_true(not creature.is_aggressive, "Neutral creature starts non-hostile")
+	creature.take_damage(10.0)
+	assert_true(creature.is_aggressive, "Neutral creature becomes aggressive when attacked")
+	
+	# 4. Carrying, Overhead Transport & Throwing (Fase 7.4)
+	var CharClass = load("res://scripts/entities/character_3d.gd")
+	var character = CharClass.new()
+	add_child(character)
+	
+	creature.creature_size = CreatureClass.CreatureSize.SMALL
+	creature.is_aggressive = false
+	creature.is_dead = false
+	
+	# Pick up
+	character.pick_up_creature(creature)
+	assert_true(creature.is_being_carried, "Creature is flagged as being carried")
+	assert_true(character.carried_creature == creature, "Character holds reference to carried creature")
+	
+	# Drop gently
+	character.drop_carried_creature()
+	assert_true(not creature.is_being_carried, "Creature dropped gently to ground")
+	assert_true(not creature.is_dead, "Gently dropped creature takes zero damage")
+	
+	# Ballistic throw
+	character.pick_up_creature(creature)
+	character.throw_carried_creature()
+	assert_true(not creature.is_being_carried, "Creature released from hands during throw")
+	assert_true(creature.is_in_ragdoll, "Thrown creature enters physical tumbling ragdoll state")
+	assert_true(creature.velocity.length() > 5.0, "Thrown creature launches with ballistic impulse")
+	
+	# 5. Ecological Actions & Strict Loot Rule (Fase 7.5)
+	creature.locomotion_domain = CreatureClass.LocomotionDomain.AQUATIC_SWIMMER
+	creature.is_stranded_on_land = true
+	var rescue_reward = creature.rescue_creature()
+	assert_true(rescue_reward == "ocean_pearl", "Rescuing stranded aquatic creature rewards ocean pearl")
+	
+	# Verify strict loot differentiation across all elemental archetypes
+	assert_true(creature.loot_item_defeat != creature.loot_item_friendly, "Organic defeat loot differs from friendly loot")
+	assert_true("magma_carapace" != "pyro_crystal", "Magma defeat loot differs from friendly loot")
+	assert_true("depleted_uranium" != "uranium_rod", "Radioactive defeat loot differs from friendly loot")
+	assert_true("cryo_scale" != "permafrost_sample", "Cryo defeat loot differs from friendly loot")
+	assert_true("ocean_pearl" != creature.loot_item_defeat, "Rescue loot differs from defeat loot")
+	
+	character.queue_free()
+	creature.queue_free()
+
+# 33. Test Cabin Modules, Cloning Bay Respawn & Difficulty Degradation (Fase 8)
+func test_cabin_modules_cloning_bay_and_difficulty_degradation() -> void:
+	print("--- 33. Testing Cabin Modules, Cloning Bay & Difficulty Degradation ---")
+	var ship = load("res://scenes/entities/spaceship_3d.tscn").instantiate()
+	add_child(ship)
+	
+	var interior = ship.get_node_or_null("CabinInterior")
+	assert_true(interior != null, "Ship interior exists")
+	assert_true(interior.has_node("CloningBay"), "Cabin interior contains CloningBay module")
+	assert_true(interior.has_node("StarMap"), "Cabin interior contains StarMap cartography console")
+	
+	var cb_pos = ship.get_cloning_bay_position()
+	assert_true(cb_pos is Vector3, "get_cloning_bay_position returns valid 3D vector")
+	
+	# Check difficulty degradation
+	ship.init_modules_for_difficulty(1)
+	assert_true(ship.get_module_status("hyperdrive") == "damaged", "Hyperdrive requires repair on Level 1")
+	assert_true(ship.get_module_status("oxygen_gen") == "nominal", "O2 generator nominal on Level 1")
+	
+	ship.init_modules_for_difficulty(2)
+	assert_true(ship.get_module_status("oxygen_gen") == "damaged", "O2 generator damaged on Level 2 difficulty")
+	
+	ship.repair_module("oxygen_gen")
+	assert_true(ship.get_module_status("oxygen_gen") == "nominal", "O2 generator restored to nominal after repair")
+	
+	# Test CloningBay Player Respawn Sequence
+	var character = load("res://scenes/entities/character_3d.tscn").instantiate()
+	add_child(character)
+	character.is_dead = true
+	character.is_action_locked = true
+	GameManager.player_stats.hull = 0.0
+	GameManager.player_stats.oxygen = 0.0
+	
+	character.respawn_at_cloning_bay(cb_pos)
+	assert_true(character.is_dead == false, "Astronaut revived at CloningBay")
+	assert_true(character.is_action_locked == false, "Astronaut action unlocked upon respawn")
+	assert_true(GameManager.player_stats.hull == 100.0, "Astronaut hull restored to 100%")
+	assert_true(GameManager.player_stats.oxygen == 100.0, "Astronaut oxygen recharged to 100%")
+	
+	character.queue_free()
+	ship.queue_free()
+
+# 34. Test Exterior Engine Visual States & Ramp Clearance (Fase 9)
+func test_exterior_engine_states_and_ramp_clearance() -> void:
+	print("--- 34. Testing Exterior Engine States & Ramp Clearance ---")
+	var ship = load("res://scenes/entities/spaceship_3d.tscn").instantiate()
+	add_child(ship)
+	
+	ship.update_exterior_engine_state("off")
+	var flame = ship.get_node_or_null("HullStructure/MainRocketEngine/FlamePivot/FlamePlume")
+	var light = ship.get_node_or_null("HullStructure/MainRocketEngine/EngineLight")
+	if flame: assert_true(flame.visible == false, "Engine flame extinguished when engine is OFF")
+	if light: assert_true(light.light_energy == 0.0, "Engine light energy is 0 when engine is OFF")
+	
+	ship.update_exterior_engine_state("warm")
+	if flame: assert_true(flame.visible == true, "Engine flame visible during warm pre-ignition")
+	if light: assert_true(light.light_energy > 0.0, "Engine light active during pre-ignition")
+	
+	ship.update_exterior_engine_state("burn")
+	if light: assert_true(light.light_energy >= 3.0, "Engine light reaches maximum intensity in full burn")
+	
+	# Verify tangential boarding ramp rest angle
+	assert_true(absf(ship.RAMP_REST_ANGLE - 0.3886) < 0.05, "Boarding ramp rest angle touches surface flush (~22.3 deg)")
+	
+	ship.queue_free()
+
+# 35. Test Modular Crafting Catalog & Field Consumables (Fase 10)
+func test_modular_crafting_catalog_and_consumables() -> void:
+	print("--- 35. Testing Modular Crafting Catalog & Consumables ---")
+	for k in GameManager.crafting.inventory.keys():
+		GameManager.crafting.inventory[k] = 0
+	for k in GameManager.crafting.ship_storage.keys():
+		GameManager.crafting.ship_storage[k] = 0
+	for k in GameManager.crafting.body_slots.keys():
+		GameManager.crafting.body_slots[k] = {"item": "", "count": 0}
+	
+	# Verify recipe requirements
+	assert_true(GameManager.crafting.can_craft("hull_plate") == false, "Cannot craft hull_plate without iron")
+	GameManager.crafting.add_resource("iron", 10)
+	GameManager.crafting.add_resource("copper", 10)
+	GameManager.crafting.add_resource("silicon", 10)
+	GameManager.crafting.add_resource("uranium", 10)
+	
+	assert_true(GameManager.crafting.can_craft("hull_plate") == true, "Can craft hull_plate with iron")
+	assert_true(GameManager.crafting.can_craft("nozzle_core") == true, "Can craft nozzle_core with copper and iron")
+	assert_true(GameManager.crafting.can_craft("hyperdrive_coil") == true, "Can craft hyperdrive_coil with copper and silicon")
+	assert_true(GameManager.crafting.can_craft("o2_filter") == true, "Can craft o2_filter with silicon and iron")
+	assert_true(GameManager.crafting.can_craft("energy_cell") == true, "Can craft energy_cell with silicon and uranium")
+	assert_true(GameManager.crafting.can_craft("repair_kit_basic") == true, "Can craft repair_kit_basic")
+	assert_true(GameManager.crafting.can_craft("o2_canister") == true, "Can craft o2_canister")
+	assert_true(GameManager.crafting.can_craft("plasma_cutter") == true, "Can craft plasma_cutter")
+	
+	# Craft and test consumables
+	GameManager.player_stats.hull = 40.0
+	GameManager.crafting.craft("repair_kit_basic")
+	assert_true(GameManager.crafting.inventory.get("repair_kit_basic", 0) >= 1, "repair_kit_basic added to inventory")
+	var used_repair = GameManager.crafting.use_consumable("repair_kit_basic")
+	assert_true(used_repair == true, "Used repair_kit_basic successfully")
+	assert_true(GameManager.player_stats.hull == 75.0, "repair_kit_basic restored 35 hull HP (got 75.0)")
+	
+	GameManager.player_stats.oxygen = 30.0
+	GameManager.crafting.craft("o2_canister")
+	assert_true(GameManager.crafting.inventory.get("o2_canister", 0) >= 1, "o2_canister added to inventory")
+	var used_o2 = GameManager.crafting.use_consumable("o2_canister")
+	assert_true(used_o2 == true, "Used o2_canister successfully")
+	assert_true(GameManager.player_stats.oxygen == 80.0, "o2_canister restored 50 oxygen (got 80.0)")
+
+# 36. Test Plasma Combat, Hit Feedback & Universal Radial Ragdoll (Fase 11)
+func test_plasma_combat_hit_feedback_and_radial_ragdoll() -> void:
+	print("--- 36. Testing Plasma Combat & Universal Radial Ragdoll ---")
+	var character = load("res://scenes/entities/character_3d.tscn").instantiate()
+	add_child(character)
+	
+	var creature = AlienCreature.new()
+	creature.max_health = 100.0
+	creature.current_health = 100.0
+	add_child(creature)
+	creature.global_position = character.global_position + Vector3(0.0, 0.0, -1.5)
+	
+	# Execute plasma cutter direct attack
+	character.attack_nearest_target()
+	assert_true(creature.current_health < 100.0, "Creature sustained plasma beam damage")
+	assert_true(creature.current_health == 65.0, "Plasma beam deals 35.0 damage (got 65.0)")
+	
+	# Ballistic throw triggering universal radial ragdoll
+	creature.throw_ballistic(Vector3(0.0, 5.0, -10.0))
+	assert_true(creature.is_in_ragdoll == true, "Creature entered physics ragdoll state")
+	assert_true(creature.velocity.length() > 0.0, "Creature launched with ballistic momentum")
+	
+	# Astronaut death ragdoll
+	character._die("Hazard")
+	assert_true(character.is_dead == true, "Astronaut is_dead flag set")
+	assert_true(character.is_action_locked == true, "Astronaut action locked upon death")
+	
+	character.queue_free()
+	creature.queue_free()
+
+# 37. Test Mineral Vein LOD, Progressive Mining & Visor Scanner (Fase 12)
+func test_mineral_vein_lod_progressive_mining_and_scanner() -> void:
+	print("--- 37. Testing Mineral Vein LOD, Mining & Visor Scanner ---")
+	var chunk_script = load("res://scripts/entities/resource_chunk.gd")
+	var chunk = chunk_script.new()
+	chunk.ore_type = 0 # IRON
+	chunk.max_health = 1.0
+	chunk.current_health = 1.0
+	add_child(chunk)
+	
+	# 1. Anti-clutter label hidden by default
+	if chunk.label_3d:
+		assert_true(chunk.label_3d.visible == false, "Mineral vein label hidden by default to prevent HUD clutter")
+		
+	# 2. Scanner telemetry
+	var scan_data = chunk.get_scanner_data()
+	assert_true(scan_data.has("name") and "HIERRO" in scan_data["name"], "Scanner reports chemical name [Fe]")
+	assert_true(scan_data.has("purity"), "Scanner reports mineral purity percentage")
+	assert_true(scan_data.has("density"), "Scanner reports physical density")
+	
+	chunk.set_scanned(true)
+	if chunk.label_3d:
+		assert_true(chunk.label_3d.visible == true, "Label revealed when visor scanner focuses mineral vein")
+		
+	chunk.set_scanned(false)
+	if chunk.label_3d:
+		assert_true(chunk.label_3d.visible == false, "Label concealed when visor scanner moves away")
+		
+	# 3. Progressive mining wear
+	var initial_health = chunk.current_health
+	chunk.mine_tick(0.4)
+	assert_true(chunk.current_health < initial_health, "Mining tick wears down chunk health")
+	
+	chunk.queue_free()
+
+func test_space_flight_energy_o2_and_save_wipe() -> void:
+	print("--- 38. Testing Space Flight Loop, Energy Grid, O2 Canisters & Save Wipe ---")
+	
+	# 1. Spaceship Electrical Grid & Solar Panels
+	var ship_scene = load("res://scenes/entities/spaceship_3d.tscn")
+	assert_true(ship_scene != null, "Spaceship scene loads successfully")
+	var ship = ship_scene.instantiate()
+	add_child(ship)
+	
+	assert_true("current_energy" in ship and ship.current_energy == 100.0, "Ship electrical grid initialized to 100%")
+	assert_true(ship.solar_array_l != null and ship.solar_array_r != null, "Exterior solar panels deployed on hull")
+	
+	# Energy consumption & solar intake
+	ship.current_energy = 50.0
+	ship._process(1.0)
+	assert_true(ship.current_energy > 50.0, "Solar panels generate energy for ship battery")
+	
+	# 2. Oxygen Generator with 2 Injectable Canisters
+	assert_true("o2_tube_1_charge" in ship and "o2_tube_2_charge" in ship, "O2 generator features 2 canister slots")
+	ship.o2_tube_1_charge = 80.0
+	ship._process(5.0)
+	assert_true(ship.o2_tube_1_charge >= 85.0, "O2 canisters recharge at 1% per second rate")
+	
+	# Withdrawing a charged canister
+	var can_withdraw = ship.withdraw_oxygen_canister(1)
+	assert_true(can_withdraw == true, "Canister #1 withdrawn from generator")
+	assert_true(ship.o2_tube_1_docked == false, "Slot #1 is now vacant")
+	
+	# Docking a canister back
+	var can_dock = ship.dock_oxygen_canister(1)
+	assert_true(can_dock == true, "Canister docked back into Slot #1")
+	assert_true(ship.o2_tube_1_docked == true, "Slot #1 is occupied")
+	
+	# 3. Space Flight Loop (Space Agency 2138 / Juno New Origins)
+	assert_true(ship.flight_state == 0, "Ship starts in LANDED flight state")
+	ship.launch_to_safe_orbit()
+	assert_true(ship.flight_state == 1, "Ship entered LAUNCHING_TO_ORBIT state")
+	
+	ship.reach_parking_orbit()
+	assert_true(ship.flight_state == 2, "Ship established PARKING_ORBIT outside atmosphere")
+	
+	var test_dest = {"name": "Test Ocean World", "level": 1}
+	ship.start_interplanetary_transfer(test_dest)
+	assert_true(ship.flight_state == 3, "Ship entered INTERPLANETARY_TRANSIT mode")
+	assert_true(ship.transit_duration_sec >= 60.0, "Interplanetary flight lasts realistic minutes (no instant TP)")
+	
+	# 4. Save Versioning & Auto-Wipe Anti-Corruption
+	assert_true(GameManager.CURRENT_SAVE_VERSION == 2, "Save version is 2")
+	GameManager.save_game()
+	assert_true(GameManager.has_save_game() == true, "Game state saved with current version")
+	
+	var summary = GameManager.get_save_summary()
+	assert_true(int(summary.get("save_version", 0)) == 2, "Saved data stores version 2")
+	assert_true(summary.has("ship_energy"), "Saved data includes ship energy")
+	assert_true(summary.has("o2_tube_1_charge"), "Saved data includes O2 canister 1 status")
+	
+	# 5. Alien Creature Morphology & Radial Stability (No floating to space)
+	var creature_scene = load("res://scenes/entities/alien_creature.tscn")
+	var creature = creature_scene.instantiate()
+	add_child(creature)
+	
+	# Aquatic Swimmer Domain
+	creature.setup_creature({"type": "Océano Global"}, false, 2)
+	assert_true(creature.locomotion_domain == 2, "Creature configured as AQUATIC_SWIMMER")
+	assert_true(creature.aquatic_parts != null and creature.aquatic_parts.visible == true, "Aquatic fins and swimming tail visible")
+	
+	# Aerial Floater Domain
+	creature.setup_creature({"has_atmosphere": true}, false, 3)
+	assert_true(creature.locomotion_domain == 3, "Creature configured as AERIAL_FLOAT")
+	assert_true(creature.aerial_parts != null and creature.aerial_parts.visible == true, "Aerial wings and aero-vesicle visible")
+	
+	# Check Basis Determinant & Floor Adherence (Fix for floating into space)
+	assert_true(creature.floor_snap_length >= 0.5, "Creature has firm floor snap length")
+	var test_tangent = Vector3(1.0, 0.0, 0.0)
+	var test_up = Vector3(0.0, 1.0, 0.0)
+	var test_back = -test_tangent
+	var test_right = test_up.cross(test_back).normalized()
+	var test_basis = Basis(test_right, test_up, test_back).orthonormalized()
+	assert_true(test_basis.determinant() > 0.99, "Creature spatial basis has strictly positive determinant (prevents explosive space launch)")
+	
+	creature.queue_free()
+	ship.queue_free()
+
+func test_fauna_flora_rework_and_subterranean_mines() -> void:
+	print("--- 39. Testing 21 Fauna, 21 Flora Rework & Subterranean Multi-Entrance Caverns ---")
+	
+	var flora_script = load("res://scripts/entities/procedural_flora.gd")
+	var cave_script = load("res://scripts/entities/cave_grotto.gd")
+	
+	# 1. Fauna: 21 Species across 3 domains & Procedural Color Adaptation
+	var creature_scene = load("res://scenes/entities/alien_creature.tscn")
+	var creature = creature_scene.instantiate()
+	add_child(creature)
+	
+	# Test Terrestrial species configuration & procedural color adaptation
+	creature.configure_subspecies(0, {"type": "Habitable", "land_color": Color(0.25, 0.65, 0.30)}) # GRAZER_QUADRUPED
+	assert_true(creature.locomotion_domain == 0, "Grazer is Terrestrial Quadruped")
+	assert_true(creature.horn_l != null and creature.horn_l.visible == true, "Grazer has horns")
+	assert_true(creature.creature_color != Color.WHITE, "Procedural color generated from planet land_color")
+	
+	# Test Volcanic extremophile color adaptation
+	creature.configure_subspecies(2, {"type": "Volcánico", "is_molten": true}) # ARMORED_COLOSSUS
+	assert_true(creature.elemental_type == 2, "Volcanic creature is MAGMA_PYRO")
+	assert_true(creature.creature_color.r > 0.8, "Volcanic creature exhibits incandescent magma red/orange pigmentation")
+	
+	creature.configure_subspecies(1, {"type": "Habitable"}) # STRIDER_BIPED
+	assert_true(creature.locomotion_domain == 1, "Strider is Terrestrial Biped")
+	
+	creature.configure_subspecies(3, {"type": "Habitable"}) # HEXAPOD_LUMEN
+	assert_true(creature.leg_ml != null and creature.leg_ml.visible == true, "Hexapod has 6 visible legs")
+	
+	# Test 7 Aquatic species configuration & depth swimming
+	creature.configure_subspecies(7, {"type": "Océano Global", "water_color": Color(0.1, 0.4, 0.85)}) # REEF_RAY
+	assert_true(creature.locomotion_domain == 2, "Reef Ray is Aquatic Swimmer")
+	assert_true(creature.aquatic_parts != null and creature.aquatic_parts.visible == true, "Reef ray has aquatic parts visible")
+	assert_true(creature.preferred_depth_ratio == 0.30, "Reef ray swims at upper/mid water depth")
+	
+	creature.configure_subspecies(12, {"type": "Océano Global", "water_color": Color(0.05, 0.2, 0.6)}) # LANTERN_ANGLER
+	assert_true(creature.lantern_lure != null and creature.lantern_lure.visible == true, "Lantern Angler has bioluminescent lure")
+	assert_true(creature.preferred_depth_ratio == 0.80, "Lantern Angler swims deep near seabed")
+	
+	# Test 7 Aerial species configuration & landing states
+	creature.configure_subspecies(14, {"type": "Habitable", "has_atmosphere": true, "atmosphere_color": Color(0.4, 0.7, 0.9)}) # AERO_RAY
+	assert_true(creature.locomotion_domain == 3, "Aero Ray is Aerial Flyer")
+	assert_true(creature.wing_l != null and creature.wing_l.visible == true, "Aero Ray has wings visible")
+	
+	creature.flight_state = 3 # PERCHED (landed on ground)
+	assert_true(creature.flight_state == 3, "Aerial creature can enter PERCHED ground landing state")
+	
+	creature.configure_subspecies(16, {"type": "Habitable", "has_atmosphere": true}) # GAS_FLOAT_BALLOON
+	assert_true(creature.gas_bladder != null and creature.gas_bladder.visible == true, "Gas Balloon has bio-gas bladder")
+	
+	# Test Anti-Space & Anti-Core Clamping (GRAVE bug fix)
+	creature.locomotion_domain = 0
+	creature.planet_radius = 160.0
+	creature.global_position = Vector3(0, 160.5, 0)
+	creature.velocity = Vector3(0, 15.0, 0) # High launch impulse
+	creature._physics_process(0.016)
+	var radial_vel = creature.velocity.dot(Vector3.UP)
+	assert_true(radial_vel <= 2.2, "Anti-Space: Outward velocity is clamped to max 2.0 m/s (got %.2f)" % radial_vel)
+	assert_true(creature.global_position.y <= 161.5, "Anti-Space: Creature altitude clamped to surface ceiling")
+	
+	# Test Anti-Fall: Creature CANNOT penetrate ground or be sucked into planet core
+	creature.global_position = Vector3(0, 155.0, 0) # Attempted penetration below surface
+	creature.velocity = Vector3(0, -20.0, 0) # Sinking velocity toward core
+	creature._physics_process(0.016)
+	assert_true(creature.global_position.y >= 160.3, "Anti-Fall: Ground clamp blocks creature from penetrating surface (got %.2f)" % creature.global_position.y)
+	assert_true(creature.velocity.y >= 0.0, "Anti-Fall: Inward sinking velocity toward core is neutralized")
+	
+	# Test Creature Purpose: Drops food, weapons, resources and crafting
+	for s_key in GameManager.crafting.body_slots.keys():
+		GameManager.crafting.body_slots[s_key] = {"item": "", "count": 0}
+	GameManager.crafting._recalculate_inventory_from_body()
+	
+	creature.configure_subspecies(5, {"type": "Habitable"}, true) # FANGED_STALKER (Aggressive predator)
+	var drops = creature._die()
+	assert_true(drops.has("alien_meat"), "Defeated creature drops alien_meat for survival nutrition")
+	assert_true(drops.has("alien_chitin"), "Defeated creature drops alien_chitin for gear crafting")
+	assert_true(drops.has("alien_fang"), "Aggressive predator drops alien_fang for weapon crafting")
+	assert_true(GameManager.crafting.inventory.get("alien_meat", 0) >= 2, "Alien meat added to inventory")
+	
+	# Craft cooked ration from alien meat
+	assert_true(GameManager.crafting.can_craft("cooked_ration"), "Can craft cooked_ration with alien meat")
+	assert_true(GameManager.crafting.craft("cooked_ration"), "Crafted cooked_ration successfully")
+	assert_true(GameManager.crafting.inventory.get("cooked_ration", 0) >= 1, "Cooked ration in inventory")
+	
+	# Consume cooked ration to restore vitals
+	GameManager.player_stats.hull = 40.0
+	GameManager.player_stats.oxygen = 50.0
+	var eaten = GameManager.crafting.use_consumable("cooked_ration")
+	assert_true(eaten, "Cooked ration consumed by astronaut")
+	assert_true(GameManager.player_stats.hull >= 90.0, "Cooked ration restored hull/vitality (got %.1f)" % GameManager.player_stats.hull)
+	assert_true(GameManager.player_stats.oxygen >= 80.0, "Cooked ration replenished oxygen reserves (got %.1f)" % GameManager.player_stats.oxygen)
+	
+	# 2. Flora: 21 Types across 3 domains
+	var flora_scene = load("res://scenes/entities/procedural_flora.tscn")
+	var flora = flora_scene.instantiate()
+	add_child(flora)
+	
+	# Test Terrestrial Flora
+	flora.setup_flora(0, {"type": "Habitable"}) # FRACTAL_TREE
+	assert_true(flora.flora_domain == 0, "Fractal tree is Terrestrial Flora")
+	assert_true(flora.visuals.get_child_count() > 0, "Fractal tree has 3D meshes")
+	
+	flora.setup_flora(4, {"type": "Desierto"}) # COLUMNAR_CACTUS
+	assert_true(flora.visuals.get_child_count() > 0, "Cactus has 3D stem and arms")
+	
+	# Test Aquatic Flora
+	flora.setup_flora(7, {"type": "Océano Global"}) # GIANT_KELP
+	assert_true(flora.flora_domain == 1, "Kelp is Aquatic Flora")
+	
+	flora.setup_flora(8, {"type": "Océano Global"}) # SURFACE_LOTUS
+	assert_true(flora.flora_domain == 1, "Lotus is Aquatic Flora")
+	
+	# Test Exotic Flora
+	flora.setup_flora(14, {"type": "Habitable"}) # CAVE_GLOW_SHROOM
+	assert_true(flora.flora_domain == 2, "Glow Shroom is Exotic Flora")
+	
+	flora.setup_flora(16, {"type": "Habitable"}) # CARNIVOROUS_SNAPPER
+	assert_true(flora.flora_type == 16, "Carnivorous Snapper is Exotic Flora")
+	assert_true(flora.visuals.has_node("JawTop") and flora.visuals.has_node("JawBottom"), "Snapper has 3D upper and lower jaw meshes")
+	
+	flora.setup_flora(15, {"type": "Desierto"}) # DESERT_TUMBLEWEED
+	assert_true(flora.flora_type == 15, "Tumbleweed is Exotic Flora")
+	assert_true(flora.is_tumbling == true, "Tumbleweed has active surface rolling physics")
+	
+	# 3. Subterranean Multi-Entrance Caverns with Internal Resources & Mobs
+	var cave_scene = load("res://scenes/entities/cave_grotto.tscn")
+	var cave = cave_scene.instantiate()
+	add_child(cave)
+	cave.setup_theme({"level": 0, "type": "Habitable"})
+	assert_true(cave.has_node("ArchRoof"), "Cave Grotto has natural vaulted arch roof")
+	assert_true(cave.has_node("EntranceBoulderL") and cave.has_node("EntranceBoulderR"), "Cave Grotto has front entrance opening")
+	assert_true(cave.has_node("ExitBoulderL") and cave.has_node("ExitBoulderR"), "Cave Grotto has rear exit portal (multi-entrance tunnel)")
+	assert_true(cave.spawned_interior_nodes.size() >= 2, "Cave Grotto is populated with interior minerals and subterranean creatures")
+	
+	# 4. Interaction Priority: Animal interaction is prioritized over ship hatch
+	creature.is_dead = false
+	creature.configure_subspecies(0, {"type": "Habitable"}, false)
+	var char_scene = load("res://scripts/entities/character_3d.gd")
+	var player = CharacterBody3D.new()
+	player.set_script(char_scene)
+	add_child(player)
+	player.global_position = Vector3(0, 160.0, 0)
+	
+	creature.global_position = Vector3(0, 160.0, 1.2) # 1.2m away
+	player.nearby_interactable = null
+	player.check_nearby_interactables()
+	assert_true(player.nearby_interactable == creature, "Player prioritizes nearby animal over distant ship hatch")
+	assert_true(player.current_interactable_type == "lift", "Interaction prompt for carryable animal is 'lift' (not 'open_hatch')")
+	
+	# Cleanup
+	player.queue_free()
+	cave.queue_free()
+	flora.queue_free()
+	creature.queue_free()
+
+func test_cockpit_pilot_controls_keplerian_orbit_and_orbital_lod() -> void:
+	print("--- 40. Testing Pilot Seat Controls, Keplerian Orbit & Orbital LOD ---")
+	
+	# 1. Pilot Seating & Natural Posture
+	var char_scene = load("res://scripts/entities/character_3d.gd")
+	var player = CharacterBody3D.new()
+	player.set_script(char_scene)
+	add_child(player)
+	
+	var ship_scene = load("res://scenes/entities/spaceship_3d.tscn")
+	var ship = ship_scene.instantiate()
+	add_child(ship)
+	ship.global_position = Vector3(0, 160.0, 0)
+	
+	# Get active HUD to test cockpit modal
+	var hud = get_tree().get_first_node_in_group("hud")
+	if not hud:
+		var hud_scene = load("res://scenes/ui/hud.tscn")
+		hud = hud_scene.instantiate()
+		add_child(hud)
+	hud.init_player(player)
+	
+	# Sit player in cockpit
+	ship.is_player_in_cabin = true
+	ship.sit_in_pilot_seat(player)
+	
+	assert_true(ship.is_player_seated == true, "Ship records player as seated in cockpit")
+	assert_true(player.is_seated_in_cockpit == true, "Player flag is_seated_in_cockpit is true")
+	assert_true(player.is_action_locked == true, "Player actions locked while seated in pilot seat")
+	assert_true(hud.cockpit_modal != null and hud.cockpit_modal.visible == true, "Cockpit modal opens in HUD when sitting in pilot seat")
+	assert_true(hud.cockpit_action_btn.text.contains("DESPEGAR") or hud.cockpit_action_btn.text.contains("LAUNCH"), "Cockpit button prompts to launch to orbit from surface")
+	
+	# 2. Launch to Keplerian Orbit
+	ship.launch_to_safe_orbit()
+	assert_true(ship.flight_state == 1, "Ship flight_state transitions to LAUNCHING_TO_ORBIT") # LAUNCHING_TO_ORBIT
+	
+	# Simulate orbital reach
+	ship.reach_parking_orbit()
+	assert_true(ship.flight_state == 2, "Ship establishes PARKING_ORBIT outside atmosphere") # PARKING_ORBIT
+	
+	# Update HUD cockpit dialog for orbit
+	hud.open_cockpit_dialog(ship)
+	assert_true(hud.cockpit_action_btn.text.contains("ATERRIZAJE") or hud.cockpit_action_btn.text.contains("LAND"), "Cockpit button in orbit prompts for automatic landing")
+	assert_true(hud.cockpit_starmap_btn.visible == true, "StarMap button is accessible from cockpit in orbit")
+	
+	# Stand up from seat
+	ship.stand_up_from_pilot_seat(player)
+	assert_true(ship.is_player_seated == false, "Player stood up from pilot seat")
+	assert_true(player.is_seated_in_cockpit == false, "Player is_seated_in_cockpit restored to false")
+	assert_true(player.is_action_locked == false, "Player actions restored after standing up")
+	assert_true(hud.cockpit_modal.visible == false, "Cockpit modal closed when standing up")
+	
+	# 3. Planet Orbital LOD: Unload surface entities when far in orbit
+	var planet_scene = load("res://scripts/world/spherical_planet.gd")
+	var planet = Node3D.new()
+	var p_mesh = MeshInstance3D.new()
+	p_mesh.name = "MeshInstance3D"
+	planet.add_child(p_mesh)
+	var p_body = StaticBody3D.new()
+	p_body.name = "StaticBody3D"
+	var p_col = CollisionShape3D.new()
+	p_col.name = "CollisionShape3D"
+	p_body.add_child(p_col)
+	planet.add_child(p_body)
+	planet.set_script(planet_scene)
+	add_child(planet)
+	planet.radius = 160.0
+	
+	var dummy_creature = Node3D.new()
+	planet.spawned_creatures.append(dummy_creature)
+	planet.add_child(dummy_creature)
+	
+	var dummy_flora = Node3D.new()
+	planet.spawned_flora.append(dummy_flora)
+	planet.add_child(dummy_flora)
+	
+	# Activate Orbital LOD
+	planet.set_orbital_lod(true)
+	assert_true(planet.is_orbital_lod_active == true, "Planet activated orbital LOD for distant orbit")
+	assert_true(dummy_creature.visible == false, "Distant orbit hides surface creatures to conserve mobile resources")
+	assert_true(dummy_flora.visible == false, "Distant orbit hides surface flora")
+	
+	# Deactivate Orbital LOD on descent
+	planet.set_orbital_lod(false)
+	assert_true(planet.is_orbital_lod_active == false, "Planet deactivated orbital LOD upon surface approach")
+	assert_true(dummy_creature.visible == true, "Surface creatures restored on descent")
+	assert_true(dummy_flora.visible == true, "Surface flora restored on descent")
+	
+	# Cleanup
+	planet.queue_free()
+	hud.queue_free()
+	ship.queue_free()
+	player.queue_free()
+
+
 
 
 

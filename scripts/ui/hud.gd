@@ -41,6 +41,14 @@ var swim_icon = preload("res://assets/sprites/icon_swim.png")
 @onready var victory_modal: Panel = $Modals/VictoryModal
 var astronaut_storage_modal: AstronautStorageModal = null
 
+var cockpit_modal: Panel = null
+var cockpit_title_lbl: Label = null
+var cockpit_telemetry_lbl: Label = null
+var cockpit_action_btn: Button = null
+var cockpit_starmap_btn: Button = null
+var cockpit_stand_btn: Button = null
+var cockpit_ship_ref: Node3D = null
+
 # Pause / Settings Buttons
 @onready var pause_resume_btn: Button = $Modals/PauseModal/VBox/ResumeBtn
 @onready var pause_settings_btn: Button = $Modals/PauseModal/VBox/SettingsBtn
@@ -214,6 +222,7 @@ func close_all_modals() -> void:
 	if settings_modal: settings_modal.visible = false
 	if storage_modal: storage_modal.visible = false
 	if astronaut_storage_modal: astronaut_storage_modal.visible = false
+	if cockpit_modal: cockpit_modal.visible = false
 	crafting_modal.visible = false
 	hyperdrive_modal.visible = false
 	starmap_modal.visible = false
@@ -472,6 +481,12 @@ func _on_interaction_available(type: String, target: Node3D) -> void:
 		"feed":
 			context_action_btn.text = "ALIMENTAR" if GameManager.current_language == "es" else "FEED"
 			context_action_btn.modulate = Color(0.35, 1.0, 0.45)
+		"lift":
+			context_action_btn.text = "CARGAR" if GameManager.current_language == "es" else "LIFT"
+			context_action_btn.modulate = Color(0.25, 0.95, 0.45)
+		"drop":
+			context_action_btn.text = "SOLTAR" if GameManager.current_language == "es" else "DROP"
+			context_action_btn.modulate = Color(1.0, 0.85, 0.25)
 
 func _on_interaction_lost() -> void:
 	current_context_type = ""
@@ -481,6 +496,12 @@ func _on_interaction_lost() -> void:
 
 func _on_context_btn_down() -> void:
 	match current_context_type:
+		"lift":
+			if player and player.has_method("lift_creature"):
+				player.lift_creature()
+		"drop":
+			if player and player.has_method("drop_carried_creature"):
+				player.drop_carried_creature()
 		"attack":
 			if player and player.has_method("attack_nearest_target"):
 				player.attack_nearest_target()
@@ -636,8 +657,123 @@ func _style_menu_button(btn: Button, rim_col: Color) -> void:
 	btn.add_theme_stylebox_override("normal", sb_normal)
 	btn.add_theme_stylebox_override("hover", sb_hover)
 	btn.add_theme_stylebox_override("pressed", sb_hover)
-	btn.add_theme_color_override("font_color", rim_col.lightened(0.1))
-	btn.add_theme_color_override("font_hover_color", Color.WHITE)
+
+func _setup_cockpit_modal() -> void:
+	if cockpit_modal:
+		return
+	cockpit_modal = Panel.new()
+	cockpit_modal.name = "CockpitModal"
+	cockpit_modal.visible = false
+	cockpit_modal.set_anchors_preset(Control.PRESET_CENTER)
+	cockpit_modal.offset_left = -220
+	cockpit_modal.offset_right = 220
+	cockpit_modal.offset_top = -140
+	cockpit_modal.offset_bottom = 140
+	
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.08, 0.14, 0.95)
+	sb.border_color = Color(0.2, 0.85, 1.0, 0.9)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(14)
+	sb.shadow_color = Color(0.0, 0.0, 0.0, 0.6)
+	sb.shadow_size = 10
+	cockpit_modal.add_theme_stylebox_override("panel", sb)
+	
+	var vbox = VBoxContainer.new()
+	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vbox.offset_left = 18
+	vbox.offset_top = 16
+	vbox.offset_right = -18
+	vbox.offset_bottom = -16
+	vbox.add_theme_constant_override("separation", 10)
+	cockpit_modal.add_child(vbox)
+	
+	cockpit_title_lbl = Label.new()
+	cockpit_title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cockpit_title_lbl.text = "CABINA DE MANDO ORBITAL"
+	cockpit_title_lbl.add_theme_font_size_override("font_size", 16)
+	cockpit_title_lbl.add_theme_color_override("font_color", Color(0.2, 0.85, 1.0))
+	vbox.add_child(cockpit_title_lbl)
+	
+	cockpit_telemetry_lbl = Label.new()
+	cockpit_telemetry_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cockpit_telemetry_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cockpit_telemetry_lbl.add_theme_font_size_override("font_size", 12)
+	cockpit_telemetry_lbl.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0))
+	vbox.add_child(cockpit_telemetry_lbl)
+	
+	cockpit_action_btn = Button.new()
+	_style_menu_button(cockpit_action_btn, Color(0.2, 1.0, 0.4))
+	cockpit_action_btn.pressed.connect(_on_cockpit_action_pressed)
+	vbox.add_child(cockpit_action_btn)
+	
+	cockpit_starmap_btn = Button.new()
+	cockpit_starmap_btn.text = "MAPA ESTELAR (STARMAP)"
+	_style_menu_button(cockpit_starmap_btn, Color(0.96, 0.66, 0.16))
+	cockpit_starmap_btn.pressed.connect(func():
+		close_cockpit_dialog()
+		starmap_modal.visible = true
+		_build_starmap_ui()
+	)
+	vbox.add_child(cockpit_starmap_btn)
+	
+	cockpit_stand_btn = Button.new()
+	cockpit_stand_btn.text = "LEVANTARSE DEL ASIENTO"
+	_style_menu_button(cockpit_stand_btn, Color(0.95, 0.4, 0.35))
+	cockpit_stand_btn.pressed.connect(func():
+		if is_instance_valid(cockpit_ship_ref) and is_instance_valid(player):
+			cockpit_ship_ref.stand_up_from_pilot_seat(player)
+		close_cockpit_dialog()
+	)
+	vbox.add_child(cockpit_stand_btn)
+	
+	var modals_node = get_node_or_null("Modals")
+	if modals_node:
+		modals_node.add_child(cockpit_modal)
+	else:
+		add_child(cockpit_modal)
+
+func open_cockpit_dialog(ship_ref: Node3D) -> void:
+	cockpit_ship_ref = ship_ref
+	_setup_cockpit_modal()
+	_update_cockpit_dialog()
+	if cockpit_modal:
+		cockpit_modal.visible = true
+
+func close_cockpit_dialog() -> void:
+	if cockpit_modal:
+		cockpit_modal.visible = false
+
+func _update_cockpit_dialog() -> void:
+	if not is_instance_valid(cockpit_ship_ref) or not cockpit_modal:
+		return
+	var f_state = cockpit_ship_ref.get("flight_state")
+	var p_energy = int(cockpit_ship_ref.get("current_energy"))
+	var is_landed = (f_state == 0) # FlightState.LANDED
+	
+	if is_landed:
+		cockpit_title_lbl.text = "CABINA: SUPERFICIE PLANETARIA"
+		cockpit_telemetry_lbl.text = "Altitud: 0.0 km • Energía: %d%%\nSistemas de despegue y telemetría nominales." % p_energy
+		cockpit_action_btn.text = "🚀 DESPEGAR A ÓRBITA SEGURA"
+		cockpit_starmap_btn.visible = false
+	else:
+		cockpit_title_lbl.text = "CABINA: ÓRBITA KEPLERIANA ESTABLE"
+		cockpit_telemetry_lbl.text = "Altitud Orbital: 220 km • Velocidad: 7.8 km/s • Energía: %d%%\nMicrogravedad activa. Libre de la atracción superficial." % p_energy
+		cockpit_action_btn.text = "🛬 INICIAR ATERRIZAJE AUTOMÁTICO"
+		cockpit_starmap_btn.visible = true
+
+func _on_cockpit_action_pressed() -> void:
+	if not is_instance_valid(cockpit_ship_ref):
+		return
+	var f_state = cockpit_ship_ref.get("flight_state")
+	if f_state == 0: # LANDED
+		cockpit_ship_ref.launch_to_safe_orbit()
+		close_cockpit_dialog()
+		show_status_toast("DESPEGUE ORBITAL INICIADO: Ascenso a órbita segura.")
+	elif f_state == 2: # PARKING_ORBIT
+		cockpit_ship_ref.initiate_automatic_landing()
+		close_cockpit_dialog()
+		show_status_toast("REENTRADA INICIADA: Aterrizaje guiado en superficie.")
 
 func _on_inventory_full(_item: String) -> void:
 	var msg = "¡INVENTARIO LLENO! (Manos y espalda ocupadas)" if (is_instance_valid(GameManager) and GameManager.current_language == "es") else "INVENTORY FULL! (Hands and back occupied)"

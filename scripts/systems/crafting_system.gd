@@ -20,7 +20,25 @@ var inventory: Dictionary = {
 	"wrench": 0,
 	"wire": 0,
 	"microchip": 0,
-	"reactor_cell": 0
+	"reactor_cell": 0,
+	"hull_plate": 0,
+	"nozzle_core": 0,
+	"hyperdrive_coil": 0,
+	"o2_filter": 0,
+	"energy_cell": 0,
+	"repair_kit_basic": 0,
+	"repair_kit_advanced": 0,
+	"o2_canister": 0,
+	"suit_sealant": 0,
+	"plasma_cutter": 0,
+	"alien_meat": 0,
+	"alien_chitin": 0,
+	"alien_fang": 0,
+	"biogel_sample": 0,
+	"cooked_ration": 0,
+	"chitin_spear": 0,
+	"bio_medkit": 0,
+	"chitin_plate": 0
 }
 
 # Astronaut Physical Body Attachment Slots:
@@ -46,7 +64,25 @@ var ship_storage: Dictionary = {
 	"wrench": 0,
 	"wire": 0,
 	"microchip": 0,
-	"reactor_cell": 0
+	"reactor_cell": 0,
+	"hull_plate": 0,
+	"nozzle_core": 0,
+	"hyperdrive_coil": 0,
+	"o2_filter": 0,
+	"energy_cell": 0,
+	"repair_kit_basic": 0,
+	"repair_kit_advanced": 0,
+	"o2_canister": 0,
+	"suit_sealant": 0,
+	"plasma_cutter": 0,
+	"alien_meat": 0,
+	"alien_chitin": 0,
+	"alien_fang": 0,
+	"biogel_sample": 0,
+	"cooked_ration": 0,
+	"chitin_spear": 0,
+	"bio_medkit": 0,
+	"chitin_plate": 0
 }
 
 # Hyperdrive requirements per level
@@ -90,7 +126,7 @@ func init_level_requirements(difficulty: int) -> void:
 
 func get_max_stack(item: String) -> int:
 	match item:
-		"wrench", "microchip", "reactor_cell":
+		"wrench", "microchip", "reactor_cell", "hull_plate", "nozzle_core", "hyperdrive_coil", "o2_filter", "energy_cell", "repair_kit_basic", "repair_kit_advanced", "o2_canister", "suit_sealant", "plasma_cutter", "chitin_spear", "bio_medkit", "chitin_plate":
 			return MAX_STACK_TOOL
 		_:
 			return MAX_STACK_RESOURCE
@@ -170,35 +206,57 @@ func _recalculate_inventory_from_body() -> void:
 		if s["item"] != "" and s["count"] > 0 and inventory.has(s["item"]):
 			inventory[s["item"]] += s["count"]
 
+func reset_inventory() -> void:
+	for k in inventory.keys():
+		inventory[k] = 0
+	for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
+		body_slots[s_key] = {"item": "", "count": 0}
+	ship_storage.clear()
+	installed_parts.clear()
+	inventory_changed.emit()
+	storage_changed.emit()
+	body_slots_changed.emit()
+
 func sync_body_from_inventory() -> void:
-	# If inventory contains items not yet mapped to body slots (e.g. from tests or loads)
-	# distribute them into body slots.
-	var cur_body_total = 0
+	# Calculate total currently held in body slots
+	var body_counts: Dictionary = {}
 	for s in body_slots.values():
-		cur_body_total += s["count"]
-		
-	var inv_total = 0
-	for v in inventory.values():
-		inv_total += v
-		
-	if inv_total > 0 and cur_body_total == 0:
-		for item in inventory.keys():
-			var count = inventory[item]
-			while count > 0:
-				var max_s = get_max_stack(item)
-				var assigned = false
+		if s["item"] != "" and s["count"] > 0:
+			body_counts[s["item"]] = body_counts.get(s["item"], 0) + s["count"]
+			
+	# For any item where inventory has more than body, distribute into empty body slots or ship storage
+	for item in inventory.keys():
+		var diff = inventory[item] - body_counts.get(item, 0)
+		while diff > 0:
+			var max_s = get_max_stack(item)
+			var placed = false
+			# Try existing matching slot
+			for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
+				var s = body_slots[s_key]
+				if s["item"] == item and s["count"] < max_s:
+					var take = mini(diff, max_s - s["count"])
+					s["count"] += take
+					diff -= take
+					placed = true
+					break
+			if not placed:
+				# Try empty slot
 				for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
 					var s = body_slots[s_key]
 					if s["item"] == "" or s["count"] <= 0:
-						var to_add = mini(count, max_s)
+						var take = mini(diff, max_s)
 						s["item"] = item
-						s["count"] = to_add
-						count -= to_add
-						assigned = true
+						s["count"] = take
+						diff -= take
+						placed = true
 						break
-				if not assigned:
-					break # All body slots filled
-		body_slots_changed.emit()
+			if not placed:
+				# Put remainder into ship storage
+				ship_storage[item] = ship_storage.get(item, 0) + diff
+				diff = 0
+				break
+	_recalculate_inventory_from_body()
+	body_slots_changed.emit()
 
 func set_body_slot(slot_name: String, item: String, count: int) -> void:
 	if not body_slots.has(slot_name):
@@ -406,6 +464,38 @@ func can_craft(item: String) -> bool:
 			return silicon >= 1 and wire >= 1
 		"reactor_cell":
 			return uranium >= 1 and iron >= 2
+		# Ship modular parts
+		"hull_plate":
+			return iron >= 2
+		"nozzle_core":
+			return copper >= 2 and iron >= 1
+		"hyperdrive_coil":
+			return copper >= 2 and silicon >= 1
+		"o2_filter":
+			return silicon >= 1 and iron >= 1
+		"energy_cell":
+			return silicon >= 1 and uranium >= 1
+		# Field consumables
+		"repair_kit_basic":
+			return iron >= 2
+		"repair_kit_advanced":
+			return iron >= 2 and copper >= 2
+		"o2_canister":
+			return iron >= 1 and silicon >= 1
+		"suit_sealant":
+			return silicon >= 2
+		# Tools
+		"plasma_cutter":
+			return iron >= 2 and silicon >= 2
+		# Creature Resources & Survival Gear
+		"cooked_ration":
+			return get_item_count("alien_meat") >= 1
+		"chitin_spear":
+			return get_item_count("alien_chitin") >= 2 and (get_item_count("alien_fang") >= 1 or get_item_count("copper") >= 1)
+		"bio_medkit":
+			return get_item_count("biogel_sample") >= 1 and get_item_count("alien_chitin") >= 1
+		"chitin_plate":
+			return get_item_count("alien_chitin") >= 2 and get_item_count("iron") >= 1
 	return false
 
 func _consume_craft_material(mat: String, amount: int) -> void:
@@ -426,27 +516,158 @@ func _consume_craft_material(mat: String, amount: int) -> void:
 		rem = 0
 	_recalculate_inventory_from_body()
 
+func _add_crafted_item(item: String, count: int = 1) -> void:
+	if can_astronaut_carry(item, count):
+		add_resource(item, count)
+	else:
+		ship_storage[item] = ship_storage.get(item, 0) + count
+		inventory[item] = inventory.get(item, 0) + count
+
 func craft(item: String) -> bool:
 	if not can_craft(item):
 		return false
 	match item:
 		"wrench":
 			_consume_craft_material("iron", 2)
-			add_resource("wrench", 1)
+			_add_crafted_item("wrench", 1)
 		"wire":
 			_consume_craft_material("copper", 1)
-			add_resource("wire", 2)
+			_add_crafted_item("wire", 2)
 		"microchip":
 			_consume_craft_material("silicon", 1)
 			_consume_craft_material("wire", 1)
-			add_resource("microchip", 1)
+			_add_crafted_item("microchip", 1)
 		"reactor_cell":
 			_consume_craft_material("uranium", 1)
 			_consume_craft_material("iron", 2)
-			add_resource("reactor_cell", 1)
+			_add_crafted_item("reactor_cell", 1)
+		"hull_plate":
+			_consume_craft_material("iron", 2)
+			_add_crafted_item("hull_plate", 1)
+		"nozzle_core":
+			_consume_craft_material("copper", 2)
+			_consume_craft_material("iron", 1)
+			_add_crafted_item("nozzle_core", 1)
+		"hyperdrive_coil":
+			_consume_craft_material("copper", 2)
+			_consume_craft_material("silicon", 1)
+			_add_crafted_item("hyperdrive_coil", 1)
+		"o2_filter":
+			_consume_craft_material("silicon", 1)
+			_consume_craft_material("iron", 1)
+			_add_crafted_item("o2_filter", 1)
+		"energy_cell":
+			_consume_craft_material("silicon", 1)
+			_consume_craft_material("uranium", 1)
+			_add_crafted_item("energy_cell", 1)
+		"repair_kit_basic":
+			_consume_craft_material("iron", 2)
+			_add_crafted_item("repair_kit_basic", 1)
+		"repair_kit_advanced":
+			_consume_craft_material("iron", 2)
+			_consume_craft_material("copper", 2)
+			_add_crafted_item("repair_kit_advanced", 1)
+		"o2_canister":
+			_consume_craft_material("iron", 1)
+			_consume_craft_material("silicon", 1)
+			_add_crafted_item("o2_canister", 1)
+		"suit_sealant":
+			_consume_craft_material("silicon", 2)
+			_add_crafted_item("suit_sealant", 1)
+		"plasma_cutter":
+			_consume_craft_material("iron", 2)
+			_consume_craft_material("silicon", 2)
+			_add_crafted_item("plasma_cutter", 1)
+		"cooked_ration":
+			_consume_craft_material("alien_meat", 1)
+			_add_crafted_item("cooked_ration", 1)
+		"chitin_spear":
+			_consume_craft_material("alien_chitin", 2)
+			if get_item_count("alien_fang") >= 1:
+				_consume_craft_material("alien_fang", 1)
+			else:
+				_consume_craft_material("copper", 1)
+			_add_crafted_item("chitin_spear", 1)
+		"bio_medkit":
+			_consume_craft_material("biogel_sample", 1)
+			_consume_craft_material("alien_chitin", 1)
+			_add_crafted_item("bio_medkit", 1)
+		"chitin_plate":
+			_consume_craft_material("alien_chitin", 2)
+			_consume_craft_material("iron", 1)
+			_add_crafted_item("chitin_plate", 1)
 	inventory_changed.emit()
 	storage_changed.emit()
 	body_slots_changed.emit()
+	return true
+
+func _get_gm():
+	var loop = Engine.get_main_loop()
+	if loop and "root" in loop and loop.root and loop.root.has_node("GameManager"):
+		return loop.root.get_node("GameManager")
+	return null
+
+func _play_audio(sfx: String, pitch: float = 1.0, vol: float = 0.0) -> void:
+	var loop = Engine.get_main_loop()
+	if loop and "root" in loop and loop.root and loop.root.has_node("AudioManager"):
+		loop.root.get_node("AudioManager").play(sfx, pitch, vol)
+
+func use_consumable(item: String) -> bool:
+	var total_avail = inventory.get(item, 0) + ship_storage.get(item, 0)
+	if total_avail <= 0:
+		return false
+	_consume_craft_material(item, 1)
+	var gm = _get_gm()
+	match item:
+		"repair_kit_basic":
+			if gm:
+				gm.player_stats.hull = minf(100.0, gm.player_stats.hull + 35.0)
+				gm.player_vital_updated.emit("hull", gm.player_stats.hull, 100.0)
+		"repair_kit_advanced":
+			if gm:
+				gm.player_stats.hull = minf(100.0, gm.player_stats.hull + 80.0)
+				gm.player_vital_updated.emit("hull", gm.player_stats.hull, 100.0)
+		"o2_canister":
+			if gm:
+				gm.player_stats.oxygen = minf(100.0, gm.player_stats.oxygen + 50.0)
+				gm.player_vital_updated.emit("oxygen", gm.player_stats.oxygen, 100.0)
+		"suit_sealant":
+			if gm:
+				gm.player_stats.hull = minf(100.0, gm.player_stats.hull + 30.0)
+				gm.player_vital_updated.emit("hull", gm.player_stats.hull, 100.0)
+		"alien_meat":
+			if gm:
+				gm.player_stats.hull = minf(100.0, gm.player_stats.hull + 20.0)
+				gm.player_vital_updated.emit("hull", gm.player_stats.hull, 100.0)
+		"cooked_ration":
+			if gm:
+				gm.player_stats.hull = minf(100.0, gm.player_stats.hull + 50.0)
+				gm.player_stats.oxygen = minf(100.0, gm.player_stats.oxygen + 30.0)
+				gm.player_vital_updated.emit("hull", gm.player_stats.hull, 100.0)
+				gm.player_vital_updated.emit("oxygen", gm.player_stats.oxygen, 100.0)
+		"bio_medkit":
+			if gm:
+				gm.player_stats.hull = minf(100.0, gm.player_stats.hull + 60.0)
+				gm.player_vital_updated.emit("hull", gm.player_stats.hull, 100.0)
+		"chitin_plate":
+			if gm:
+				gm.player_stats.hull = minf(100.0, gm.player_stats.hull + 45.0)
+				gm.player_vital_updated.emit("hull", gm.player_stats.hull, 100.0)
+		_:
+			return false
+	_play_audio("craft", 1.0, 1.5)
+	return true
+
+func get_item_count(item: String) -> int:
+	return inventory.get(item, 0) + ship_storage.get(item, 0)
+
+func add_item(item: String, count: int = 1) -> void:
+	_add_crafted_item(item, count)
+
+func consume_item(item: String, count: int = 1) -> bool:
+	if get_item_count(item) < count:
+		return false
+	_consume_craft_material(item, count)
 	return true
 
 func can_install_part(part: String) -> bool:

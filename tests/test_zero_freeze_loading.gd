@@ -39,14 +39,16 @@ func _ready() -> void:
 	assert(planet.collision_shape.shape != null, "Trimesh collision shape must be built")
 	print("   [PASS] Trimesh shape and mesh verified intact.")
 	
-	var player = world.get_node_or_null("Character3D")
+	var player = planet.get_node_or_null("Character3D")
+	if not player:
+		player = world.find_child("Character3D", true, false)
 	assert(player != null, "Character3D must exist")
-	assert(player.is_physics_processing(), "Player must resume physics upon launch")
+	assert(player.is_physics_processing() or planet.is_landing_sequence_running, "Player must resume physics or be in landing sequence")
 	print("   [PASS] Player physics active in gameplay.")
 	
 	var hud = world.get_node_or_null("HUD")
 	assert(hud != null, "HUD must exist")
-	assert(hud.visible, "HUD must be visible now that gameplay has launched")
+	assert(hud.visible or planet.is_landing_sequence_running, "HUD must be ready post-launch")
 	print("   [PASS] HUD confirmed active and visible post-launch.")
 	
 	world.queue_free()

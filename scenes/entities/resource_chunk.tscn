@@ -1,21 +1,26 @@
-[gd_scene load_steps=5 format=3 uid="uid://cresourcechunk01"]
+[gd_scene load_steps=7 format=3 uid="uid://cresourcechunk01"]
 
 [ext_resource type="Script" path="res://scripts/entities/resource_chunk.gd" id="1_chunk"]
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_Col"]
-radius = 0.85
+[sub_resource type="BoxShape3D" id="BoxShape3D_Col"]
+size = Vector3(1.1, 0.9, 1.1)
 
 [sub_resource type="StandardMaterial3D" id="Mat_OreBase"]
 albedo_color = Color(0.75, 0.78, 0.85, 1)
-metallic = 0.75
-roughness = 0.45
+metallic = 0.85
+roughness = 0.4
 
-[sub_resource type="SphereMesh" id="SphereMesh_Geode"]
+[sub_resource type="BoxMesh" id="BoxMesh_MainBlock"]
 material = SubResource("Mat_OreBase")
-radius = 0.8
-height = 1.4
-radial_segments = 6
-rings = 4
+size = Vector3(0.8, 0.65, 0.8)
+
+[sub_resource type="PrismMesh" id="PrismMesh_Crystal1"]
+material = SubResource("Mat_OreBase")
+size = Vector3(0.45, 0.55, 0.45)
+
+[sub_resource type="BoxMesh" id="BoxMesh_SideBlock"]
+material = SubResource("Mat_OreBase")
+size = Vector3(0.4, 0.45, 0.4)
 
 [node name="ResourceChunk" type="StaticBody3D"]
 collision_layer = 2
@@ -23,15 +28,23 @@ collision_mask = 0
 script = ExtResource("1_chunk")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
-shape = SubResource("SphereShape3D_Col")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
+shape = SubResource("BoxShape3D_Col")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
-mesh = SubResource("SphereMesh_Geode")
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 0, 0.3, 0)
+mesh = SubResource("BoxMesh_MainBlock")
+
+[node name="CrystalTop" type="MeshInstance3D" parent="MeshInstance3D"]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0.5, 0.612372, -0.612372, 0, 0.707107, 0.707107, 0.15, 0.35, -0.1)
+mesh = SubResource("PrismMesh_Crystal1")
+
+[node name="SubBlock" type="MeshInstance3D" parent="MeshInstance3D"]
+transform = Transform3D(0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, 0.707107, -0.35, -0.05, 0.25)
+mesh = SubResource("BoxMesh_SideBlock")
 
 [node name="Label3D" type="Label3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.85, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, 0)
 billboard = 1
 double_sided = false
 no_depth_test = true

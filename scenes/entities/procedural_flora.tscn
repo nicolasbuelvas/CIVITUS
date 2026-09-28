@@ -1,0 +1,18 @@
+[gd_scene load_steps=3 format=3 uid="uid://cproceduralflora01"]
+
+[ext_resource type="Script" path="res://scripts/entities/procedural_flora.gd" id="1_flora"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_Col"]
+height = 2.4
+radius = 0.5
+
+[node name="ProceduralFlora" type="StaticBody3D"]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("1_flora")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+shape = SubResource("CylinderShape3D_Col")
+
+[node name="Visuals" type="Node3D" parent="."]

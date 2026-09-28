@@ -52,3 +52,5 @@ func setup_theme(planet_params: Dictionary) -> void:
 	mat_wood.albedo_color = wood_color
 	mat_wood.roughness = 0.85
 	if trunk: trunk.material_override = mat_wood
+	var roots = get_node_or_null("Roots")
+	if roots: roots.material_override = mat_wood

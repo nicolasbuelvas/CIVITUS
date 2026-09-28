@@ -131,7 +131,8 @@ func _resolve_icon_name() -> void:
 		"oxygen_gen", "o2": icon_type = IconType.OXYGEN_GEN
 		"gravity_device", "gravity": icon_type = IconType.GRAVITY_DEVICE
 		"attack": icon_type = IconType.ATTACK
-		"feed": icon_type = IconType.FEED
+		"feed", "lift", "grab", "creature": icon_type = IconType.FEED
+		"drop": icon_type = IconType.ARROW_DOWN
 		"repair": icon_type = IconType.REPAIR
 		"starmap": icon_type = IconType.STARMAP
 		"hyperdrive": icon_type = IconType.HYPERDRIVE

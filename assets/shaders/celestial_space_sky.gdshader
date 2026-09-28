@@ -161,9 +161,19 @@ void sky() {
 		float daylight_extinction = clamp(day_factor * optical_mass * 1.4, 0.0, 1.0);
 		vec3 star_visible = cosmic_sky * (1.0 - daylight_extinction);
 		
-		// Smooth horizon blend toward ground
-		float horizon_mask = smoothstep(-0.10, 0.03, ray_elev);
-		vec3 final_atmosphere = mix(sky_horizon_color * 0.08, active_sky, horizon_mask);
+		// Procedural Atmospheric Clouds (Fase 5.1)
+		// Organic cloud layer that scrolls with planetary trade winds, catches sunset light, and never clips 3D camera
+		if (optical_mass > 0.05 && ray_elev > 0.0) {
+			vec3 cloud_proj = dir / max(ray_elev + 0.12, 0.1);
+			vec3 wind_offset = vec3(TIME * 0.008, 0.0, TIME * 0.005);
+			float c_noise = fbm(cloud_proj * 1.4 + wind_offset);
+			float c_density = smoothstep(0.48, 0.74, c_noise) * smoothstep(0.01, 0.28, ray_elev);
+			vec3 c_color = mix(vec3(0.96, 0.97, 1.0), sunset_color * 1.3, sunset_glow_strength);
+			active_sky = mix(active_sky, c_color, c_density * 0.58 * day_factor);
+		}
+		
+		// Seamless Rayleigh horizon gradient (no harsh artificial dark cutoff band)
+		vec3 final_atmosphere = active_sky;
 		
 		// Blend atmosphere with cosmic deep space
 		float atmo_blend = clamp(optical_mass * deep_night_factor, 0.0, 1.0);

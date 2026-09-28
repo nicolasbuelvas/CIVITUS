@@ -46,9 +46,13 @@ func has_planet_editor() -> bool:
 func has_premium_access() -> bool:
 	return has_full_game_license or has_deep_space_license or is_dev_mode
 
+const REVENUECAT_PUBLIC_API_KEY = "test_HMpYIEhyCGifYHUCJfwbYiuBcsK"
+
 func init_native_revenuecat() -> void:
 	var purchases = Engine.get_singleton("Purchases")
 	print("[RevenueCatManager] Initializing native Purchases singleton...")
+	if purchases.has_method("init_revenuecat"):
+		purchases.init_revenuecat(REVENUECAT_PUBLIC_API_KEY)
 	if purchases.has_signal("purchases_restored"):
 		purchases.connect("purchases_restored", Callable(self, "_on_native_purchases_restored"))
 	if purchases.has_signal("customer_info_updated"):

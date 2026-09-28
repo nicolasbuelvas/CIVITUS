@@ -6,7 +6,13 @@ build/
 *.aab
 *.apk
 *.idsig
+*.class
 android/build/
+
+# Python / Tools
+__pycache__/
+*.pyc
+cdp_*.py
 
 # Windows / OS
 Thumbs.db

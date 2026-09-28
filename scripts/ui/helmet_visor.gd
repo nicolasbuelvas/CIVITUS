@@ -10,11 +10,41 @@ const COLOR_RED = Color(1.0, 0.25, 0.25, 0.95)
 const COLOR_SHELL = Color(0.05, 0.07, 0.11, 0.94)
 
 var pulse_time: float = 0.0
+var visor_droplets: Array = []
+var max_droplets: int = 18
 
 func _process(delta: float) -> void:
 	if visible:
 		pulse_time += delta
+		_update_visor_droplets(delta)
 		queue_redraw()
+
+func _update_visor_droplets(delta: float) -> void:
+	var weather = GameManager.current_weather
+	var is_precipitating = weather in ["rain", "acid_rain", "blizzard"]
+	
+	# Clean up finished droplets
+	var i = visor_droplets.size() - 1
+	while i >= 0:
+		var d = visor_droplets[i]
+		d["pos"].y += d["speed"] * delta
+		d["speed"] += 45.0 * delta # gravity acceleration on glass
+		d["life"] -= delta
+		if d["pos"].y > size.y - 45.0 or d["life"] <= 0.0:
+			visor_droplets.remove_at(i)
+		i -= 1
+		
+	# Spawn new droplets if raining
+	if is_precipitating and visor_droplets.size() < max_droplets and randf() < 0.35:
+		var new_d = {
+			"pos": Vector2(randf_range(size.x * 0.15, size.x * 0.85), randf_range(40.0, 120.0)),
+			"speed": randf_range(30.0, 75.0),
+			"radius": randf_range(1.5, 3.2),
+			"trail_len": randf_range(4.0, 14.0),
+			"alpha": randf_range(0.35, 0.75),
+			"life": randf_range(2.5, 5.0)
+		}
+		visor_droplets.append(new_d)
 
 func _draw() -> void:
 	var w = size.x
@@ -33,12 +63,31 @@ func _draw() -> void:
 	if has_helmet:
 		# 1. Authentic Curved Helmet Visor Frame & Polycarbonate Bezel
 		_draw_helmet_visor_frame(w, h)
+		# Dynamic atmospheric precipitation running down the glass
+		_draw_visor_weather_effects(w, h)
 	
 	# 2. Minimal High-Precision Tactical Reticle
 	_draw_center_reticle(w * 0.5, h * 0.5, player)
 	
 	# 3. Critical Emergency Warnings (Suffocation / Depressurization)
 	_draw_tactical_status(w, h, o2)
+
+func _draw_visor_weather_effects(w: float, h: float) -> void:
+	if visor_droplets.is_empty():
+		return
+	var weather = GameManager.current_weather
+	var drop_color = Color(0.82, 0.92, 1.0)
+	if weather == "acid_rain":
+		drop_color = Color(0.72, 0.94, 0.28)
+	elif weather == "blizzard":
+		drop_color = Color(0.92, 0.96, 1.0)
+		
+	for d in visor_droplets:
+		var col = Color(drop_color.r, drop_color.g, drop_color.b, d["alpha"])
+		# Sliding streak
+		draw_line(Vector2(d["pos"].x, d["pos"].y - d["trail_len"]), d["pos"], Color(col.r, col.g, col.b, col.a * 0.45), 1.2)
+		# Droplet bead
+		draw_circle(d["pos"], d["radius"], col)
 
 func _get_player() -> Node3D:
 	var hud = get_parent()
@@ -226,7 +275,23 @@ func _draw_center_reticle(cx: float, cy: float, player: Node3D) -> void:
 	draw_line(center + Vector2(-b_dist, b_dist), center + Vector2(-b_dist, -b_dist + b_len), b_col, 1.2)
 	# Bottom-right bracket
 	draw_line(center + Vector2(b_dist, b_dist), center + Vector2(b_dist - b_len, b_dist), b_col, 1.2)
-	draw_line(center + Vector2(b_dist, b_dist), center + Vector2(b_dist, -b_dist + b_len), b_col, 1.2)
+	draw_line(center + Vector2(b_dist, b_dist), center + Vector2(b_dist, b_dist - b_len), b_col, 1.2)
+
+	# Visor Scanner HUD overlay when reticle targets resource or creature
+	if is_targeting and player and "nearby_interactable" in player and player.nearby_interactable != null:
+		var target = player.nearby_interactable
+		var scan_str = ""
+		if target.has_method("get_scanner_data"):
+			var data = target.get_scanner_data()
+			scan_str = "%s  •  %s  •  %s" % [data.get("name", "RECURSO"), data.get("purity", ""), data.get("density", "")]
+		elif target.is_in_group("creatures"):
+			var comp = "MAGMA" if target.get("elemental_type") == 2 else ("RADIACTIVO" if target.get("elemental_type") == 3 else "CARBONO")
+			var arch = "AGRESIVO" if target.get("is_aggressive") else "PACÍFICO"
+			scan_str = "BIOFORMA  •  BASE %s  •  %s" % [comp, arch]
+		if scan_str != "":
+			var font = ThemeDB.fallback_font
+			var str_size = font.get_string_size(scan_str, HORIZONTAL_ALIGNMENT_CENTER, -1, 9)
+			draw_string(font, Vector2(center.x - str_size.x * 0.5, center.y + 32.0), scan_str, HORIZONTAL_ALIGNMENT_CENTER, -1, 9, COLOR_CYAN)
 
 func _draw_tactical_status(w: float, h: float, o2: float) -> void:
 	var font = ThemeDB.fallback_font

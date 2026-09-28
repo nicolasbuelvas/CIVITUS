@@ -1304,6 +1304,18 @@ const STORE_ITEMS: Array[Dictionary] = [
 	},
 	# Packs
 	{
+		"id": "watch_ad_coins",
+		"category": "packs",
+		"name": "TRANSMISIÓN ORBITAL",
+		"badge": "[GRATIS +50]",
+		"color": Color(0.2, 0.85, 1.0),
+		"cost_label": "VER ANUNCIO (+50)",
+		"reward_coins": 50,
+		"is_ad": true,
+		"currency": "ad",
+		"desc": "Sintoniza una transmisión comercial de espacio profundo para recibir 50 Luna Coins gratis."
+	},
+	{
 		"id": "pack_scout",
 		"category": "packs",
 		"name": "SUMINISTRO INICIAL",
@@ -1494,22 +1506,36 @@ func _render_store_items() -> void:
 		elif is_pack:
 			act_btn.text = it["cost_label"]
 			_style_menu_button(act_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
-			act_btn.pressed.connect(func():
-				AudioManager.play("click")
-				GameManager.add_luna_coins(it["reward_coins"])
-				if it.get("no_ads", false):
-					RevenueCatManager.has_purchased_no_ads = true
-				if it.get("unlock_all", false):
-					RevenueCatManager.has_full_game_access = true
-					RevenueCatManager.has_purchased_editor = true
-					RevenueCatManager.has_purchased_no_ads = true
-				_update_luna_points_ui()
-				_render_store_items()
-				if store_status_label:
-					store_status_label.visible = true
-					store_status_label.text = "SUMINISTRO CONFIRMADO: +%d LUNA COINS" % it["reward_coins"]
-					store_status_label.modulate = Color(0.3, 0.95, 0.5)
-			)
+			if it.get("is_ad", false):
+				_style_menu_button(act_btn, Color(0.2, 0.85, 1.0), Color(0.04, 0.12, 0.18))
+				act_btn.pressed.connect(func():
+					AudioManager.play("click")
+					AdManager.show_rewarded_ad(func():
+						GameManager.add_luna_coins(50)
+						_update_luna_points_ui()
+						if store_status_label:
+							store_status_label.visible = true
+							store_status_label.text = "TRANSMISIÓN COMPLETADA: +50 LUNA COINS"
+							store_status_label.modulate = Color(0.3, 0.95, 0.5)
+					)
+				)
+			else:
+				act_btn.pressed.connect(func():
+					AudioManager.play("click")
+					GameManager.add_luna_coins(it["reward_coins"])
+					if it.get("no_ads", false):
+						RevenueCatManager.has_purchased_no_ads = true
+					if it.get("unlock_all", false):
+						RevenueCatManager.has_full_game_access = true
+						RevenueCatManager.has_purchased_editor = true
+						RevenueCatManager.has_purchased_no_ads = true
+					_update_luna_points_ui()
+					_render_store_items()
+					if store_status_label:
+						store_status_label.visible = true
+						store_status_label.text = "SUMINISTRO CONFIRMADO: +%d LUNA COINS" % it["reward_coins"]
+						store_status_label.modulate = Color(0.3, 0.95, 0.5)
+				)
 			
 		row.add_child(act_btn)
 		card.add_child(row)

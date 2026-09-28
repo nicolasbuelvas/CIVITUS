@@ -1,9 +1,10 @@
-[gd_scene load_steps=12 format=3 uid="uid://caliencreature01"]
+[gd_scene load_steps=18 format=3 uid="uid://caliencreature01"]
 
 [ext_resource type="Script" path="res://scripts/entities/alien_creature.gd" id="1_alien"]
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_Col"]
-size = Vector3(1.2, 0.9, 1.6)
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_Col"]
+radius = 0.45
+height = 1.05
 
 [sub_resource type="StandardMaterial3D" id="Mat_Carapace"]
 albedo_color = Color(0.32, 0.75, 0.42, 1)
@@ -46,6 +47,44 @@ size = Vector3(0.12, 0.35, 0.15)
 material = SubResource("Mat_DarkChitin")
 size = Vector3(0.16, 0.65, 0.16)
 
+[sub_resource type="PrismMesh" id="PrismMesh_Fin"]
+material = SubResource("Mat_DarkChitin")
+size = Vector3(0.12, 0.55, 0.75)
+
+[sub_resource type="BoxMesh" id="BoxMesh_Pectoral"]
+material = SubResource("Mat_Carapace")
+size = Vector3(0.85, 0.08, 0.45)
+
+[sub_resource type="PrismMesh" id="PrismMesh_Tail"]
+material = SubResource("Mat_Carapace")
+size = Vector3(0.12, 0.75, 0.9)
+
+[sub_resource type="BoxMesh" id="BoxMesh_Wing"]
+material = SubResource("Mat_Carapace")
+size = Vector3(1.35, 0.06, 0.65)
+
+[sub_resource type="SphereMesh" id="SphereMesh_Bladder"]
+material = SubResource("Mat_Carapace")
+radius = 0.35
+height = 0.65
+
+[sub_resource type="PrismMesh" id="PrismMesh_Horn"]
+material = SubResource("Mat_DarkChitin")
+size = Vector3(0.12, 0.5, 0.15)
+
+[sub_resource type="BoxMesh" id="BoxMesh_Armor"]
+material = SubResource("Mat_DarkChitin")
+size = Vector3(0.92, 0.32, 1.25)
+
+[sub_resource type="SphereMesh" id="SphereMesh_Lure"]
+material = SubResource("Mat_Eyes")
+radius = 0.1
+height = 0.18
+
+[sub_resource type="BoxMesh" id="BoxMesh_Claw"]
+material = SubResource("Mat_DarkChitin")
+size = Vector3(0.24, 0.12, 0.32)
+
 [node name="AlienCreature" type="CharacterBody3D"]
 collision_layer = 4
 collision_mask = 1
@@ -53,7 +92,7 @@ script = ExtResource("1_alien")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-shape = SubResource("BoxShape3D_Col")
+shape = SubResource("CapsuleShape3D_Col")
 
 [node name="Visuals" type="Node3D" parent="."]
 
@@ -64,6 +103,11 @@ mesh = SubResource("BoxMesh_Thorax")
 [node name="DorsalRidge" type="MeshInstance3D" parent="Visuals/Thorax"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, -0.05)
 mesh = SubResource("PrismMesh_Ridge")
+
+[node name="HeavyArmor" type="MeshInstance3D" parent="Visuals/Thorax"]
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.28, 0)
+mesh = SubResource("BoxMesh_Armor")
 
 [node name="Head" type="MeshInstance3D" parent="Visuals"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.48, -0.75)
@@ -76,6 +120,21 @@ mesh = SubResource("SphereMesh_Eye")
 [node name="EyeR" type="MeshInstance3D" parent="Visuals/Head"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22, 0.12, -0.22)
 mesh = SubResource("SphereMesh_Eye")
+
+[node name="HornL" type="MeshInstance3D" parent="Visuals/Head"]
+visible = false
+transform = Transform3D(0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0, 0, 1, -0.18, 0.38, 0.05)
+mesh = SubResource("PrismMesh_Horn")
+
+[node name="HornR" type="MeshInstance3D" parent="Visuals/Head"]
+visible = false
+transform = Transform3D(0.965926, -0.258819, 0, 0.258819, 0.965926, 0, 0, 0, 1, 0.18, 0.38, 0.05)
+mesh = SubResource("PrismMesh_Horn")
+
+[node name="LanternLure" type="MeshInstance3D" parent="Visuals/Head"]
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, -0.45)
+mesh = SubResource("SphereMesh_Lure")
 
 [node name="MandibleL" type="MeshInstance3D" parent="Visuals/Head"]
 transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -0.18, -0.15, -0.32)
@@ -99,6 +158,22 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.45, -0.4)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
 mesh = SubResource("BoxMesh_Leg")
 
+[node name="LegML" type="Node3D" parent="Visuals"]
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0.45, 0.0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Visuals/LegML"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+mesh = SubResource("BoxMesh_Leg")
+
+[node name="LegMR" type="Node3D" parent="Visuals"]
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0.45, 0.0)
+
+[node name="Mesh" type="MeshInstance3D" parent="Visuals/LegMR"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+mesh = SubResource("BoxMesh_Leg")
+
 [node name="LegRL" type="Node3D" parent="Visuals"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.45, 0.4)
 
@@ -112,3 +187,40 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.45, 0.4)
 [node name="Mesh" type="MeshInstance3D" parent="Visuals/LegRR"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
 mesh = SubResource("BoxMesh_Leg")
+
+[node name="AquaticParts" type="Node3D" parent="Visuals"]
+visible = false
+
+[node name="DorsalFin" type="MeshInstance3D" parent="Visuals/AquaticParts"]
+transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0.85, 0.1)
+mesh = SubResource("PrismMesh_Fin")
+
+[node name="PectoralL" type="MeshInstance3D" parent="Visuals/AquaticParts"]
+transform = Transform3D(0.939693, -0.34202, 0, 0.34202, 0.939693, 0, 0, 0, 1, -0.75, 0.45, -0.2)
+mesh = SubResource("BoxMesh_Pectoral")
+
+[node name="PectoralR" type="MeshInstance3D" parent="Visuals/AquaticParts"]
+transform = Transform3D(0.939693, 0.34202, 0, -0.34202, 0.939693, 0, 0, 0, 1, 0.75, 0.45, -0.2)
+mesh = SubResource("BoxMesh_Pectoral")
+
+[node name="CaudalTail" type="Node3D" parent="Visuals/AquaticParts"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0.7)
+
+[node name="TailMesh" type="MeshInstance3D" parent="Visuals/AquaticParts/CaudalTail"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0.45)
+mesh = SubResource("PrismMesh_Tail")
+
+[node name="AerialParts" type="Node3D" parent="Visuals"]
+visible = false
+
+[node name="WingL" type="MeshInstance3D" parent="Visuals/AerialParts"]
+transform = Transform3D(0.965926, -0.258819, 0, 0.258819, 0.965926, 0, 0, 0, 1, -0.95, 0.65, -0.1)
+mesh = SubResource("BoxMesh_Wing")
+
+[node name="WingR" type="MeshInstance3D" parent="Visuals/AerialParts"]
+transform = Transform3D(0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0, 0, 1, 0.95, 0.65, -0.1)
+mesh = SubResource("BoxMesh_Wing")
+
+[node name="GasBladder" type="MeshInstance3D" parent="Visuals/AerialParts"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0.1)
+mesh = SubResource("SphereMesh_Bladder")

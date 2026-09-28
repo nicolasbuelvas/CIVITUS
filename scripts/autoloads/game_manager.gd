@@ -56,6 +56,10 @@ var player_stats: Dictionary = {
 	"temperature_suit": 22.0
 }
 
+# Planetary Weather & Atmosphere Feedback
+var current_weather: String = "clear"
+var current_weather_intensity: float = 0.0
+
 # Localization Dictionary
 const LOCALIZATION: Dictionary = {
 	"es": {
@@ -467,8 +471,36 @@ func generate_new_solar_system(custom_seed: int = -1) -> void:
 		
 	solar_system_updated.emit(current_solar_system)
 
+static func parse_color(val: Variant, default_color: Color = Color.WHITE) -> Color:
+	if val is Color:
+		return val
+	if val is String:
+		var s: String = val.strip_edges()
+		if s.begins_with("(") and s.ends_with(")"):
+			var parts = s.substr(1, s.length() - 2).split(",")
+			if parts.size() >= 3:
+				var r = float(parts[0].strip_edges())
+				var g = float(parts[1].strip_edges())
+				var b = float(parts[2].strip_edges())
+				var a = float(parts[3].strip_edges()) if parts.size() > 3 else 1.0
+				return Color(r, g, b, a)
+		elif s.begins_with("#"):
+			return Color.from_string(s, default_color)
+		return Color.from_string(s, default_color)
+	return default_color
+
+func sanitize_planet_colors(dict: Dictionary) -> void:
+	var color_keys = [
+		"ocean_color", "beach_color", "land_color", "mountain_color", "peak_color",
+		"atmosphere_color", "sky_color", "surface_color", "water_color"
+	]
+	for k in color_keys:
+		if dict.has(k):
+			dict[k] = parse_color(dict[k], Color.WHITE)
+
 func select_planet(p_data: Dictionary) -> void:
 	current_planet = p_data.duplicate(true)
+	sanitize_planet_colors(current_planet)
 	
 	# Ensure host star data is always coherent with the current solar system
 	if current_solar_system.has("star") and not current_planet.has("star"):
@@ -499,6 +531,7 @@ func reset_player_stats() -> void:
 
 func start_new_game(diff_level: int = 0) -> void:
 	current_difficulty = diff_level as Difficulty
+	crafting.reset_inventory()
 	crafting.init_level_requirements(int(current_difficulty))
 	reset_player_stats()
 
@@ -667,12 +700,28 @@ func load_player_progression() -> void:
 
 # ----------------- Save / Load Persistent Game State (Continuar / Nueva Partida) -----------------
 const SAVEGAME_PATH: String = "user://civitus_saved_game.json"
+const CURRENT_SAVE_VERSION: int = 2
 
 func has_save_game() -> bool:
-	return FileAccess.file_exists(SAVEGAME_PATH)
+	if not FileAccess.file_exists(SAVEGAME_PATH):
+		return false
+	var summary = get_save_summary()
+	if summary.is_empty():
+		return false
+	if int(summary.get("save_version", 0)) != CURRENT_SAVE_VERSION:
+		# Auto-wipe outdated or corrupted saves from earlier versions/updates
+		wipe_save_game()
+		return false
+	return true
+
+func wipe_save_game() -> void:
+	if FileAccess.file_exists(SAVEGAME_PATH):
+		var da = DirAccess.open("user://")
+		if da:
+			da.remove("civitus_saved_game.json")
 
 func get_save_summary() -> Dictionary:
-	if not has_save_game():
+	if not FileAccess.file_exists(SAVEGAME_PATH):
 		return {}
 	var file = FileAccess.open(SAVEGAME_PATH, FileAccess.READ)
 	if not file:
@@ -685,7 +734,19 @@ func get_save_summary() -> Dictionary:
 	return {}
 
 func save_game() -> bool:
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	var ship_energy_val = 100.0
+	var o2_tube_1_val = 100.0
+	var o2_tube_2_val = 100.0
+	var flight_state_val = 0
+	if is_instance_valid(ship):
+		if "current_energy" in ship: ship_energy_val = float(ship.current_energy)
+		if "o2_tube_1_charge" in ship: o2_tube_1_val = float(ship.o2_tube_1_charge)
+		if "o2_tube_2_charge" in ship: o2_tube_2_val = float(ship.o2_tube_2_charge)
+		if "flight_state" in ship: flight_state_val = int(ship.flight_state)
+
 	var save_data: Dictionary = {
+		"save_version": CURRENT_SAVE_VERSION,
 		"timestamp": Time.get_datetime_string_from_system(),
 		"current_planet": current_planet,
 		"current_solar_system": current_solar_system,
@@ -698,6 +759,10 @@ func save_game() -> bool:
 		"installed_parts": crafting.installed_parts.duplicate(true) if crafting else {},
 		"hyperdrive_requirements": crafting.hyperdrive_requirements.duplicate(true) if crafting else {},
 		"hyperdrive_progress": crafting.get_hyperdrive_progress() if crafting else 0.0,
+		"ship_energy": ship_energy_val,
+		"o2_tube_1_charge": o2_tube_1_val,
+		"o2_tube_2_charge": o2_tube_2_val,
+		"flight_state": flight_state_val
 	}
 	var file = FileAccess.open(SAVEGAME_PATH, FileAccess.WRITE)
 	if not file:
@@ -713,9 +778,13 @@ func load_game() -> bool:
 	var data = get_save_summary()
 	if data.is_empty():
 		return false
+	if int(data.get("save_version", 0)) != CURRENT_SAVE_VERSION:
+		wipe_save_game()
+		return false
 		
 	if data.has("current_planet") and not data["current_planet"].is_empty():
 		current_planet = data["current_planet"]
+		sanitize_planet_colors(current_planet)
 	if data.has("current_solar_system") and not data["current_solar_system"].is_empty():
 		current_solar_system = data["current_solar_system"]
 	if data.has("difficulty"):

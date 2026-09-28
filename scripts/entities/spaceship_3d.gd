@@ -39,6 +39,17 @@ var oxygen_gen_pos: Vector3 = Vector3(2.0, 0.2, -0.3)
 var gravity_device_pos: Vector3 = Vector3(-2.0, 0.2, 0.3)
 var storage_bin_pos: Vector3 = Vector3(1.8, 0.2, 1.6)
 var fabricator_pos: Vector3 = Vector3(1.8, 0.2, -1.4)
+var cloning_bay_pos: Vector3 = Vector3(-1.8, 0.2, 0.3)
+var starmap_pos: Vector3 = Vector3(-1.8, 0.2, 1.6)
+
+var module_damage_status: Dictionary = {
+	"hyperdrive": "damaged",
+	"oxygen_gen": "nominal",
+	"gravity_device": "nominal",
+	"propulsion": "nominal",
+	"cloning_bay": "nominal",
+	"starmap": "nominal"
+}
 
 var is_player_seated: bool = false
 var grav_ring_outer: Node3D = null
@@ -48,6 +59,38 @@ var hyperdrive_plasma_core: Node3D = null
 var hyperdrive_light: OmniLight3D = null
 var hyperdrive_status_light: OmniLight3D = null
 var cabin_modules_initialized: bool = false
+
+# Electrical Power & Exterior Solar Arrays
+var max_energy: float = 100.0
+var current_energy: float = 100.0
+var has_solar_generation: bool = true
+var solar_array_l: Node3D = null
+var solar_array_r: Node3D = null
+
+# O2 Canister Injectable Dock System (2 slots)
+var o2_tube_1_charge: float = 100.0
+var o2_tube_2_charge: float = 100.0
+var o2_tube_1_docked: bool = true
+var o2_tube_2_docked: bool = true
+var o2_tank_mesh_1: MeshInstance3D = null
+var o2_tank_mesh_2: MeshInstance3D = null
+var o2_led_band_1: MeshInstance3D = null
+var o2_led_band_2: MeshInstance3D = null
+
+# Space Flight & Orbital Parking Loop (Space Agency 2138 / Juno New Origins)
+enum FlightState {
+	LANDED,
+	LAUNCHING_TO_ORBIT,
+	PARKING_ORBIT,
+	INTERPLANETARY_TRANSIT,
+	LANDING_APPROACH
+}
+var flight_state: FlightState = FlightState.LANDED
+var target_destination_planet: Dictionary = {}
+var transit_duration_sec: float = 120.0
+var transit_timer: float = 0.0
+var orbital_cruise_speed: float = 0.0
+var launch_timer: float = 0.0
 
 # Crash pod integrity & environmental weathering
 var capsule_hull_hp: float = 100.0
@@ -74,6 +117,7 @@ func _ready() -> void:
 	interior_area.body_entered.connect(_on_cabin_entered)
 	interior_area.body_exited.connect(_on_cabin_exited)
 	_setup_cabin_modules()
+	_setup_exterior_solar_panels()
 	
 	if outer_cylinder and outer_cylinder.material:
 		active_hull_material = outer_cylinder.material.duplicate()
@@ -334,11 +378,82 @@ func _process(delta: float) -> void:
 		capsule_hull_hp = max(25.0, capsule_hull_hp - fluid_corrosion * delta)
 		_update_hazard_oxidation_visuals(planet, temp)
 
-	# 3. Safe Haven: vitals (O2, Suit Hull, Fuel) regenerate ONLY when hatch door is hermetically CLOSED!
+	# 3. Safe Haven: vitals (O2, Suit Hull, Fuel) regenerate ONLY when hatch door is hermetically CLOSED and ship has power!
 	if is_player_in_cabin and not is_hatch_open and not is_operating_hatch:
-		GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 60.0 * delta)
-		GameManager.player_stats.hull = min(100.0, GameManager.player_stats.hull + 35.0 * delta)
-		GameManager.player_stats.fuel = min(100.0, GameManager.player_stats.fuel + 45.0 * delta)
+		if current_energy > 0.0:
+			GameManager.player_stats.oxygen = min(100.0, GameManager.player_stats.oxygen + 60.0 * delta)
+			GameManager.player_stats.hull = min(100.0, GameManager.player_stats.hull + 35.0 * delta)
+			GameManager.player_stats.fuel = min(100.0, GameManager.player_stats.fuel + 45.0 * delta)
+
+	# 4. Electrical Grid & Solar Generation
+	if current_energy > 0.0:
+		if has_solar_generation:
+			current_energy = minf(max_energy, current_energy + 1.25 * delta)
+		current_energy = maxf(0.0, current_energy - 0.20 * delta) # Base cabin draw
+		
+		# 5. O2 Canister Injectable Dock Recharging (1% per second = 100 seconds per tube, 200 seconds both)
+		if o2_tube_1_docked and o2_tube_1_charge < 100.0:
+			o2_tube_1_charge = minf(100.0, o2_tube_1_charge + 1.0 * delta)
+			current_energy = maxf(0.0, current_energy - 0.12 * delta)
+		if o2_tube_2_docked and o2_tube_2_charge < 100.0:
+			o2_tube_2_charge = minf(100.0, o2_tube_2_charge + 1.0 * delta)
+			current_energy = maxf(0.0, current_energy - 0.12 * delta)
+	else:
+		current_energy = 0.0
+		if interior_light:
+			interior_light.light_color = Color(1.0, 0.2, 0.1)
+			interior_light.light_energy = 0.15
+
+	# 6. Space Flight State Machine
+	if flight_state == FlightState.LAUNCHING_TO_ORBIT:
+		launch_timer += delta
+		var up_launch = global_position.normalized()
+		global_position += up_launch * (24.0 * delta)
+		if is_player_seated and is_instance_valid(player_ref):
+			player_ref.global_position = to_global(pilot_seat_pos + Vector3(0.0, 0.20, -0.05))
+			player_ref.global_transform.basis = global_transform.basis
+			player_ref.velocity = Vector3.ZERO
+		if launch_timer >= 5.5:
+			reach_parking_orbit()
+	elif flight_state == FlightState.PARKING_ORBIT:
+		# Real Keplerian Orbital Mechanics: Orbit around planet at high altitude
+		var planet_node = get_tree().get_first_node_in_group("planet")
+		var p_center = planet_node.global_position if is_instance_valid(planet_node) else Vector3.ZERO
+		var p_radius = planet_node.get("radius") if is_instance_valid(planet_node) and planet_node.get("radius") != null else 160.0
+		var to_ship = global_position - p_center
+		var current_r = to_ship.length()
+		var target_orbit_r = p_radius + 120.0
+		
+		# Smoothly converge to target orbital radius
+		var r_diff = target_orbit_r - current_r
+		global_position += to_ship.normalized() * (r_diff * 1.5 * delta)
+		
+		# Tangential Keplerian orbit around orbital normal
+		var orbit_normal = Vector3.UP
+		var prograde = to_ship.cross(orbit_normal).normalized()
+		if prograde.length_squared() < 0.1:
+			orbit_normal = Vector3.RIGHT
+			prograde = to_ship.cross(orbit_normal).normalized()
+			
+		var orbital_speed = 18.0 # 18 m/s tangential velocity
+		global_position += prograde * (orbital_speed * delta)
+		
+		# Align ship attitude with prograde direction
+		global_transform.basis = Basis.looking_at(-prograde, to_ship.normalized()).orthonormalized()
+		
+		# Synchronize seated astronaut perfectly with the cockpit in microgravity
+		if is_player_seated and is_instance_valid(player_ref):
+			player_ref.global_position = to_global(pilot_seat_pos + Vector3(0.0, 0.20, -0.05))
+			player_ref.global_transform.basis = global_transform.basis
+			player_ref.velocity = Vector3.ZERO
+	elif flight_state == FlightState.INTERPLANETARY_TRANSIT:
+		transit_timer += delta
+		if is_player_seated and is_instance_valid(player_ref):
+			player_ref.global_position = to_global(pilot_seat_pos + Vector3(0.0, 0.20, -0.05))
+			player_ref.global_transform.basis = global_transform.basis
+			player_ref.velocity = Vector3.ZERO
+		if transit_timer >= transit_duration_sec:
+			initiate_automatic_landing(target_destination_planet)
 
 # Interaction prompt calculation based on exact player location
 func get_hatch_interaction_state(p: CharacterBody3D) -> String:
@@ -524,7 +639,9 @@ func get_cabin_module_interaction(p: CharacterBody3D) -> Dictionary:
 		{"type": "oxygen_gen", "pos": Vector2(oxygen_gen_pos.x, oxygen_gen_pos.z)},
 		{"type": "gravity_device", "pos": Vector2(gravity_device_pos.x, gravity_device_pos.z)},
 		{"type": "fabricator", "pos": Vector2(fabricator_pos.x, fabricator_pos.z)},
-		{"type": "storage", "pos": Vector2(storage_bin_pos.x, storage_bin_pos.z)}
+		{"type": "storage", "pos": Vector2(storage_bin_pos.x, storage_bin_pos.z)},
+		{"type": "cloning_bay", "pos": Vector2(cloning_bay_pos.x, cloning_bay_pos.z)},
+		{"type": "starmap", "pos": Vector2(starmap_pos.x, starmap_pos.z)}
 	]
 	
 	var closest_mod: String = ""
@@ -537,20 +654,32 @@ func get_cabin_module_interaction(p: CharacterBody3D) -> Dictionary:
 			
 	match closest_mod:
 		"pilot_seat":
-			var label = "💺 " + ("LEVANTARSE" if is_player_seated else "PILOTAR NAVE")
+			var label = ""
+			if not is_player_seated:
+				label = "💺 AS欧 EN CABINA [MANDO]"
+			elif flight_state == FlightState.LANDED:
+				label = "🚀 DESPEGAR A ÓRBITA SEGURA"
+			else:
+				label = "💺 LEVANTARSE DEL ASIENTO"
 			return {"type": "pilot_seat", "label": label, "target": self}
 		"hyperdrive":
 			var is_ready = GameManager.crafting.is_hyperdrive_complete()
 			var status = " [100%]" if is_ready else " [%d%%]" % int(GameManager.crafting.get_hyperdrive_progress() * 100)
 			return {"type": "hyperdrive", "label": "🚀 HYPERDRIVE" + status, "target": self}
 		"oxygen_gen":
-			return {"type": "oxygen_gen", "label": "🫁 GENERADOR O2 [100%]", "target": self}
+			var dmg = " [DAÑADO]" if module_damage_status.get("oxygen_gen") == "damaged" else " [100%]"
+			return {"type": "oxygen_gen", "label": "🫁 GENERADOR O2" + dmg, "target": self}
 		"gravity_device":
-			return {"type": "gravity_device", "label": "🌀 ESTABILIZADOR GRAVEDAD [1.0G]", "target": self}
+			var dmg = " [INCIERTO]" if module_damage_status.get("gravity_device") == "damaged" else " [1.0G]"
+			return {"type": "gravity_device", "label": "🌀 ESTABILIZADOR GRAVEDAD" + dmg, "target": self}
 		"fabricator":
 			return {"type": "fabricator", "label": "⚙ FABRICADOR DE PIEZAS", "target": self}
 		"storage":
 			return {"type": "storage", "label": "📦 ALMACÉN DE NAVE", "target": self}
+		"cloning_bay":
+			return {"type": "cloning_bay", "label": "🧬 BAHÍA DE CLONACIÓN [LISTA]", "target": self}
+		"starmap":
+			return {"type": "starmap", "label": "🗺️ MAPA ESTELAR [CARTOGRAFÍA]", "target": self}
 		
 	return {}
 
@@ -559,34 +688,80 @@ func toggle_pilot_seat(p: CharacterBody3D) -> void:
 		return
 	if not is_player_seated:
 		sit_in_pilot_seat(p)
+	elif flight_state == FlightState.LANDED:
+		launch_to_safe_orbit()
 	else:
 		stand_up_from_pilot_seat(p)
 
 func sit_in_pilot_seat(p: CharacterBody3D) -> void:
 	is_player_seated = true
-	var seat_world_pos = to_global(pilot_seat_pos + Vector3(0.0, 0.25, 0.0))
-	p.global_position = seat_world_pos
-	p.velocity = Vector3.ZERO
-	p.is_action_locked = true
+	var seat_world_pos = to_global(pilot_seat_pos + Vector3(0.0, 0.20, -0.05))
+	var seat_xf = global_transform
+	seat_xf.origin = seat_world_pos
+	if p.has_method("set_seated_in_cockpit"):
+		p.set_seated_in_cockpit(true, seat_xf)
+	else:
+		p.global_position = seat_world_pos
+		p.velocity = Vector3.ZERO
+		p.is_action_locked = true
 	AudioManager.play("click", 0.9, -1.0)
 	
 	var hud = get_tree().get_first_node_in_group("hud")
-	if hud and hud.has_method("show_status_toast"):
-		hud.show_status_toast("CABINA DE MANDO: Telemetría orbital y propulsores sincronizados.")
+	if hud and hud.has_method("open_cockpit_dialog"):
+		hud.open_cockpit_dialog(self)
+	elif hud and hud.has_method("show_status_toast"):
+		if flight_state == FlightState.LANDED:
+			hud.show_status_toast("CABINA DE MANDO: Telemetría lista. Despegue a órbita disponible.")
+		elif flight_state == FlightState.PARKING_ORBIT:
+			hud.show_status_toast("ÓRBITA ESTABLE: Maniobra manual y StarMap disponibles.")
 
 func stand_up_from_pilot_seat(p: CharacterBody3D) -> void:
 	is_player_seated = false
-	p.is_action_locked = false
-	var stand_pos = to_global(pilot_seat_pos + Vector3(0.0, 0.0, 0.8))
+	if p.has_method("set_seated_in_cockpit"):
+		p.set_seated_in_cockpit(false)
+	else:
+		p.is_action_locked = false
+	var stand_pos = to_global(pilot_seat_pos + Vector3(0.0, 0.0, 0.85))
 	p.global_position = stand_pos
 	AudioManager.play("click", 1.1, -1.0)
+	
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("close_cockpit_dialog"):
+		hud.close_cockpit_dialog()
 
 func activate_oxygen_generator(p: CharacterBody3D) -> void:
+	if current_energy <= 0.0:
+		AudioManager.play("click", 0.6, -2.0)
+		var hud = get_tree().get_first_node_in_group("hud")
+		if hud and hud.has_method("show_status_toast"):
+			hud.show_status_toast("SOPORTE VITAL APAGADO: Sin suministro eléctrico en la nave.")
+		return
+		
 	AudioManager.play("airlock", 1.2, -3.0)
 	GameManager.player_stats.oxygen = 100.0
+	
 	var hud = get_tree().get_first_node_in_group("hud")
-	if hud and hud.has_method("show_status_toast"):
-		hud.show_status_toast("SOPORTE VITAL: Generador de O₂ activo. Cabina presurizada al 100%.")
+	# Canister interaction: if player has a canister in inventory and generator has empty slot, dock it!
+	var has_canister_in_inv = GameManager.crafting and GameManager.crafting.get_item_count("o2_canister") > 0
+	if not o2_tube_1_docked and has_canister_in_inv:
+		dock_oxygen_canister(1)
+		if hud and hud.has_method("show_status_toast"):
+			hud.show_status_toast("SOPORTE VITAL: Tubo de O₂ acoplado en Ranura 1. Recargando...")
+	elif not o2_tube_2_docked and has_canister_in_inv:
+		dock_oxygen_canister(2)
+		if hud and hud.has_method("show_status_toast"):
+			hud.show_status_toast("SOPORTE VITAL: Tubo de O₂ acoplado en Ranura 2. Recargando...")
+	elif o2_tube_1_docked and o2_tube_1_charge >= 95.0:
+		withdraw_oxygen_canister(1)
+		if hud and hud.has_method("show_status_toast"):
+			hud.show_status_toast("SOPORTE VITAL: Barra de O₂ #1 retirada al inventario (100% carga).")
+	elif o2_tube_2_docked and o2_tube_2_charge >= 95.0:
+		withdraw_oxygen_canister(2)
+		if hud and hud.has_method("show_status_toast"):
+			hud.show_status_toast("SOPORTE VITAL: Barra de O₂ #2 retirada al inventario (100% carga).")
+	else:
+		if hud and hud.has_method("show_status_toast"):
+			hud.show_status_toast("SOPORTE VITAL: O₂ 100%% | Barra 1: %d%% | Barra 2: %d%%" % [int(o2_tube_1_charge), int(o2_tube_2_charge)])
 
 func activate_gravity_device(p: CharacterBody3D) -> void:
 	AudioManager.play("thruster", 1.8, -4.0)
@@ -767,11 +942,13 @@ func _setup_cabin_modules() -> void:
 	o2_tank1.mesh = t1_mesh
 	o2_tank1.position = Vector3(0.0, 0.9, -0.26)
 	o2_node.add_child(o2_tank1)
+	o2_tank_mesh_1 = o2_tank1
 	
 	var o2_tank2 = MeshInstance3D.new()
 	o2_tank2.mesh = t1_mesh
 	o2_tank2.position = Vector3(0.0, 0.9, 0.26)
 	o2_node.add_child(o2_tank2)
+	o2_tank_mesh_2 = o2_tank2
 	
 	var o2_band = MeshInstance3D.new()
 	var b_mesh = CylinderMesh.new()
@@ -782,11 +959,13 @@ func _setup_cabin_modules() -> void:
 	o2_band.mesh = b_mesh
 	o2_band.position = Vector3(0.0, 1.15, -0.26)
 	o2_node.add_child(o2_band)
+	o2_led_band_1 = o2_band
 	
 	var o2_band2 = MeshInstance3D.new()
 	o2_band2.mesh = b_mesh
 	o2_band2.position = Vector3(0.0, 1.15, 0.26)
 	o2_node.add_child(o2_band2)
+	o2_led_band_2 = o2_band2
 	
 	var o2_light = OmniLight3D.new()
 	o2_light.light_color = Color(0.2, 0.9, 1.0)
@@ -906,3 +1085,315 @@ func _setup_cabin_modules() -> void:
 	holo_pad.mesh = hp_mesh
 	holo_pad.position = Vector3(0.0, 0.72, 0.0)
 	fab_node.add_child(holo_pad)
+	
+	# 7. CLONING BAY (Bahía de Clonación Médica)
+	var clone_node = Node3D.new()
+	clone_node.name = "CloningBay"
+	clone_node.position = cloning_bay_pos
+	clone_node.add_to_group("cabin_module")
+	interior.add_child(clone_node)
+	
+	var clone_base = MeshInstance3D.new()
+	var cb_mesh = CylinderMesh.new()
+	cb_mesh.top_radius = 0.45
+	cb_mesh.bottom_radius = 0.50
+	cb_mesh.height = 0.22
+	cb_mesh.material = dark_trim
+	clone_base.mesh = cb_mesh
+	clone_base.position = Vector3(0.0, 0.11, 0.0)
+	clone_node.add_child(clone_base)
+	
+	var clone_capsule = MeshInstance3D.new()
+	var cc_mesh = CylinderMesh.new()
+	cc_mesh.top_radius = 0.38
+	cc_mesh.bottom_radius = 0.38
+	cc_mesh.height = 1.35
+	var bio_glass = StandardMaterial3D.new()
+	bio_glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bio_glass.albedo_color = Color(0.2, 0.9, 0.5, 0.45)
+	bio_glass.roughness = 0.15
+	bio_glass.emission_enabled = true
+	bio_glass.emission = Color(0.15, 0.85, 0.45)
+	bio_glass.emission_energy_multiplier = 1.2
+	clone_capsule.mesh = cc_mesh
+	clone_capsule.material_override = bio_glass
+	clone_capsule.position = Vector3(0.0, 0.85, 0.0)
+	clone_node.add_child(clone_capsule)
+	
+	var clone_light = OmniLight3D.new()
+	clone_light.light_color = Color(0.25, 0.95, 0.5)
+	clone_light.light_energy = 1.2
+	clone_light.omni_range = 2.5
+	clone_light.position = Vector3(0.0, 0.9, 0.0)
+	clone_node.add_child(clone_light)
+	
+	# 8. STARMAP (Consola de Navegación Cartográfica 3D)
+	var starmap_node = Node3D.new()
+	starmap_node.name = "StarMap"
+	starmap_node.position = starmap_pos
+	starmap_node.add_to_group("cabin_module")
+	interior.add_child(starmap_node)
+	
+	var sm_pedestal = MeshInstance3D.new()
+	var sm_p_mesh = CylinderMesh.new()
+	sm_p_mesh.top_radius = 0.35
+	sm_p_mesh.bottom_radius = 0.42
+	sm_p_mesh.height = 0.65
+	sm_p_mesh.material = dark_trim
+	sm_pedestal.mesh = sm_p_mesh
+	sm_pedestal.position = Vector3(0.0, 0.325, 0.0)
+	starmap_node.add_child(sm_pedestal)
+	
+	var sm_ring = MeshInstance3D.new()
+	var sm_r_mesh = TorusMesh.new()
+	sm_r_mesh.inner_radius = 0.28
+	sm_r_mesh.outer_radius = 0.32
+	sm_r_mesh.material = cyan_glow
+	sm_ring.mesh = sm_r_mesh
+	sm_ring.position = Vector3(0.0, 0.66, 0.0)
+	starmap_node.add_child(sm_ring)
+	
+	var mini_star = MeshInstance3D.new()
+	var ms_mesh = SphereMesh.new()
+	ms_mesh.radius = 0.08
+	ms_mesh.height = 0.16
+	var star_mat = StandardMaterial3D.new()
+	star_mat.albedo_color = Color(1.0, 0.9, 0.4)
+	star_mat.emission_enabled = true
+	star_mat.emission = Color(1.0, 0.85, 0.3)
+	star_mat.emission_energy_multiplier = 3.0
+	mini_star.mesh = ms_mesh
+	mini_star.material_override = star_mat
+	mini_star.position = Vector3(0.0, 0.88, 0.0)
+	starmap_node.add_child(mini_star)
+
+func get_cloning_bay_position() -> Vector3:
+	var interior = get_node_or_null("CabinInterior")
+	var cb = interior.get_node_or_null("CloningBay") if interior else null
+	if cb:
+		return cb.global_position
+	return to_global(cloning_bay_pos)
+
+func init_modules_for_difficulty(difficulty: int) -> void:
+	module_damage_status = {
+		"hyperdrive": "damaged",
+		"oxygen_gen": "nominal",
+		"gravity_device": "nominal",
+		"propulsion": "nominal",
+		"cloning_bay": "nominal",
+		"starmap": "nominal"
+	}
+	if difficulty >= 2:
+		module_damage_status["oxygen_gen"] = "damaged"
+	if difficulty >= 3:
+		module_damage_status["propulsion"] = "damaged"
+		module_damage_status["gravity_device"] = "damaged"
+
+func get_module_status(module_name: String) -> String:
+	return module_damage_status.get(module_name, "nominal")
+
+func repair_module(module_name: String) -> bool:
+	if not module_damage_status.has(module_name):
+		return false
+	if module_damage_status[module_name] == "nominal":
+		return true
+	module_damage_status[module_name] = "nominal"
+	AudioManager.play("craft", 1.0, 1.2)
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("MÓDULO REPARADO: %s nominal." % module_name.to_upper())
+	return true
+
+func update_exterior_engine_state(engine_state: String) -> void:
+	var flame = get_node_or_null("HullStructure/MainRocketEngine/FlamePivot/FlamePlume")
+	var sparks = get_node_or_null("HullStructure/MainRocketEngine/RocketSparks")
+	var light = get_node_or_null("HullStructure/MainRocketEngine/EngineLight")
+	match engine_state:
+		"off":
+			if flame: flame.visible = false
+			if sparks: sparks.emitting = false
+			if light: light.light_energy = 0.0
+		"warm":
+			if flame: flame.visible = true
+			if sparks: sparks.emitting = false
+			if light:
+				light.light_energy = 0.8
+				light.light_color = Color(1.0, 0.4, 0.1)
+		"burn", "ready":
+			if flame: flame.visible = true
+			if sparks: sparks.emitting = true
+			if light:
+				light.light_energy = 3.5
+				light.light_color = Color(0.3, 0.85, 1.0)
+
+# ----------------- Exterior Solar Arrays (Power Generation) -----------------
+func _setup_exterior_solar_panels() -> void:
+	var hull = get_node_or_null("HullStructure")
+	if not hull:
+		return
+		
+	var solar_mat = StandardMaterial3D.new()
+	solar_mat.albedo_color = Color(0.06, 0.14, 0.35)
+	solar_mat.metallic = 0.85
+	solar_mat.roughness = 0.18
+	solar_mat.emission_enabled = true
+	solar_mat.emission = Color(0.08, 0.22, 0.45)
+	solar_mat.emission_energy_multiplier = 0.4
+	
+	var frame_mat = StandardMaterial3D.new()
+	frame_mat.albedo_color = Color(0.75, 0.65, 0.25)
+	frame_mat.metallic = 0.9
+	frame_mat.roughness = 0.3
+	
+	# Left Wing Solar Array
+	var wing_l = Node3D.new()
+	wing_l.name = "SolarArrayLeft"
+	wing_l.position = Vector3(-3.2, 1.8, 0.0)
+	hull.add_child(wing_l)
+	solar_array_l = wing_l
+	
+	var boom_l = MeshInstance3D.new()
+	var b_mesh_l = BoxMesh.new()
+	b_mesh_l.size = Vector3(1.2, 0.1, 0.15)
+	b_mesh_l.material = frame_mat
+	boom_l.mesh = b_mesh_l
+	boom_l.position = Vector3(-0.6, 0.0, 0.0)
+	wing_l.add_child(boom_l)
+	
+	for seg in range(2):
+		var panel = MeshInstance3D.new()
+		var p_mesh = BoxMesh.new()
+		p_mesh.size = Vector3(1.1, 0.05, 1.8)
+		p_mesh.material = solar_mat
+		panel.mesh = p_mesh
+		panel.position = Vector3(-1.4 - float(seg) * 1.25, 0.0, 0.0)
+		wing_l.add_child(panel)
+		
+	# Right Wing Solar Array
+	var wing_r = Node3D.new()
+	wing_r.name = "SolarArrayRight"
+	wing_r.position = Vector3(3.2, 1.8, 0.0)
+	hull.add_child(wing_r)
+	solar_array_r = wing_r
+	
+	var boom_r = MeshInstance3D.new()
+	var b_mesh_r = BoxMesh.new()
+	b_mesh_r.size = Vector3(1.2, 0.1, 0.15)
+	b_mesh_r.material = frame_mat
+	boom_r.mesh = b_mesh_r
+	boom_r.position = Vector3(0.6, 0.0, 0.0)
+	wing_r.add_child(boom_r)
+	
+	for seg in range(2):
+		var panel = MeshInstance3D.new()
+		var p_mesh = BoxMesh.new()
+		p_mesh.size = Vector3(1.1, 0.05, 1.8)
+		p_mesh.material = solar_mat
+		panel.mesh = p_mesh
+		panel.position = Vector3(1.4 + float(seg) * 1.25, 0.0, 0.0)
+		wing_r.add_child(panel)
+
+# ----------------- Oxygen Injectable Canisters (2 Slots) -----------------
+func withdraw_oxygen_canister(slot_idx: int = 1) -> bool:
+	if slot_idx == 1:
+		if not o2_tube_1_docked:
+			return false
+		o2_tube_1_docked = false
+		if o2_tank_mesh_1: o2_tank_mesh_1.visible = false
+		if o2_led_band_1: o2_led_band_1.visible = false
+		if GameManager.crafting:
+			GameManager.crafting.add_item("o2_canister", 1)
+		AudioManager.play("click", 1.0, 0.0)
+		return true
+	elif slot_idx == 2:
+		if not o2_tube_2_docked:
+			return false
+		o2_tube_2_docked = false
+		if o2_tank_mesh_2: o2_tank_mesh_2.visible = false
+		if o2_led_band_2: o2_led_band_2.visible = false
+		if GameManager.crafting:
+			GameManager.crafting.add_item("o2_canister", 1)
+		AudioManager.play("click", 1.0, 0.0)
+		return true
+	return false
+
+func dock_oxygen_canister(slot_idx: int = 1) -> bool:
+	if not GameManager.crafting or GameManager.crafting.get_item_count("o2_canister") <= 0:
+		return false
+	if slot_idx == 1 and not o2_tube_1_docked:
+		o2_tube_1_docked = true
+		o2_tube_1_charge = 0.0
+		if o2_tank_mesh_1: o2_tank_mesh_1.visible = true
+		if o2_led_band_1: o2_led_band_1.visible = true
+		GameManager.crafting.consume_item("o2_canister", 1)
+		AudioManager.play("click", 1.0, 0.0)
+		return true
+	elif slot_idx == 2 and not o2_tube_2_docked:
+		o2_tube_2_docked = true
+		o2_tube_2_charge = 0.0
+		if o2_tank_mesh_2: o2_tank_mesh_2.visible = true
+		if o2_led_band_2: o2_led_band_2.visible = true
+		GameManager.crafting.consume_item("o2_canister", 1)
+		AudioManager.play("click", 1.0, 0.0)
+		return true
+	return false
+
+# ----------------- Space Agency 2138 / Juno New Origins Flight Loop -----------------
+func launch_to_safe_orbit() -> void:
+	if flight_state != FlightState.LANDED:
+		return
+	if is_hatch_open:
+		is_hatch_open = false
+		if hatch_node: hatch_node.rotation.x = 0.0
+		if boarding_ramp: boarding_ramp.rotation.x = 0.0
+	flight_state = FlightState.LAUNCHING_TO_ORBIT
+	launch_timer = 0.0
+	update_exterior_engine_state("burn")
+	AudioManager.play("thruster", 1.0, 0.0)
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("DESPEGUE A ÓRBITA • Motores principales encendidos...")
+
+func reach_parking_orbit() -> void:
+	flight_state = FlightState.PARKING_ORBIT
+	orbital_cruise_speed = 0.0
+	update_exterior_engine_state("warm")
+	AudioManager.play("docking", 1.0, 0.0)
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("ÓRBITA SEGURA ESTABLECIDA (220 km) • Controles espaciales manuales listos.")
+
+func apply_space_flight_controls(thrust: float, pitch: float, yaw: float, roll: float, delta: float) -> void:
+	if flight_state != FlightState.PARKING_ORBIT:
+		return
+	orbital_cruise_speed = clampf(orbital_cruise_speed + thrust * 25.0 * delta, -30.0, 150.0)
+	rotate_object_local(Vector3.UP, yaw * 1.2 * delta)
+	rotate_object_local(Vector3.RIGHT, pitch * 1.2 * delta)
+	rotate_object_local(Vector3.FORWARD, roll * 1.2 * delta)
+	global_position += -global_transform.basis.z * (orbital_cruise_speed * delta)
+	
+	# Atmospheric re-entry threshold detection (< 175m from planet center)
+	if global_position.length() < 175.0:
+		initiate_automatic_landing(GameManager.current_planet)
+
+func start_interplanetary_transfer(target_planet: Dictionary) -> void:
+	target_destination_planet = target_planet
+	flight_state = FlightState.INTERPLANETARY_TRANSIT
+	transit_timer = 0.0
+	transit_duration_sec = 120.0
+	update_exterior_engine_state("burn")
+	var p_name = target_planet.get("name", "Destino Estelar")
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("TRÁNSITO INTERPLANETARIO INICIADO • Rumbo a: %s (ETA: 2m 00s)" % p_name)
+
+func initiate_automatic_landing(target_planet: Dictionary) -> void:
+	flight_state = FlightState.LANDING_APPROACH
+	target_destination_planet = target_planet
+	update_exterior_engine_state("warm")
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("APROXIMACIÓN FINAL • Reentrada atmosférica y aterrizaje automático...")
+	GameManager.current_planet = target_planet
+	GameManager.save_game()
+	get_tree().change_scene_to_file("res://scenes/screens/loading_screen.tscn")

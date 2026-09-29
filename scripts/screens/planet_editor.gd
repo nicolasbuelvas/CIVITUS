@@ -19,49 +19,76 @@ const SolarSystemClass = preload("res://scripts/systems/solar_system.gd")
 @onready var class_desc_label: Label = $TopBar/HBox/StatusBox/ClassDescLabel
 
 # UI References - Customization Controls
-@onready var name_edit: LineEdit = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/NameBox/LineEdit
+@onready var name_label: Label = $ControlDock/PanelContainer/DockVBox/NameBox/NameLabel
+@onready var name_edit: LineEdit = $ControlDock/PanelContainer/DockVBox/NameBox/LineEdit
 
-@onready var radius_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox/Header/Label
-@onready var radius_val_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox/Header/ValLabel
-@onready var radius_slider: HSlider = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox/HSlider
+# Tabs
+@onready var tab_surface_btn: Button = $ControlDock/PanelContainer/DockVBox/TabBar/TabSurfaceBtn
+@onready var tab_atmo_btn: Button = $ControlDock/PanelContainer/DockVBox/TabBar/TabAtmoBtn
+@onready var tab_ocean_btn: Button = $ControlDock/PanelContainer/DockVBox/TabBar/TabOceanBtn
+@onready var tab_rings_btn: Button = $ControlDock/PanelContainer/DockVBox/TabBar/TabRingsBtn
 
-@onready var gravity_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox/Header/Label
-@onready var gravity_val_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox/Header/ValLabel
-@onready var gravity_slider: HSlider = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox/HSlider
+@onready var surface_view: VBoxContainer = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView
+@onready var atmo_view: VBoxContainer = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView
+@onready var ocean_view: VBoxContainer = $ControlDock/PanelContainer/DockVBox/TabViews/OceanView
+@onready var rings_view: VBoxContainer = $ControlDock/PanelContainer/DockVBox/TabViews/RingsView
 
-@onready var temp_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox/Header/Label
-@onready var temp_val_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox/Header/ValLabel
-@onready var temp_slider: HSlider = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox/HSlider
+# Surface Controls & Steppers
+@onready var radius_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox/Header/Label
+@onready var radius_val_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox/Header/ValLabel
+@onready var radius_dec_btn: Button = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox/StepperRow/DecBtn
+@onready var radius_slider: HSlider = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox/StepperRow/HSlider
+@onready var radius_inc_btn: Button = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox/StepperRow/IncBtn
 
-@onready var atmo_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox/Header/Label
-@onready var atmo_val_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox/Header/ValLabel
-@onready var atmo_slider: HSlider = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox/HSlider
+@onready var gravity_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox/Header/Label
+@onready var gravity_val_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox/Header/ValLabel
+@onready var gravity_dec_btn: Button = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox/StepperRow/DecBtn
+@onready var gravity_slider: HSlider = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox/StepperRow/HSlider
+@onready var gravity_inc_btn: Button = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox/StepperRow/IncBtn
 
-@onready var water_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox/Header/Label
-@onready var water_val_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox/Header/ValLabel
-@onready var water_slider: HSlider = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox/HSlider
+@onready var surface_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/SurfaceColorBox/Header/Label
+@onready var surface_picker: ColorPickerButton = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/SurfaceColorBox/Header/ColorPicker
+@onready var surface_swatches: HBoxContainer = $ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/SurfaceColorBox/SwatchesRow
 
-# Colors & Swatches
-@onready var surface_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox/Header/Label
-@onready var surface_picker: ColorPickerButton = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox/Header/ColorPicker
-@onready var surface_swatches: HBoxContainer = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox/SwatchesRow
+# Atmosphere Controls & Steppers
+@onready var atmo_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox/Header/Label
+@onready var atmo_val_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox/Header/ValLabel
+@onready var atmo_dec_btn: Button = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox/StepperRow/DecBtn
+@onready var atmo_slider: HSlider = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox/StepperRow/HSlider
+@onready var atmo_inc_btn: Button = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox/StepperRow/IncBtn
 
-@onready var atmo_color_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox/Header/Label
-@onready var atmo_picker: ColorPickerButton = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox/Header/ColorPicker
-@onready var atmo_swatches: HBoxContainer = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox/SwatchesRow
+@onready var temp_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox/Header/Label
+@onready var temp_val_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox/Header/ValLabel
+@onready var temp_dec_btn: Button = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox/StepperRow/DecBtn
+@onready var temp_slider: HSlider = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox/StepperRow/HSlider
+@onready var temp_inc_btn: Button = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox/StepperRow/IncBtn
 
-# Rings
-@onready var rings_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/Header/Label
-@onready var rings_toggle: CheckButton = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/Header/CheckButton
-@onready var rings_color_box: VBoxContainer = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox
-@onready var rings_color_label: Label = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox/Header/Label
-@onready var rings_picker: ColorPickerButton = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox/Header/ColorPicker
-@onready var rings_swatches: HBoxContainer = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox/SwatchesRow
+@onready var atmo_color_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoColorBox/Header/Label
+@onready var atmo_picker: ColorPickerButton = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoColorBox/Header/ColorPicker
+@onready var atmo_swatches: HBoxContainer = $ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoColorBox/SwatchesRow
+
+# Ocean Controls & Steppers
+@onready var water_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox/Header/Label
+@onready var water_val_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox/Header/ValLabel
+@onready var water_dec_btn: Button = $ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox/StepperRow/DecBtn
+@onready var water_slider: HSlider = $ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox/StepperRow/HSlider
+@onready var water_inc_btn: Button = $ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox/StepperRow/IncBtn
+@onready var ocean_desc_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/OceanView/OceanDescBox/Margin/DescLabel
+
+# Rings Controls
+@onready var rings_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsBox/Header/Label
+@onready var rings_toggle: CheckButton = $ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsBox/Header/CheckButton
+@onready var rings_color_box: VBoxContainer = $ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsColorBox
+@onready var rings_color_label: Label = $ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsColorBox/Header/Label
+@onready var rings_picker: ColorPickerButton = $ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsColorBox/Header/ColorPicker
+@onready var rings_swatches: HBoxContainer = $ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsColorBox/SwatchesRow
 
 # Bottom Action Buttons
-@onready var random_btn: Button = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/ActionButtons/RandomBtn
-@onready var launch_btn: Button = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/ActionButtons/LaunchBtn
-@onready var back_btn: Button = $ControlDock/PanelContainer/ScrollContainer/ControlsVBox/ActionButtons/BackBtn
+@onready var random_btn: Button = $ControlDock/PanelContainer/DockVBox/ActionButtons/RandomBtn
+@onready var launch_btn: Button = $ControlDock/PanelContainer/DockVBox/ActionButtons/LaunchBtn
+@onready var back_btn: Button = $ControlDock/PanelContainer/DockVBox/ActionButtons/BackBtn
+
+var current_editor_tab: String = "surface"
 
 # 360-Degree Free Spherical Rotation (Arcball / Basis model without gimbal lock)
 var planet_basis: Basis = Basis.IDENTITY
@@ -144,6 +171,28 @@ func _ready() -> void:
 	launch_btn.pressed.connect(_on_launch_pressed)
 	back_btn.pressed.connect(_on_back_pressed)
 
+	# Connect Tab Buttons
+	tab_surface_btn.pressed.connect(func(): _switch_editor_tab("surface"))
+	tab_atmo_btn.pressed.connect(func(): _switch_editor_tab("atmosphere"))
+	tab_ocean_btn.pressed.connect(func(): _switch_editor_tab("ocean"))
+	tab_rings_btn.pressed.connect(func(): _switch_editor_tab("rings"))
+
+	# Connect Stepper ◄/► Buttons
+	radius_dec_btn.pressed.connect(func(): radius_slider.value = clampf(radius_slider.value - 0.2, radius_slider.min_value, radius_slider.max_value))
+	radius_inc_btn.pressed.connect(func(): radius_slider.value = clampf(radius_slider.value + 0.2, radius_slider.min_value, radius_slider.max_value))
+
+	gravity_dec_btn.pressed.connect(func(): gravity_slider.value = clampf(gravity_slider.value - 0.5, gravity_slider.min_value, gravity_slider.max_value))
+	gravity_inc_btn.pressed.connect(func(): gravity_slider.value = clampf(gravity_slider.value + 0.5, gravity_slider.min_value, gravity_slider.max_value))
+
+	atmo_dec_btn.pressed.connect(func(): atmo_slider.value = clampf(atmo_slider.value - 0.05, atmo_slider.min_value, atmo_slider.max_value))
+	atmo_inc_btn.pressed.connect(func(): atmo_slider.value = clampf(atmo_slider.value + 0.05, atmo_slider.min_value, atmo_slider.max_value))
+
+	temp_dec_btn.pressed.connect(func(): temp_slider.value = clampf(temp_slider.value - 5.0, temp_slider.min_value, temp_slider.max_value))
+	temp_inc_btn.pressed.connect(func(): temp_slider.value = clampf(temp_slider.value + 5.0, temp_slider.min_value, temp_slider.max_value))
+
+	water_dec_btn.pressed.connect(func(): water_slider.value = clampf(water_slider.value - 0.04, water_slider.min_value, water_slider.max_value))
+	water_inc_btn.pressed.connect(func(): water_slider.value = clampf(water_slider.value + 0.04, water_slider.min_value, water_slider.max_value))
+
 	# Create quick swatch buttons
 	_build_swatch_buttons()
 
@@ -154,6 +203,19 @@ func _ready() -> void:
 	_apply_localization()
 	_update_slider_labels()
 	_update_planet_shaders()
+	_switch_editor_tab("surface")
+
+func _switch_editor_tab(tab_name: String) -> void:
+	current_editor_tab = tab_name
+	surface_view.visible = (tab_name == "surface")
+	atmo_view.visible = (tab_name == "atmosphere")
+	ocean_view.visible = (tab_name == "ocean")
+	rings_view.visible = (tab_name == "rings")
+	
+	tab_surface_btn.modulate = Color(1.0, 1.0, 1.0, 1.0) if tab_name == "surface" else Color(0.65, 0.72, 0.85, 0.75)
+	tab_atmo_btn.modulate = Color(1.0, 1.0, 1.0, 1.0) if tab_name == "atmosphere" else Color(0.65, 0.72, 0.85, 0.75)
+	tab_ocean_btn.modulate = Color(1.0, 1.0, 1.0, 1.0) if tab_name == "ocean" else Color(0.65, 0.72, 0.85, 0.75)
+	tab_rings_btn.modulate = Color(1.0, 1.0, 1.0, 1.0) if tab_name == "rings" else Color(0.65, 0.72, 0.85, 0.75)
 
 func _process(delta: float) -> void:
 	# Full 360-degree free spherical rotation in all directions
@@ -708,6 +770,13 @@ func build_planet_data() -> Dictionary:
 func _apply_localization() -> void:
 	title_label.text = GameManager.loc("architect_mode")
 	subtitle_label.text = GameManager.loc("editor_subtitle")
+	
+	tab_surface_btn.text = "[ %s ]" % GameManager.loc("tab_surface")
+	tab_atmo_btn.text = "[ %s ]" % GameManager.loc("tab_atmosphere")
+	tab_ocean_btn.text = "[ %s ]" % GameManager.loc("tab_ocean")
+	tab_rings_btn.text = "[ %s ]" % GameManager.loc("tab_rings")
+	if name_label:
+		name_label.text = "PLANETA:" if GameManager.current_language == "es" else "PLANET:"
 	
 	radius_label.text = GameManager.loc("radius_size")
 	gravity_label.text = GameManager.loc("gravity_label")

@@ -51,6 +51,9 @@ func _ready() -> void:
 	test_space_flight_energy_o2_and_save_wipe()
 	test_fauna_flora_rework_and_subterranean_mines()
 	test_cockpit_pilot_controls_keplerian_orbit_and_orbital_lod()
+	test_ten_system_journey_and_gargantua_black_hole()
+	test_ksp_orbital_piloting_loop_and_soi_reentry()
+	test_radial_streaming_drops_utility_and_astronaut_carrying()
 	
 	print("\n==========================================")
 	print("TEST RESULTS: %d PASSED, %d FAILED" % [passed_count, failed_count])
@@ -1287,6 +1290,7 @@ func test_hud_art_style_buttons_hyperdrive_and_body_inventory() -> void:
 	assert_true(hud.context_action_btn.text == "HYPERDRIVE", "Context button keeps untranslated 'HYPERDRIVE'")
 	
 	# Verify Hyperdrive Widget updates progress
+	c_sys.reset_inventory()
 	c_sys.init_level_requirements(0) # Need wrench: 1, wire: 2, uranium: 10
 	hud._update_hyperdrive_ui()
 	assert_almost_eq(hud.hyperdrive_badge.progress, 0.0, 0.01, "Hyperdrive progress initialized to 0%")
@@ -1481,10 +1485,15 @@ func test_vertical_menu_luna_coins_save_state_and_helmet_occupancy() -> void:
 	assert_true(act_box.offset_left < 150.0, "ActionButtons is aligned to the left side")
 	
 	var p_btn = act_box.get_node_or_null("PlayBtn")
+	if not p_btn: p_btn = act_box.get_node_or_null("PlayRow/PlayBtn")
 	var ed_btn = act_box.get_node_or_null("PlanetEditorBtn")
+	if not ed_btn: ed_btn = act_box.get_node_or_null("PlanetEditorRow/PlanetEditorBtn")
 	var st_btn = act_box.get_node_or_null("StoreBtn")
+	if not st_btn: st_btn = act_box.get_node_or_null("StoreRow/StoreBtn")
 	var set_btn = act_box.get_node_or_null("SettingsBtn")
+	if not set_btn: set_btn = act_box.get_node_or_null("SettingsRow/SettingsBtn")
 	var ex_btn = act_box.get_node_or_null("ExitBtn")
+	if not ex_btn: ex_btn = act_box.get_node_or_null("ExitRow/ExitBtn")
 	
 	assert_true(p_btn != null and p_btn.icon_type == CircularArtButton.IconType.PLAY, "Play button uses PLAY circular art symbol")
 	assert_true(ed_btn != null and ed_btn.icon_type == CircularArtButton.IconType.STARMAP, "Planet Editor button uses STARMAP circular art symbol")
@@ -1788,7 +1797,9 @@ func test_procedural_fauna_carrying_and_ecology() -> void:
 	
 	# Small size check
 	creature.creature_size = CreatureClass.CreatureSize.SMALL
-	assert_true(creature.can_be_carried(), "Small peaceful creature can be lifted and carried")
+	assert_true(not creature.can_be_carried(), "Unfed creature cannot be carried yet")
+	creature.is_fed = true
+	assert_true(creature.can_be_carried(), "Small peaceful fed creature can be lifted and carried")
 	
 	# Colossal size check
 	creature.creature_size = CreatureClass.CreatureSize.COLOSSAL
@@ -1820,6 +1831,7 @@ func test_procedural_fauna_carrying_and_ecology() -> void:
 	creature.creature_size = CreatureClass.CreatureSize.SMALL
 	creature.is_aggressive = false
 	creature.is_dead = false
+	creature.is_fed = true
 	
 	# Pick up
 	character.pick_up_creature(creature)
@@ -2255,6 +2267,9 @@ func test_fauna_flora_rework_and_subterranean_mines() -> void:
 	player.nearby_interactable = null
 	player.check_nearby_interactables()
 	assert_true(player.nearby_interactable == creature, "Player prioritizes nearby animal over distant ship hatch")
+	assert_true(player.current_interactable_type == "feed", "Interaction prompt for unfed animal is 'feed'")
+	creature.is_fed = true
+	player.check_nearby_interactables()
 	assert_true(player.current_interactable_type == "lift", "Interaction prompt for carryable animal is 'lift' (not 'open_hatch')")
 	
 	# Cleanup
@@ -2356,6 +2371,335 @@ func test_cockpit_pilot_controls_keplerian_orbit_and_orbital_lod() -> void:
 	hud.queue_free()
 	ship.queue_free()
 	player.queue_free()
+
+func test_ten_system_journey_and_gargantua_black_hole() -> void:
+	print("--- 41. Testing 10-System Journey & Gargantua Black Hole ---")
+	
+	# 1. Test escaped_systems_count tracking & persistence
+	GameManager.escaped_systems_count = 0
+	assert_true(GameManager.escaped_systems_count == 0, "Initial escaped_systems_count is 0")
+	
+	GameManager.escaped_systems_count = 3
+	GameManager.save_game()
+	var summary = GameManager.get_save_summary()
+	assert_true(summary.has("escaped_systems_count"), "Saved game summary contains 'escaped_systems_count'")
+	assert_true(int(summary.get("escaped_systems_count")) == 3, "Saved game summary accurately persists escaped_systems_count (3)")
+	
+	# Reset and test load_game restores count
+	GameManager.escaped_systems_count = 0
+	var load_ok = GameManager.load_game()
+	assert_true(load_ok == true, "Game loaded successfully")
+	assert_true(GameManager.escaped_systems_count == 3, "load_game() restored escaped_systems_count (3)")
+	
+	# 2. Systems 1 to 9: Procedural solar systems along the galactic corridor approaching the core
+	var sys_1 = SolarSystem.generate_system(12345, 0)
+	assert_true(sys_1.get("corridor_sector") == 1, "System 1 corridor sector is 1")
+	assert_true(sys_1.get("distance_to_core_ly") > 20000.0, "System 1 is far from core (>20,000 LY)")
+	assert_true(sys_1.get("is_gargantua") == false, "System 1 is procedural system, not Gargantua")
+	assert_true(sys_1.get("planets", []).size() >= 4, "System 1 has procedural planets")
+	
+	var sys_9 = SolarSystem.generate_system(67890, 8)
+	assert_true(sys_9.get("corridor_sector") == 9, "System 9 corridor sector is 9")
+	assert_true(sys_9.get("distance_to_core_ly") < 2000.0, "System 9 approaches galactic core (< 2,000 LY)")
+	assert_true(sys_9.get("distance_to_core_ly") < sys_1.get("distance_to_core_ly"), "Distance to core decreases along the corridor toward the center")
+	assert_true(sys_9.get("is_gargantua") == false, "System 9 is procedural corridor system, not Gargantua")
+	
+	# 3. System 10 (Gargantua): Supermassive Black Hole & Miller's Planet
+	var sys_10 = SolarSystem.generate_system(99999, 9)
+	assert_true(sys_10.get("is_gargantua") == true, "System 10 is flagged as Gargantua")
+	assert_true(sys_10.get("system_name") == "Gargantua", "System 10 is named 'Gargantua'")
+	assert_true(sys_10.get("corridor_sector") == 10, "System 10 is corridor sector 10")
+	assert_true(sys_10.get("distance_to_core_ly") == 0.0, "Gargantua sits at the center of the galactic core (0 LY)")
+	
+	# Gargantua Central Singularity properties
+	var bh = sys_10.get("star", {})
+	assert_true(bh.get("is_black_hole") == true, "Gargantua central body is flagged as black hole")
+	assert_true(bh.get("spectral_class") == "BH", "Spectral class is 'BH'")
+	assert_true(bh.get("has_accretion_disk") == true, "Gargantua possesses relativistic glowing accretion disk")
+	assert_true(bh.get("has_photon_sphere") == true, "Gargantua possesses photon sphere")
+	assert_true(bh.get("temperature") > 100000.0, "Accretion disk plasma temperature is relativistic (> 100,000 K)")
+	
+	# Exactly 1 extreme planetary body: Miller's Planet
+	var planets_10 = sys_10.get("planets", [])
+	assert_true(planets_10.size() == 1, "Gargantua system contains exactly 1 planetary body (Miller's planet)")
+	
+	var miller = planets_10[0]
+	assert_true(miller.get("name") == "Miller", "Sole planetary body is named 'Miller'")
+	assert_true(miller.get("is_ocean_world") == true, "Miller is flagged as 100% ocean world")
+	assert_true(miller.get("water_coverage") == 1.0, "Miller ocean coverage is 100% (pelagic world)")
+	assert_true(miller.get("time_dilation") == 61320.0, "Miller exhibits extreme relativistic time dilation (61,320x, 1h = 7y)")
+	assert_true(miller.get("has_tidal_waves") == true, "Miller features massive tidal waves")
+	assert_true(miller.get("tidal_wave_height") >= 100.0, "Miller tidal wave height is massive (>= 100m)")
+	assert_true(miller.get("gravity") == 1.30, "Miller gravity is extreme 1.30g")
+	assert_true(miller.get("water_threshold") == 0.0, "Miller water threshold submerges all raw topography")
+	
+	# 4. Outro sequence when hyperdrive leap is engaged in System 10
+	GameManager.escaped_systems_count = 9
+	GameManager.current_solar_system = sys_10
+	GameManager.current_planet = miller
+	
+	var victory_signal_received = [false]
+	var received_telemetry = [{}]
+	var outro_cb = func(telem):
+		victory_signal_received[0] = true
+		received_telemetry[0] = telem
+	GameManager.outro_sequence_triggered.connect(outro_cb)
+	
+	var outro_summary = GameManager.complete_expedition()
+	assert_true(victory_signal_received[0] == true, "outro_sequence_triggered signal emitted when hyperdrive leap engaged in System 10")
+	GameManager.outro_sequence_triggered.disconnect(outro_cb)
+	assert_true(GameManager.escaped_systems_count == 10, "escaped_systems_count reached 10 upon escaping Gargantua")
+	assert_true(outro_summary.get("status") == "ESCAPED THE EVENT HORIZON - HOMEWORLD RESTORED", "Outro sequence status matches 'ESCAPED THE EVENT HORIZON - HOMEWORLD RESTORED'")
+	assert_true(outro_summary.get("homeworld_restored") == true, "Homeworld restored confirmed in victory summary")
+	assert_true(outro_summary.has("telemetry"), "Victory summary contains technical telemetry")
+	assert_true(outro_summary.has("credits") and outro_summary.get("credits").size() > 0, "Victory summary contains credits roll")
+	
+	# 5. StarMap 3D visual checks for Black Hole (accretion disk & photon sphere meshes)
+	var orbits_view = SolarSystemOrbits3D.new()
+	add_child(orbits_view)
+	orbits_view.setup_system(sys_10, 0)
+	
+	var bh_star_mesh = orbits_view.star_mesh_instance
+	assert_true(bh_star_mesh != null, "Orbits view has star mesh instance")
+	var photon_sphere_node = bh_star_mesh.get_node_or_null("PhotonSphere")
+	var accretion_disk_node = bh_star_mesh.get_node_or_null("AccretionDisk")
+	assert_true(photon_sphere_node != null, "Gargantua 3D visualization contains PhotonSphere mesh")
+	assert_true(accretion_disk_node != null, "Gargantua 3D visualization contains AccretionDisk mesh")
+	
+	orbits_view.queue_free()
+
+func test_ksp_orbital_piloting_loop_and_soi_reentry() -> void:
+	print("--- 42. Testing KSP Space Flight, Orbital Thruster Piloting & SOI Re-entry Loop ---")
+	
+	var ship_scene = load("res://scenes/entities/spaceship_3d.tscn")
+	var ship = ship_scene.instantiate()
+	add_child(ship)
+	ship.global_position = Vector3(0.0, 163.2, 0.0)
+	
+	# 1. Launch from surface climbs through atmosphere to a stable circular parking orbit
+	assert_true(ship.flight_state == 0, "Ship starts on surface in LANDED state") # LANDED
+	ship.launch_to_safe_orbit()
+	assert_true(ship.flight_state == 1, "Ship transitions to LAUNCHING_TO_ORBIT state") # LAUNCHING_TO_ORBIT
+	assert_true(ship.is_camera_following_ship == true, "Camera tracking initiated to follow ship into orbit")
+	assert_true(ship.orbital_camera != null and ship.orbital_camera.current == true, "Orbital camera is active and following ship into orbit")
+	
+	# Simulate orbital reach
+	ship.reach_parking_orbit()
+	assert_true(ship.flight_state == 2, "Ship establishes stable circular PARKING_ORBIT outside atmosphere") # PARKING_ORBIT
+	assert_true(ship.orbital_cruise_speed > 0.0, "Parking orbit has circular orbital speed (18 m/s)")
+	assert_true(ship.orbital_camera.current == true, "Camera continues following ship in parking orbit")
+	
+	# 2. Player can pilot ship in orbit with thrusters (pitch/yaw/roll and prograde/retrograde impulse)
+	var init_basis = ship.global_transform.basis
+	ship.apply_space_flight_controls(0.0, 1.0, 0.0, 0.0, 0.1) # pitch
+	assert_true(ship.global_transform.basis != init_basis, "Pitch thruster impulse rotates ship attitude")
+	
+	var pitch_basis = ship.global_transform.basis
+	ship.apply_space_flight_controls(0.0, 0.0, 1.0, 0.0, 0.1) # yaw
+	assert_true(ship.global_transform.basis != pitch_basis, "Yaw thruster impulse rotates ship attitude")
+	
+	var yaw_basis = ship.global_transform.basis
+	ship.apply_space_flight_controls(0.0, 0.0, 0.0, 1.0, 0.1) # roll
+	assert_true(ship.global_transform.basis != yaw_basis, "Roll thruster impulse rotates ship attitude")
+	
+	# Prograde impulse accelerates orbital cruise speed
+	var base_speed = ship.orbital_cruise_speed
+	ship.apply_space_flight_controls(1.0, 0.0, 0.0, 0.0, 0.2) # prograde +thrust
+	assert_true(ship.orbital_cruise_speed > base_speed, "Prograde impulse increases orbital cruise speed")
+	
+	# Retrograde impulse decelerates orbital cruise speed
+	var boosted_speed = ship.orbital_cruise_speed
+	ship.apply_space_flight_controls(-1.0, 0.0, 0.0, 0.0, 0.2) # retrograde -thrust
+	assert_true(ship.orbital_cruise_speed < boosted_speed, "Retrograde impulse decelerates orbital cruise speed")
+	
+	# 3. Celestial body SOI (Sphere of Influence) and Atmospheric Re-entry Burn
+	ship.global_position = Vector3(0.0, 280.0, 0.0) # High parking orbit (altitude = 120m, inside 480m SOI)
+	var soi_high = ship.check_celestial_soi({"name": "Kerbin", "radius": 160.0})
+	assert_true(soi_high.get("in_soi") == true, "Ship detected inside celestial body Sphere of Influence (SOI)")
+	assert_true(soi_high.get("atmo_entered") == false, "High orbit (alt 120m) is outside atmospheric boundary (45m)")
+	
+	# Approach celestial body: enter atmospheric threshold (altitude <= 45.0m)
+	ship.global_position = Vector3(0.0, 195.0, 0.0) # 195m - 160m = 35m alt (inside atmosphere!)
+	var soi_atmo = ship.check_celestial_soi({"name": "Kerbin", "radius": 160.0})
+	assert_true(soi_atmo.get("atmo_entered") == true, "Approaching celestial body penetrates atmospheric boundary (alt <= 45m)")
+	
+	# Atmospheric re-entry burn initiation
+	ship.initiate_atmospheric_reentry({"name": "Kerbin", "radius": 160.0, "is_ocean_world": false})
+	assert_true(ship.flight_state == 4, "Flight state transitions to LANDING_APPROACH / REENTRY")
+	assert_true(ship.is_reentry_burn_active == true, "Atmospheric re-entry retro-burn is active")
+	
+	# Smooth transition to landing at the pole
+	var pole_landing_pos = ship.get_pole_landing_position({"radius": 160.0, "is_ocean_world": false})
+	assert_true(pole_landing_pos.is_equal_approx(Vector3(0.0, 163.2, 0.0)), "Polar landing pad aligns with North Pole platform (radius + 3.2m)")
+	
+	var landing_signaled = [false]
+	var landing_cb = func(): landing_signaled[0] = true
+	ship.landing_completed.connect(landing_cb)
+	ship.reach_surface_landing(pole_landing_pos)
+	
+	assert_true(ship.flight_state == 0, "Ship transitions to LANDED state upon touchdown")
+	assert_true(ship.global_position.is_equal_approx(pole_landing_pos), "Ship safely stationed on polar landing pad")
+	assert_true(ship.is_reentry_burn_active == false, "Atmospheric re-entry burn ceases upon landing")
+	assert_true(landing_signaled[0] == true, "landing_completed signal fired on polar touchdown")
+	ship.landing_completed.disconnect(landing_cb)
+	
+	ship.queue_free()
+
+func test_radial_streaming_drops_utility_and_astronaut_carrying() -> void:
+	print("--- 43. Testing Radial Streaming, Anti-Subsurface Snapping, Drops Utility & Carrying Poses ---")
+	
+	# 1. Radial Streaming (Performance: Cull beyond 35m)
+	var planet_script = load("res://scripts/world/spherical_planet.gd")
+	var planet = Node3D.new()
+	planet.set_script(planet_script)
+	planet.radius = 160.0
+	add_child(planet)
+	
+	# Create mock entities
+	var near_node = Node3D.new()
+	near_node.position = Vector3(0.0, 160.0, 10.0) # Dist 10m
+	planet.add_child(near_node)
+	planet.spawned_trees.append(near_node)
+	
+	var far_node = Node3D.new()
+	far_node.position = Vector3(0.0, 160.0, 60.0) # Dist 60m (> 40m, visible in distant LOD)
+	planet.add_child(far_node)
+	planet.spawned_flora.append(far_node)
+	
+	var occluded_node = Node3D.new()
+	occluded_node.position = Vector3(0.0, -160.0, 0.0) # Opposite side behind planetary horizon
+	planet.add_child(occluded_node)
+	planet.spawned_flora.append(occluded_node)
+	
+	var astro_ref = CharacterBody3D.new()
+	astro_ref.position = Vector3(0.0, 160.0, 0.0)
+	planet.add_child(astro_ref)
+	planet.player_instance = astro_ref
+	
+	planet.update_radial_streaming(astro_ref.global_position)
+	assert_true(near_node.visible == true, "Radial streaming: Entity <= 40m is visible and active")
+	assert_true(near_node.process_mode == Node.PROCESS_MODE_INHERIT, "Radial streaming: Entity <= 40m processes physics")
+	assert_true(far_node.visible == true, "LOD visibility: Distant entity in line of sight remains visible without pop-in")
+	assert_true(far_node.process_mode == Node.PROCESS_MODE_DISABLED, "LOD streaming: Distant entity disables heavy processing for 60fps")
+	assert_true(occluded_node.visible == false, "Horizon culling: Entity behind planetary curvature horizon is culled")
+	assert_true(occluded_node.process_mode == Node.PROCESS_MODE_DISABLED, "Horizon culling: Occluded entity disables processing")
+	
+	# 2. Anti-subsurface bug: Snapping to surface normal
+	var test_dir = Vector3(0.0, 1.0, 0.0)
+	var snap_info = planet.get_surface_snap(test_dir, 2.5)
+	assert_true(snap_info.has("position") and snap_info.has("normal"), "get_surface_snap returns position and normal")
+	var dist_from_center = (snap_info.position - planet.global_position).length()
+	assert_true(dist_from_center >= 160.0 + 2.5 - 0.01, "Anti-subsurface: Entity position firmly snaps on or above terrain crust")
+	assert_true(snap_info.normal.dot(test_dir) > 0.9, "Anti-subsurface: Surface normal points radially outward from core")
+	
+	planet.queue_free()
+	
+	# 3. Drops Utility in Crafting System
+	var cs = GameManager.crafting
+	for k in cs.inventory.keys():
+		cs.inventory[k] = 0
+	for k in cs.ship_storage.keys():
+		cs.ship_storage[k] = 0
+	for k in cs.body_slots.keys():
+		cs.body_slots[k] = {"item": "", "count": 0}
+	
+	# A. Alien Meat -> cooked_ration (Restores 35+ HP + 25+ O2)
+	cs.add_resource("alien_meat", 2)
+	assert_true(cs.can_craft("cooked_ration"), "Alien Meat unlocks cooked_ration crafting recipe")
+	assert_true(cs.craft("cooked_ration"), "Crafted cooked_ration from alien meat")
+	
+	# Test cooked_ration utility
+	GameManager.player_stats.hull = 40.0
+	GameManager.player_stats.oxygen = 40.0
+	assert_true(cs.use_consumable("cooked_ration"), "Cooked ration can be consumed")
+	assert_true(GameManager.player_stats.hull >= 75.0, "Cooked ration restores at least 35 HP vitality")
+	assert_true(GameManager.player_stats.oxygen >= 65.0, "Cooked ration replenishes at least 25 O2 reserves")
+	
+	# B. Alien Chitin -> suit_plating (+20 max hull or hull repair)
+	for k in cs.body_slots.keys(): cs.body_slots[k] = {"item": "", "count": 0}
+	for k in cs.inventory.keys(): cs.inventory[k] = 0
+	cs.add_resource("alien_chitin", 4)
+	assert_true(cs.can_craft("suit_plating"), "Alien Chitin unlocks suit_plating crafting recipe")
+	assert_true(cs.craft("suit_plating"), "Crafted suit_plating from alien chitin")
+	var prev_max_hull = float(GameManager.player_stats.get("max_hull", 100.0))
+	assert_true(cs.use_consumable("suit_plating"), "Suit plating can be applied to astronaut suit")
+	assert_true(is_equal_approx(float(GameManager.player_stats.get("max_hull", 100.0)), prev_max_hull + 20.0), "Suit plating reinforces astronaut hull by +20 max hull")
+	
+	# C. Alien Fang -> plasma_lens (Doubles mining tool speed)
+	for k in cs.body_slots.keys(): cs.body_slots[k] = {"item": "", "count": 0}
+	for k in cs.inventory.keys(): cs.inventory[k] = 0
+	cs.add_resource("alien_fang", 2)
+	assert_true(cs.can_craft("plasma_lens"), "Alien Fang unlocks plasma_lens crafting recipe")
+	assert_true(cs.craft("plasma_lens"), "Crafted plasma_lens from alien fang")
+	cs.use_consumable("plasma_lens")
+	assert_true(GameManager.player_stats.get("mining_speed_boost", 1.0) == 2.0, "Plasma lens doubles mining tool speed")
+	
+	# D. Plant Fibers -> sealant_paste (repairs suit breaches) & bio_fuel
+	for k in cs.body_slots.keys(): cs.body_slots[k] = {"item": "", "count": 0}
+	for k in cs.inventory.keys(): cs.inventory[k] = 0
+	cs.add_resource("plant_fibers", 4)
+	assert_true(cs.can_craft("sealant_paste"), "Plant Fibers unlock sealant_paste crafting recipe")
+	assert_true(cs.craft("sealant_paste"), "Crafted sealant_paste from plant fibers")
+	GameManager.player_stats.hull = 40.0
+	assert_true(cs.use_consumable("sealant_paste"), "Sealant paste seals breaches and restores hull")
+	assert_true(GameManager.player_stats.hull >= 70.0, "Sealant paste restores 35 hull")
+	
+	for k in cs.body_slots.keys(): cs.body_slots[k] = {"item": "", "count": 0}
+	for k in cs.inventory.keys(): cs.inventory[k] = 0
+	cs.add_resource("plant_fibers", 4)
+	assert_true(cs.can_craft("bio_fuel"), "Plant Fibers unlock bio_fuel crafting recipe")
+	assert_true(cs.craft("bio_fuel"), "Crafted bio_fuel from plant fibers")
+	GameManager.player_stats.fuel = 20.0
+	assert_true(cs.use_consumable("bio_fuel"), "Bio fuel can be injected into jetpack")
+	assert_true(GameManager.player_stats.fuel >= 50.0, "Bio fuel restores jetpack fuel")
+	
+	# E. Pearl Utility: Trade for 100 Luna Coins or hyperdrive catalyst
+	for k in cs.body_slots.keys(): cs.body_slots[k] = {"item": "", "count": 0}
+	for k in cs.inventory.keys(): cs.inventory[k] = 0
+	cs.add_resource("pearl", 2)
+	var prev_coins = GameManager.luna_coins
+	assert_true(cs.use_consumable("pearl"), "Pearl can be traded for Luna Coins")
+	assert_true(GameManager.luna_coins == prev_coins + 100, "Trading pearl awards 100 Luna Coins")
+	
+	for k in cs.body_slots.keys(): cs.body_slots[k] = {"item": "", "count": 0}
+	for k in cs.inventory.keys(): cs.inventory[k] = 0
+	cs.add_resource("pearl", 2)
+	assert_true(cs.can_craft("hyperdrive_catalyst"), "Pearl unlocks hyperdrive_catalyst crafting recipe")
+	assert_true(cs.craft("hyperdrive_catalyst"), "Crafted hyperdrive_catalyst using pearl")
+	
+	# 4. Astronaut Holding Poses & Helmet Docking
+	var astro_scene = load("res://scenes/entities/character_3d.tscn")
+	var astronaut = astro_scene.instantiate()
+	add_child(astronaut)
+	astronaut.target_zoom = 4.5
+	astronaut._check_fps_mode()
+	
+	# Scenario A: Hands free -> helmet cradled in front of chest
+	cs.body_slots["hand_left"] = {"item": "", "count": 0}
+	cs.body_slots["hand_right"] = {"item": "", "count": 0}
+	astronaut.set_suit_mode(false) # Inside cabin
+	assert_true(astronaut.get_occupied_hands_count() == 0, "Astronaut has both hands free")
+	assert_almost_eq(astronaut.helmet.position.y, astronaut.HELMET_HELD_POS.y, 0.05, "Helmet cradled in front of chest when both hands free")
+	assert_almost_eq(astronaut.left_arm.rotation.x, astronaut.LEFT_ARM_HELD_ROT.x, 0.05, "Left arm cradles helmet forward")
+	assert_almost_eq(astronaut.right_arm.rotation.x, astronaut.RIGHT_ARM_HELD_ROT.x, 0.05, "Right arm cradles helmet forward")
+	
+	# Scenario B: One hand carrying tool/mineral -> 1-hand pose, helmet docked to hip clip
+	cs.body_slots["hand_right"] = {"item": "iron", "count": 1}
+	astronaut.set_suit_mode(false)
+	assert_true(astronaut.get_occupied_hands_count() == 1, "Astronaut has one hand occupied")
+	assert_almost_eq(astronaut.helmet.position.x, astronaut.HELMET_HIP_POS.x, 0.05, "Helmet docked to magnetic hip clip when carrying item in 1 hand")
+	assert_true(astronaut.right_arm.rotation.x > 0.4, "1-hand carrying: Right arm angled forward holding resource")
+	assert_almost_eq(astronaut.left_arm.rotation.x, 0.0, 0.05, "1-hand carrying: Free left arm remains relaxed at side")
+	
+	# Scenario C: Both hands carrying -> 2-hand carrying pose
+	cs.body_slots["hand_left"] = {"item": "copper", "count": 1}
+	astronaut.set_suit_mode(false)
+	assert_true(astronaut.get_occupied_hands_count() == 2, "Astronaut has both hands occupied carrying resources")
+	assert_almost_eq(astronaut.helmet.position.x, astronaut.HELMET_HIP_R_POS.x, 0.05, "Helmet docked to magnetic hip clip when both hands occupied")
+	assert_true(astronaut.left_arm.rotation.x > 0.4, "2-hands carrying: Left arm braced forward carrying load")
+	assert_true(astronaut.right_arm.rotation.x > 0.4, "2-hands carrying: Right arm braced forward carrying load")
+	
+	astronaut.queue_free()
 
 
 

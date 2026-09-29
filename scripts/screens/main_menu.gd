@@ -21,14 +21,27 @@ var current_view: ViewState = ViewState.ROOT_MENU
 
 # UI References - Root Menu (Pure Game Art Symbology)
 @onready var root_layer: Control = $MenuLayer/RootLayer
+@onready var root_brand_box: VBoxContainer = $MenuLayer/RootLayer/BrandBox
 @onready var title_label: Label = $MenuLayer/RootLayer/BrandBox/Title
 @onready var subtitle_label: Label = $MenuLayer/RootLayer/BrandBox/Subtitle
+@onready var root_action_buttons: VBoxContainer = $MenuLayer/RootLayer/ActionButtons
 
-@onready var play_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/PlayBtn
-@onready var planet_editor_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/PlanetEditorBtn
-@onready var store_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/StoreBtn
-@onready var settings_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/SettingsBtn
-@onready var exit_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/ExitBtn
+@onready var play_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/PlayRow/PlayBtn
+@onready var planet_editor_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/PlanetEditorRow/PlanetEditorBtn
+@onready var store_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/StoreRow/StoreBtn
+@onready var settings_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/SettingsRow/SettingsBtn
+@onready var exit_btn: BaseButton = $MenuLayer/RootLayer/ActionButtons/ExitRow/ExitBtn
+
+@onready var play_title: Label = $MenuLayer/RootLayer/ActionButtons/PlayRow/PlayInfo/PlayTitle
+@onready var play_subtitle: Label = $MenuLayer/RootLayer/ActionButtons/PlayRow/PlayInfo/PlaySubtitle
+@onready var editor_title: Label = $MenuLayer/RootLayer/ActionButtons/PlanetEditorRow/EditorInfo/EditorTitle
+@onready var editor_subtitle: Label = $MenuLayer/RootLayer/ActionButtons/PlanetEditorRow/EditorInfo/EditorSubtitle
+@onready var store_title_label: Label = $MenuLayer/RootLayer/ActionButtons/StoreRow/StoreInfo/StoreTitle
+@onready var store_subtitle_label: Label = $MenuLayer/RootLayer/ActionButtons/StoreRow/StoreInfo/StoreSubtitle
+@onready var settings_title_row: Label = $MenuLayer/RootLayer/ActionButtons/SettingsRow/SettingsInfo/SettingsTitle
+@onready var settings_subtitle_row: Label = $MenuLayer/RootLayer/ActionButtons/SettingsRow/SettingsInfo/SettingsSubtitle
+@onready var exit_title: Label = $MenuLayer/RootLayer/ActionButtons/ExitRow/ExitInfo/ExitTitle
+@onready var exit_subtitle: Label = $MenuLayer/RootLayer/ActionButtons/ExitRow/ExitInfo/ExitSubtitle
 
 # UI References - Play Perspective (Only 2 options + Volver)
 @onready var play_select_layer: Control = $MenuLayer/PlaySelectLayer
@@ -86,6 +99,7 @@ var current_view: ViewState = ViewState.ROOT_MENU
 @onready var launch_btn: BaseButton = $MenuLayer/PlanetSelectorLayer/BottomDock/NavButtons/LaunchBtn
 
 # UI References - Settings Modal
+@onready var settings_dimmer: ColorRect = $MenuLayer/SettingsDimmer
 @onready var settings_modal: Panel = $MenuLayer/SettingsModal
 @onready var settings_title_label: Label = $MenuLayer/SettingsModal/VBox/Title
 @onready var lang_label: Label = $MenuLayer/SettingsModal/VBox/LangBox/Label
@@ -108,12 +122,15 @@ var current_view: ViewState = ViewState.ROOT_MENU
 @onready var close_settings_btn: Button = $MenuLayer/SettingsModal/VBox/ButtonRow/CloseSettingsBtn
 
 # UI References - Store Modal
+@onready var store_dimmer: ColorRect = $MenuLayer/StoreDimmer
 @onready var store_modal: Panel = $MenuLayer/StoreModal
 @onready var store_title: Label = $MenuLayer/StoreModal/VBox/HeaderRow/Title
 @onready var store_coins_badge: Label = $MenuLayer/StoreModal/VBox/HeaderRow/StoreCoinsBadge
+@onready var sector_notice_badge: Label = $MenuLayer/StoreModal/VBox/SectorNoticeBadge
 @onready var tab_skins_btn: Button = $MenuLayer/StoreModal/VBox/CategoryTabs/TabSkinsBtn
 @onready var tab_paints_btn: Button = $MenuLayer/StoreModal/VBox/CategoryTabs/TabPaintsBtn
 @onready var tab_packs_btn: Button = $MenuLayer/StoreModal/VBox/CategoryTabs/TabPacksBtn
+@onready var items_scroll: ScrollContainer = $MenuLayer/StoreModal/VBox/ItemsScroll
 @onready var store_items_container: VBoxContainer = $MenuLayer/StoreModal/VBox/ItemsScroll/ItemsContainer
 @onready var store_desc: Label = $MenuLayer/StoreModal/VBox/Desc
 @onready var buy_no_ads_btn: Button = $MenuLayer/StoreModal/VBox/BuyNoAdsBtn
@@ -122,6 +139,26 @@ var current_view: ViewState = ViewState.ROOT_MENU
 @onready var store_status_label: Label = $MenuLayer/StoreModal/VBox/StatusLabel
 @onready var restore_btn: Button = $MenuLayer/StoreModal/VBox/BottomRow/RestoreBtn
 @onready var close_store_btn: Button = $MenuLayer/StoreModal/VBox/BottomRow/CloseStoreBtn
+
+# 3D Showcase and Interactive Checkout
+var showcase_container: VBoxContainer = null
+var showcase_viewport: SubViewport = null
+var showcase_pivot: Node3D = null
+var showcase_cam: Camera3D = null
+var showcase_astronaut: Node3D = null
+var showcase_ship: Node3D = null
+var showcase_title_lbl: Label = null
+var showcase_desc_lbl: Label = null
+var showcase_action_btn: Button = null
+var current_suit_index: int = 0
+var current_ship_index: int = 0
+var is_dragging_showcase: bool = false
+var showcase_spin_vel_y: float = 0.35
+var showcase_spin_vel_x: float = 0.0
+
+var tab_active_sb: StyleBoxFlat = null
+var tab_inactive_sb: StyleBoxFlat = null
+var active_checkout_modal: Control = null
 
 # UI References - Ad Transmission Modal
 @onready var ad_modal: Panel = $MenuLayer/AdTransmissionModal
@@ -198,10 +235,68 @@ func _style_menu_button(btn: Button, border_color: Color, fill_color: Color = Co
 	btn.add_theme_stylebox_override("hover", sb_hover)
 	btn.add_theme_stylebox_override("pressed", sb_hover)
 
+func _set_modal_open_state(modal_open: bool) -> void:
+	if root_brand_box:
+		root_brand_box.visible = not modal_open
+	if root_action_buttons:
+		root_action_buttons.visible = not modal_open
+
 func _ready() -> void:
-	# Hide modals
-	settings_modal.visible = false
-	store_modal.visible = false
+	_init_tab_styles()
+	_setup_store_showcase()
+	
+	# Hide modals & full-screen dimmers
+	if settings_dimmer:
+		settings_dimmer.visible = false
+	if settings_modal:
+		settings_modal.visible = false
+	if store_dimmer:
+		store_dimmer.visible = false
+	if store_modal:
+		store_modal.visible = false
+	_set_modal_open_state(false)
+	
+	# Connect dimmer backdrops so clicking them safely dismisses modal
+	if settings_dimmer:
+		settings_dimmer.gui_input.connect(func(ev: InputEvent):
+			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+				_on_close_settings_pressed()
+		)
+	if store_dimmer:
+		store_dimmer.gui_input.connect(func(ev: InputEvent):
+			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+				_on_close_store_pressed()
+		)
+	
+	# Focus mode NONE on store tabs so no blue focus rectangles appear
+	if tab_skins_btn:
+		tab_skins_btn.focus_mode = Control.FOCUS_NONE
+	if tab_paints_btn:
+		tab_paints_btn.focus_mode = Control.FOCUS_NONE
+	if tab_packs_btn:
+		tab_packs_btn.focus_mode = Control.FOCUS_NONE
+	
+	# Connect row text clicks to corresponding buttons
+	for row_data in [
+		[get_node_or_null("MenuLayer/RootLayer/ActionButtons/PlayRow"), play_btn],
+		[get_node_or_null("MenuLayer/RootLayer/ActionButtons/PlanetEditorRow"), planet_editor_btn],
+		[get_node_or_null("MenuLayer/RootLayer/ActionButtons/StoreRow"), store_btn],
+		[get_node_or_null("MenuLayer/RootLayer/ActionButtons/SettingsRow"), settings_btn],
+		[get_node_or_null("MenuLayer/RootLayer/ActionButtons/ExitRow"), exit_btn]
+	]:
+		var r_node = row_data[0]
+		var b_node = row_data[1]
+		if r_node and b_node:
+			r_node.mouse_filter = Control.MOUSE_FILTER_PASS
+			var info_col = r_node.get_node_or_null(r_node.name.replace("Row", "Info"))
+			if not info_col and r_node.get_child_count() > 1:
+				info_col = r_node.get_child(1)
+			if info_col:
+				info_col.mouse_filter = Control.MOUSE_FILTER_PASS
+				info_col.gui_input.connect(func(ev: InputEvent):
+					if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+						b_node.emit_signal("pressed")
+				)
 	
 	# Top-Right Luna Coins Pill Badge (Circular icon with our game art + only the number!)
 	var root_layer = get_node_or_null("MenuLayer/RootLayer")
@@ -402,9 +497,30 @@ func _on_continue_pressed() -> void:
 	GameManager.load_game()
 
 func _apply_localization() -> void:
-	# Root Menu & Play Perspective Tooltips (No text buttons, pure symbology!)
+	# Root Menu & Play Perspective Tooltips and Labels
 	_update_continue_button()
 	play_btn.tooltip_text = "Jugar" if GameManager.current_language == "es" else "Play"
+	if play_title:
+		play_title.text = GameManager.loc("menu_play_title")
+	if play_subtitle:
+		play_subtitle.text = GameManager.loc("menu_play_sub")
+	if editor_title:
+		editor_title.text = GameManager.loc("menu_architect_title")
+	if editor_subtitle:
+		editor_subtitle.text = GameManager.loc("menu_architect_sub")
+	if store_title_label:
+		store_title_label.text = GameManager.loc("menu_store_title")
+	if store_subtitle_label:
+		store_subtitle_label.text = GameManager.loc("menu_store_sub")
+	if settings_title_row:
+		settings_title_row.text = GameManager.loc("menu_settings_title")
+	if settings_subtitle_row:
+		settings_subtitle_row.text = GameManager.loc("menu_settings_sub")
+	if exit_title:
+		exit_title.text = GameManager.loc("menu_exit_title")
+	if exit_subtitle:
+		exit_subtitle.text = GameManager.loc("menu_exit_sub")
+		
 	if new_game_btn:
 		new_game_btn.tooltip_text = "Nueva Partida" if GameManager.current_language == "es" else "New Game"
 	if continue_btn:
@@ -436,19 +552,25 @@ func _apply_localization() -> void:
 	if next_planet_btn:
 		next_planet_btn.tooltip_text = "Planeta Siguiente" if GameManager.current_language == "es" else "Next Planet"
 	
-	# Settings Modal
-	settings_title_label.text = GameManager.loc("settings_title")
-	lang_label.text = GameManager.loc("lang_label")
-	master_label.text = GameManager.loc("vol_master")
-	music_label.text = GameManager.loc("vol_music")
-	sfx_label.text = GameManager.loc("vol_sfx")
-	save_settings_btn.text = GameManager.loc("save_btn")
-	reset_defaults_btn.text = GameManager.loc("reset_defaults")
-	close_settings_btn.text = GameManager.loc("discard_btn")
+	# Settings Modal (Pure Iconography Style)
+	settings_title_label.text = "[ ⬡  ⚙  ⬡ ]"
+	lang_label.text = "🌐"
+	master_label.text = "🔊"
+	music_label.text = "🎵"
+	sfx_label.text = "⚡"
+	save_settings_btn.text = "✓"
+	reset_defaults_btn.text = "↺"
+	close_settings_btn.text = "✕"
 	
 	# Store Modal
 	store_title.text = GameManager.loc("store_title")
 	store_desc.text = GameManager.loc("store_desc")
+	if tab_skins_btn:
+		tab_skins_btn.text = GameManager.loc("tab_suits")
+	if tab_paints_btn:
+		tab_paints_btn.text = GameManager.loc("tab_thrusters")
+	if tab_packs_btn:
+		tab_packs_btn.text = GameManager.loc("tab_packs")
 	if buy_no_ads_btn:
 		buy_no_ads_btn.text = GameManager.loc("buy_no_ads")
 	if buy_full_game_btn:
@@ -522,6 +644,15 @@ func _show_view(new_view: ViewState) -> void:
 			_refresh_solar_system_ui()
 
 func _process(delta: float) -> void:
+	# 3D Store Showcase Turntable Spin
+	if showcase_pivot and showcase_container and showcase_container.visible:
+		if not is_dragging_showcase:
+			showcase_spin_vel_y = lerp(showcase_spin_vel_y, 0.35, delta * 2.0)
+			showcase_spin_vel_x = lerp(showcase_spin_vel_x, 0.0, delta * 3.0)
+			showcase_pivot.rotate_y(showcase_spin_vel_y * delta)
+			if abs(showcase_spin_vel_x) > 0.0001:
+				showcase_pivot.rotate_object_local(Vector3.RIGHT, showcase_spin_vel_x * delta)
+
 	# Menu & Play Perspective: Stationary camera ("YO no giro con el"), 3D planet spins in-place
 	if current_view == ViewState.ROOT_MENU or current_view == ViewState.PLAY_SELECT:
 		if camera_3d:
@@ -1104,24 +1235,688 @@ func _on_launch_pressed() -> void:
 
 # ----------------- Settings & Store Modals (Mutual Exclusivity) -----------------
 
+# Subsystems Settings State
+var settings_tab_idx: int = 0
+var tab_btn_audio: Button
+var tab_btn_graphics: Button
+var tab_btn_controls: Button
+var tab_btn_system: Button
+var settings_subsystem_container: VBoxContainer
+var sub_panel_audio: VBoxContainer
+var sub_panel_graphics: VBoxContainer
+var sub_panel_controls: VBoxContainer
+var sub_panel_system: VBoxContainer
+
+var lang_btn_es: Button
+var lang_btn_en: Button
+var fps_btn_30: Button
+var fps_btn_60: Button
+var fps_btn_max: Button
+var preset_btn_eco: Button
+var preset_btn_med: Button
+var preset_btn_high: Button
+var invert_y_btn: Button
+
 func _setup_settings_ui() -> void:
-	lang_option.clear()
-	lang_option.add_item("Español", 0)
-	lang_option.add_item("English", 1)
-	lang_option.selected = 0 if GameManager.current_language == "es" else 1
-	lang_option.item_selected.connect(_on_lang_selected)
+	# 1. Holographic Aerospace Modal Styling
+	var panel_sb = StyleBoxFlat.new()
+	panel_sb.bg_color = Color(0.06, 0.05, 0.12, 0.96)
+	panel_sb.border_color = Color(0.96, 0.66, 0.16, 0.90) # Amber circuit rim
+	panel_sb.border_width_left = 2
+	panel_sb.border_width_top = 2
+	panel_sb.border_width_right = 2
+	panel_sb.border_width_bottom = 2
+	panel_sb.corner_radius_top_left = 14
+	panel_sb.corner_radius_top_right = 14
+	panel_sb.corner_radius_bottom_left = 14
+	panel_sb.corner_radius_bottom_right = 14
+	panel_sb.shadow_color = Color(0.0, 0.0, 0.0, 0.65)
+	panel_sb.shadow_size = 20
+	settings_modal.add_theme_stylebox_override("panel", panel_sb)
+	settings_modal.custom_minimum_size = Vector2(520, 0)
 	
+	if settings_title_label:
+		settings_title_label.text = "[ ⬡  AJUSTES // SETTINGS  ⬡ ]"
+		settings_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		settings_title_label.add_theme_color_override("font_color", Color(0.96, 0.72, 0.22))
+		settings_title_label.add_theme_font_size_override("font_size", 16)
+
+	# 2. Build or Reconfigure Subsystem Tabs
+	var vbox = settings_modal.get_node_or_null("VBox")
+	if not vbox: return
+	vbox.add_theme_constant_override("separation", 10)
+	
+	# Hide legacy LangBox, MasterBox, MusicBox, SfxBox directly
+	var old_lang = vbox.get_node_or_null("LangBox")
+	if old_lang: old_lang.visible = false
+	var old_master = vbox.get_node_or_null("MasterBox")
+	if old_master: old_master.visible = false
+	var old_music = vbox.get_node_or_null("MusicBox")
+	if old_music: old_music.visible = false
+	var old_sfx = vbox.get_node_or_null("SfxBox")
+	if old_sfx: old_sfx.visible = false
+
+	# Clean Tab Header Bar
+	var tab_bar = vbox.get_node_or_null("SubsystemTabBar") as HBoxContainer
+	if not tab_bar:
+		tab_bar = HBoxContainer.new()
+		tab_bar.name = "SubsystemTabBar"
+		tab_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+		tab_bar.add_theme_constant_override("separation", 8)
+		vbox.add_child(tab_bar)
+		vbox.move_child(tab_bar, 1)
+		
+		tab_btn_audio = _create_tab_button("🔊 AUDIO")
+		tab_btn_graphics = _create_tab_button("🖥️ VIDEO")
+		tab_btn_controls = _create_tab_button("🎮 CONTROLES")
+		tab_btn_system = _create_tab_button("🌐 SISTEMA")
+		
+		tab_bar.add_child(tab_btn_audio)
+		tab_bar.add_child(tab_btn_graphics)
+		tab_bar.add_child(tab_btn_controls)
+		tab_bar.add_child(tab_btn_system)
+		
+		tab_btn_audio.pressed.connect(func(): _switch_settings_tab(0))
+		tab_btn_graphics.pressed.connect(func(): _switch_settings_tab(1))
+		tab_btn_controls.pressed.connect(func(): _switch_settings_tab(2))
+		tab_btn_system.pressed.connect(func(): _switch_settings_tab(3))
+
+	# Container for the 4 Subsystem Panels (adaptive size, zero dead space)
+	settings_subsystem_container = vbox.get_node_or_null("Subsystems") as VBoxContainer
+	if not settings_subsystem_container:
+		settings_subsystem_container = VBoxContainer.new()
+		settings_subsystem_container.name = "Subsystems"
+		settings_subsystem_container.custom_minimum_size = Vector2(490, 0)
+		vbox.add_child(settings_subsystem_container)
+		vbox.move_child(settings_subsystem_container, 2)
+		
+		_build_subsystem_panels()
+
+	_switch_settings_tab(0)
+
+	# 3. Action Buttons
+	var btn_save_sb = StyleBoxFlat.new()
+	btn_save_sb.bg_color = Color(0.12, 0.38, 0.22, 0.95)
+	btn_save_sb.border_color = Color(0.25, 0.95, 0.45)
+	btn_save_sb.set_border_width_all(2)
+	btn_save_sb.set_corner_radius_all(8)
+	save_settings_btn.text = "✓"
+	save_settings_btn.custom_minimum_size = Vector2(80, 38)
+	save_settings_btn.add_theme_stylebox_override("normal", btn_save_sb)
+	save_settings_btn.add_theme_font_size_override("font_size", 18)
+
+	var btn_reset_sb = StyleBoxFlat.new()
+	btn_reset_sb.bg_color = Color(0.1, 0.2, 0.32, 0.95)
+	btn_reset_sb.border_color = Color(0.3, 0.8, 1.0)
+	btn_reset_sb.set_border_width_all(2)
+	btn_reset_sb.set_corner_radius_all(8)
+	reset_defaults_btn.text = "↺"
+	reset_defaults_btn.custom_minimum_size = Vector2(80, 38)
+	reset_defaults_btn.add_theme_stylebox_override("normal", btn_reset_sb)
+	reset_defaults_btn.add_theme_font_size_override("font_size", 18)
+	reset_defaults_btn.pressed.connect(Callable(self, "_on_reset_defaults_pressed"))
+
+	var btn_close_sb = StyleBoxFlat.new()
+	btn_close_sb.bg_color = Color(0.32, 0.1, 0.12, 0.95)
+	btn_close_sb.border_color = Color(0.95, 0.35, 0.35)
+	btn_close_sb.set_border_width_all(2)
+	btn_close_sb.set_corner_radius_all(8)
+	close_settings_btn.text = "✕"
+	close_settings_btn.custom_minimum_size = Vector2(80, 38)
+	close_settings_btn.add_theme_stylebox_override("normal", btn_close_sb)
+	close_settings_btn.add_theme_font_size_override("font_size", 18)
+
+func _create_tab_button(label: String) -> Button:
+	var btn = Button.new()
+	btn.text = label
+	btn.custom_minimum_size = Vector2(105, 32)
+	btn.focus_mode = Control.FOCUS_NONE
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(0.10, 0.12, 0.18, 0.9)
+	sb.border_color = Color(0.3, 0.4, 0.55, 0.8)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(6)
+	btn.add_theme_stylebox_override("normal", sb)
+	btn.add_theme_font_size_override("font_size", 11)
+	return btn
+
+func _switch_settings_tab(idx: int) -> void:
+	settings_tab_idx = idx
+	var tabs = [tab_btn_audio, tab_btn_graphics, tab_btn_controls, tab_btn_system]
+	var panels = [sub_panel_audio, sub_panel_graphics, sub_panel_controls, sub_panel_system]
+	
+	for i in range(tabs.size()):
+		var btn = tabs[i]
+		var pnl = panels[i]
+		if not is_instance_valid(btn) or not is_instance_valid(pnl): continue
+		var is_active = (i == idx)
+		pnl.visible = is_active
+		
+		var sb = StyleBoxFlat.new()
+		if is_active:
+			sb.bg_color = Color(0.18, 0.24, 0.38, 0.95)
+			sb.border_color = Color(0.96, 0.66, 0.16) # Amber glow
+			sb.set_border_width_all(2)
+			btn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+		else:
+			sb.bg_color = Color(0.08, 0.10, 0.16, 0.85)
+			sb.border_color = Color(0.25, 0.30, 0.42, 0.6)
+			sb.set_border_width_all(1)
+			btn.add_theme_color_override("font_color", Color(0.65, 0.72, 0.85))
+		sb.set_corner_radius_all(6)
+		btn.add_theme_stylebox_override("normal", sb)
+	
+	_adapt_modal_size()
+
+func _adapt_modal_size() -> void:
+	if not is_instance_valid(settings_modal): return
+	var vbox = settings_modal.get_node_or_null("VBox") as VBoxContainer
+	if not vbox: return
+	vbox.reset_size()
+	var min_h = vbox.get_combined_minimum_size().y + 44.0
+	var min_w = 520.0
+	settings_modal.offset_left = -min_w * 0.5
+	settings_modal.offset_right = min_w * 0.5
+	settings_modal.offset_top = -min_h * 0.5
+	settings_modal.offset_bottom = min_h * 0.5
+
+func _build_subsystem_panels() -> void:
+	# Shared styleboxes
+	var track_sb = StyleBoxFlat.new()
+	track_sb.bg_color = Color(0.12, 0.14, 0.22, 0.9)
+	track_sb.set_corner_radius_all(4)
+	track_sb.content_margin_top = 4
+	track_sb.content_margin_bottom = 4
+
+	var fill_sb = StyleBoxFlat.new()
+	fill_sb.bg_color = Color(0.2, 0.85, 1.0, 0.95)
+	fill_sb.corner_radius_top_left = 4
+	fill_sb.corner_radius_bottom_left = 4
+	fill_sb.content_margin_top = 4
+	fill_sb.content_margin_bottom = 4
+
+	var val_badge_sb = StyleBoxFlat.new()
+	val_badge_sb.bg_color = Color(0.09, 0.11, 0.18, 0.9)
+	val_badge_sb.border_color = Color(0.2, 0.85, 1.0, 0.6)
+	val_badge_sb.set_border_width_all(1)
+	val_badge_sb.set_corner_radius_all(6)
+	val_badge_sb.content_margin_left = 6
+	val_badge_sb.content_margin_right = 6
+
+	# --- 1. Audio Subsystem Panel ---
+	sub_panel_audio = VBoxContainer.new()
+	sub_panel_audio.name = "AudioPanel"
+	sub_panel_audio.add_theme_constant_override("separation", 10)
+	settings_subsystem_container.add_child(sub_panel_audio)
+	
+	sub_panel_audio.add_child(_create_slider_row("🔊", "MASTER", master_slider, master_val_label, track_sb, fill_sb, val_badge_sb))
+	sub_panel_audio.add_child(_create_slider_row("🎵", "MÚSICA", music_slider, music_val_label, track_sb, fill_sb, val_badge_sb))
+	sub_panel_audio.add_child(_create_slider_row("⚡", "EFECTOS", sfx_slider, sfx_val_label, track_sb, fill_sb, val_badge_sb))
+
+	# Connect audio sliders
 	master_slider.value = GameManager.master_volume
 	music_slider.value = GameManager.music_volume
 	sfx_slider.value = GameManager.sfx_volume
-	
 	_update_slider_labels()
-	
 	master_slider.value_changed.connect(_on_master_slider_changed)
 	music_slider.value_changed.connect(_on_music_slider_changed)
 	sfx_slider.value_changed.connect(_on_sfx_slider_changed)
+
+	# --- 2. Graphics Subsystem Panel ---
+	sub_panel_graphics = VBoxContainer.new()
+	sub_panel_graphics.name = "GraphicsPanel"
+	sub_panel_graphics.add_theme_constant_override("separation", 10)
+	settings_subsystem_container.add_child(sub_panel_graphics)
 	
-	reset_defaults_btn.pressed.connect(Callable(self, "_on_reset_defaults_pressed"))
+	# FPS Row
+	var fps_row = HBoxContainer.new()
+	var fps_lbl = Label.new()
+	fps_lbl.text = "⏱️ FPS // LÍMITE:"
+	fps_lbl.custom_minimum_size = Vector2(170, 28)
+	fps_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	fps_row.add_child(fps_lbl)
+	
+	fps_btn_30 = _create_pill_button("30")
+	fps_btn_60 = _create_pill_button("60")
+	fps_btn_max = _create_pill_button("MAX")
+	fps_row.add_child(fps_btn_30)
+	fps_row.add_child(fps_btn_60)
+	fps_row.add_child(fps_btn_max)
+	fps_btn_30.pressed.connect(func(): _set_fps_limit(30))
+	fps_btn_60.pressed.connect(func(): _set_fps_limit(60))
+	fps_btn_max.pressed.connect(func(): _set_fps_limit(0))
+	sub_panel_graphics.add_child(fps_row)
+	_update_fps_pills(Engine.max_fps)
+
+	# Presets Row
+	var pres_row = HBoxContainer.new()
+	var pres_lbl = Label.new()
+	pres_lbl.text = "🖥️ CALIDAD // SHADERS:"
+	pres_lbl.custom_minimum_size = Vector2(170, 28)
+	pres_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	pres_row.add_child(pres_lbl)
+	
+	preset_btn_eco = _create_pill_button("ECO")
+	preset_btn_med = _create_pill_button("MEDIO")
+	preset_btn_high = _create_pill_button("ALTO")
+	pres_row.add_child(preset_btn_eco)
+	pres_row.add_child(preset_btn_med)
+	pres_row.add_child(preset_btn_high)
+	preset_btn_eco.pressed.connect(func(): _set_quality_preset(0))
+	preset_btn_med.pressed.connect(func(): _set_quality_preset(1))
+	preset_btn_high.pressed.connect(func(): _set_quality_preset(2))
+	sub_panel_graphics.add_child(pres_row)
+	_update_preset_pills(1)
+
+	# Bloom / Visor Glow Row
+	var bloom_row = HBoxContainer.new()
+	var bloom_lbl = Label.new()
+	bloom_lbl.text = "✨ BRILLO VISOR / BLOOM:"
+	bloom_lbl.custom_minimum_size = Vector2(170, 28)
+	bloom_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	bloom_row.add_child(bloom_lbl)
+	var bloom_btn = _create_pill_button("ACTIVO")
+	bloom_row.add_child(bloom_btn)
+	bloom_btn.pressed.connect(func():
+		var is_on = bloom_btn.text == "ACTIVO"
+		bloom_btn.text = "DESACTIVADO" if is_on else "ACTIVO"
+		_style_pill(bloom_btn, not is_on)
+		GameManager.update_setting("bloom_enabled", not is_on)
+	)
+	_style_pill(bloom_btn, true)
+	sub_panel_graphics.add_child(bloom_row)
+
+	# --- 3. Controls Subsystem Panel ---
+	sub_panel_controls = VBoxContainer.new()
+	sub_panel_controls.name = "ControlsPanel"
+	sub_panel_controls.add_theme_constant_override("separation", 10)
+	settings_subsystem_container.add_child(sub_panel_controls)
+	
+	# Invert Y Row
+	var inv_row = HBoxContainer.new()
+	var inv_lbl = Label.new()
+	inv_lbl.text = "🎮 INVERTIR EJE Y:"
+	inv_lbl.custom_minimum_size = Vector2(170, 28)
+	inv_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	inv_row.add_child(inv_lbl)
+	invert_y_btn = _create_pill_button("NORMAL")
+	inv_row.add_child(invert_y_btn)
+	invert_y_btn.pressed.connect(func():
+		var is_inv = invert_y_btn.text == "INVERTIDO"
+		invert_y_btn.text = "NORMAL" if is_inv else "INVERTIDO"
+		_style_pill(invert_y_btn, not is_inv)
+		GameManager.update_setting("invert_y", not is_inv)
+	)
+	sub_panel_controls.add_child(inv_row)
+
+	# Mobile Touch Scale Row
+	var scale_row = HBoxContainer.new()
+	var scale_lbl = Label.new()
+	scale_lbl.text = "📱 TAMAÑO CONTROLES:"
+	scale_lbl.custom_minimum_size = Vector2(170, 28)
+	scale_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	scale_row.add_child(scale_lbl)
+	var scale_s = _create_pill_button("CHICO")
+	var scale_m = _create_pill_button("NORMAL")
+	var scale_l = _create_pill_button("GRANDE")
+	scale_row.add_child(scale_s)
+	scale_row.add_child(scale_m)
+	scale_row.add_child(scale_l)
+	scale_s.pressed.connect(func():
+		GameManager.update_setting("touch_scale", 0.85)
+		_style_pill(scale_s, true); _style_pill(scale_m, false); _style_pill(scale_l, false)
+	)
+	scale_m.pressed.connect(func():
+		GameManager.update_setting("touch_scale", 1.0)
+		_style_pill(scale_s, false); _style_pill(scale_m, true); _style_pill(scale_l, false)
+	)
+	scale_l.pressed.connect(func():
+		GameManager.update_setting("touch_scale", 1.2)
+		_style_pill(scale_s, false); _style_pill(scale_m, false); _style_pill(scale_l, true)
+	)
+	_style_pill(scale_m, true)
+	sub_panel_controls.add_child(scale_row)
+
+	# Open Interactive HUD Layout Editor Button
+	var edit_row = HBoxContainer.new()
+	edit_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var edit_btn = _create_pill_button("🎮 ABRIR EDITOR Y VISTA PREVIA DE CONTROLES")
+	edit_btn.custom_minimum_size = Vector2(340, 36)
+	edit_row.add_child(edit_btn)
+	edit_btn.pressed.connect(func():
+		AudioManager.play("click")
+		_open_control_layout_editor()
+	)
+	sub_panel_controls.add_child(edit_row)
+
+	# Reset Controls Layout Row
+	var rst_ctrl_row = HBoxContainer.new()
+	rst_ctrl_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var rst_ctrl_btn = _create_pill_button("↺ RESTABLECER DISTRIBUCIÓN DE FÁBRICA")
+	rst_ctrl_btn.custom_minimum_size = Vector2(340, 32)
+	rst_ctrl_row.add_child(rst_ctrl_btn)
+	rst_ctrl_btn.pressed.connect(func():
+		AudioManager.play("click")
+		GameManager.update_setting("touch_scale", 1.0)
+		GameManager.update_setting("invert_y", false)
+		GameManager.update_setting("custom_touch_layout", {})
+		_style_pill(scale_s, false); _style_pill(scale_m, true); _style_pill(scale_l, false)
+		invert_y_btn.text = "NORMAL"
+		_style_pill(invert_y_btn, false)
+	)
+	sub_panel_controls.add_child(rst_ctrl_row)
+
+	# --- 4. System & Language Subsystem Panel ---
+	sub_panel_system = VBoxContainer.new()
+	sub_panel_system.name = "SystemPanel"
+	sub_panel_system.add_theme_constant_override("separation", 10)
+	settings_subsystem_container.add_child(sub_panel_system)
+	
+	# Language Selector Row
+	var lang_row = HBoxContainer.new()
+	var lang_title = Label.new()
+	lang_title.text = "🌐 IDIOMA // LANGUAGE:"
+	lang_title.custom_minimum_size = Vector2(170, 32)
+	lang_title.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	lang_row.add_child(lang_title)
+	
+	lang_btn_es = _create_pill_button("🇪🇸 ESPAÑOL")
+	lang_btn_es.custom_minimum_size = Vector2(120, 32)
+	lang_btn_en = _create_pill_button("🇬🇧 ENGLISH")
+	lang_btn_en.custom_minimum_size = Vector2(120, 32)
+	lang_row.add_child(lang_btn_es)
+	lang_row.add_child(lang_btn_en)
+	lang_btn_es.pressed.connect(func(): _set_language_pill("es"))
+	lang_btn_en.pressed.connect(func(): _set_language_pill("en"))
+	sub_panel_system.add_child(lang_row)
+	_update_language_pills()
+
+	# Units Row
+	var unit_row = HBoxContainer.new()
+	var unit_lbl = Label.new()
+	unit_lbl.text = "🌡️ UNIDADES DE MEDIDA:"
+	unit_lbl.custom_minimum_size = Vector2(170, 28)
+	unit_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	unit_row.add_child(unit_lbl)
+	var unit_c = _create_pill_button("°C / METRO")
+	unit_c.custom_minimum_size = Vector2(120, 32)
+	var unit_k = _create_pill_button("K / KILÓMETRO")
+	unit_k.custom_minimum_size = Vector2(120, 32)
+	unit_row.add_child(unit_c)
+	unit_row.add_child(unit_k)
+	unit_c.pressed.connect(func():
+		GameManager.update_setting("units", "metric")
+		_style_pill(unit_c, true); _style_pill(unit_k, false)
+	)
+	unit_k.pressed.connect(func():
+		GameManager.update_setting("units", "kelvin")
+		_style_pill(unit_c, false); _style_pill(unit_k, true)
+	)
+	_style_pill(unit_c, true)
+	sub_panel_system.add_child(unit_row)
+
+	# System Version info
+	var ver_row = HBoxContainer.new()
+	ver_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var ver_lbl = Label.new()
+	ver_lbl.text = "CIVITUS v1.4.0 • SISTEMA MÓVIL // SHIPATON BUILD"
+	ver_lbl.add_theme_color_override("font_color", Color(0.45, 0.55, 0.70))
+	ver_lbl.add_theme_font_size_override("font_size", 10)
+	ver_row.add_child(ver_lbl)
+	sub_panel_system.add_child(ver_row)
+
+var hud_layout_editor_modal: Control = null
+
+func _open_control_layout_editor() -> void:
+	if is_instance_valid(hud_layout_editor_modal):
+		hud_layout_editor_modal.queue_free()
+		
+	hud_layout_editor_modal = Control.new()
+	hud_layout_editor_modal.name = "HUDLayoutEditor"
+	hud_layout_editor_modal.set_anchors_preset(Control.PRESET_FULL_RECT)
+	$MenuLayer.add_child(hud_layout_editor_modal)
+	
+	# Backdrop
+	var bg = ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.02, 0.03, 0.07, 0.94)
+	hud_layout_editor_modal.add_child(bg)
+	
+	# Top Toolbar
+	var top_bar = PanelContainer.new()
+	top_bar.custom_minimum_size = Vector2(720, 52)
+	top_bar.position = Vector2((1280 - 720) * 0.5, 16)
+	var tb_sb = StyleBoxFlat.new()
+	tb_sb.bg_color = Color(0.08, 0.1, 0.18, 0.95)
+	tb_sb.border_color = Color(0.96, 0.66, 0.16)
+	tb_sb.set_border_width_all(2)
+	tb_sb.set_corner_radius_all(10)
+	top_bar.add_theme_stylebox_override("panel", tb_sb)
+	hud_layout_editor_modal.add_child(top_bar)
+	
+	var tb_hbox = HBoxContainer.new()
+	tb_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	tb_hbox.add_theme_constant_override("separation", 16)
+	top_bar.add_child(tb_hbox)
+	
+	var title = Label.new()
+	title.text = "[ 🎮 ARRASTRA LOS BOTONES PARA EDITAR SU POSICIÓN ]"
+	title.add_theme_color_override("font_color", Color(0.2, 0.85, 1.0))
+	tb_hbox.add_child(title)
+	
+	var btn_rst = _create_pill_button("↺ RESTABLECER")
+	var btn_save = _create_pill_button("✓ GUARDAR")
+	var btn_close = _create_pill_button("✕ SALIR")
+	tb_hbox.add_child(btn_rst)
+	tb_hbox.add_child(btn_save)
+	tb_hbox.add_child(btn_close)
+	
+	# Draggable Widget Container
+	var widgets_container = Control.new()
+	widgets_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hud_layout_editor_modal.add_child(widgets_container)
+	
+	var default_positions = {
+		"joystick": Vector2(80, 500),
+		"jump": Vector2(1160, 560),
+		"laser": Vector2(1060, 600),
+		"sprint": Vector2(1160, 440),
+		"backpack": Vector2(1060, 480),
+		"starmap": Vector2(640, 40)
+	}
+	
+	var current_layout = GameManager.load_setting("custom_touch_layout", default_positions.duplicate())
+	var widget_nodes = {}
+	
+	for key in default_positions.keys():
+		var w = _create_draggable_hud_widget(key, current_layout.get(key, default_positions[key]))
+		widgets_container.add_child(w)
+		widget_nodes[key] = w
+		
+	btn_rst.pressed.connect(func():
+		AudioManager.play("click")
+		for k in default_positions.keys():
+			widget_nodes[k].position = default_positions[k]
+	)
+	btn_save.pressed.connect(func():
+		AudioManager.play("click")
+		var saved_layout = {}
+		for k in widget_nodes.keys():
+			saved_layout[k] = widget_nodes[k].position
+		GameManager.update_setting("custom_touch_layout", saved_layout)
+		hud_layout_editor_modal.queue_free()
+	)
+	btn_close.pressed.connect(func():
+		AudioManager.play("click")
+		hud_layout_editor_modal.queue_free()
+	)
+
+func _create_draggable_hud_widget(key: String, initial_pos: Vector2) -> Control:
+	var w = Control.new()
+	w.custom_minimum_size = Vector2(68, 68)
+	w.size = Vector2(68, 68)
+	w.position = initial_pos
+	
+	var art_btn = CircularArtButton.new()
+	art_btn.custom_minimum_size = Vector2(68, 68)
+	art_btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	match key:
+		"joystick": art_btn.icon_name = "controls"
+		"jump": art_btn.icon_name = "thrust"
+		"laser": art_btn.icon_name = "mine"
+		"sprint": art_btn.icon_name = "sprint"
+		"backpack": art_btn.icon_name = "backpack"
+		"starmap": art_btn.icon_name = "starmap"
+	w.add_child(art_btn)
+	
+	var border = ReferenceRect.new()
+	border.set_anchors_preset(Control.PRESET_FULL_RECT)
+	border.border_color = Color(0.2, 0.85, 1.0, 0.8)
+	border.border_width = 1.5
+	border.editor_only = false
+	border.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	w.add_child(border)
+	
+	var dragging = false
+	var drag_offset = Vector2.ZERO
+	w.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton:
+			if ev.button_index == MOUSE_BUTTON_LEFT:
+				if ev.pressed:
+					dragging = true
+					drag_offset = ev.position
+				else:
+					dragging = false
+		elif ev is InputEventMouseMotion and dragging:
+			w.position += ev.position - drag_offset
+			w.position.x = clampf(w.position.x, 20.0, 1280.0 - 88.0)
+			w.position.y = clampf(w.position.y, 20.0, 720.0 - 88.0)
+		elif ev is InputEventScreenTouch:
+			if ev.pressed:
+				dragging = true
+				drag_offset = ev.position
+			else:
+				dragging = false
+		elif ev is InputEventScreenDrag and dragging:
+			w.position += ev.relative
+			w.position.x = clampf(w.position.x, 20.0, 1280.0 - 88.0)
+			w.position.y = clampf(w.position.y, 20.0, 720.0 - 88.0)
+	)
+	return w
+
+func _create_slider_row(icon_char: String, label_str: String, sld: HSlider, val_lbl: Label, track_sb: StyleBox, fill_sb: StyleBox, badge_sb: StyleBox) -> HBoxContainer:
+	var row = HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	
+	var icn = Label.new()
+	icn.text = icon_char
+	icn.custom_minimum_size = Vector2(28, 28)
+	icn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	row.add_child(icn)
+	
+	var lbl = Label.new()
+	lbl.text = label_str
+	lbl.custom_minimum_size = Vector2(110, 28)
+	lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	lbl.add_theme_font_size_override("font_size", 11)
+	row.add_child(lbl)
+	
+	# Reparent slider and val label into this new row
+	if sld.get_parent():
+		sld.get_parent().remove_child(sld)
+	sld.add_theme_stylebox_override("slider", track_sb)
+	sld.add_theme_stylebox_override("grabber_area", fill_sb)
+	sld.add_theme_stylebox_override("grabber_area_highlight", fill_sb)
+	sld.custom_minimum_size = Vector2(200, 24)
+	sld.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(sld)
+	
+	if val_lbl.get_parent():
+		val_lbl.get_parent().remove_child(val_lbl)
+	val_lbl.add_theme_stylebox_override("normal", badge_sb)
+	val_lbl.add_theme_color_override("font_color", Color(0.2, 0.85, 1.0))
+	val_lbl.custom_minimum_size = Vector2(50, 24)
+	val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	row.add_child(val_lbl)
+	
+	return row
+
+func _create_pill_button(label: String) -> Button:
+	var btn = Button.new()
+	btn.text = label
+	btn.custom_minimum_size = Vector2(80, 30)
+	btn.focus_mode = Control.FOCUS_NONE
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(0.10, 0.12, 0.18, 0.9)
+	sb.border_color = Color(0.25, 0.35, 0.50, 0.8)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(6)
+	btn.add_theme_stylebox_override("normal", sb)
+	btn.add_theme_font_size_override("font_size", 11)
+	return btn
+
+func _set_language_pill(lang: String) -> void:
+	AudioManager.play("click")
+	GameManager.set_language(lang)
+	_update_language_pills()
+
+func _update_language_pills() -> void:
+	var is_es = (GameManager.current_language == "es")
+	_style_pill(lang_btn_es, is_es)
+	_style_pill(lang_btn_en, not is_es)
+
+func _set_fps_limit(fps: int) -> void:
+	AudioManager.play("click")
+	Engine.max_fps = fps
+	GameManager.update_setting("max_fps", fps)
+	_update_fps_pills(fps)
+
+func _update_fps_pills(fps: int) -> void:
+	_style_pill(fps_btn_30, fps == 30)
+	_style_pill(fps_btn_60, fps == 60)
+	_style_pill(fps_btn_max, fps <= 0 or fps > 60)
+
+func _set_quality_preset(level: int) -> void:
+	AudioManager.play("click")
+	_update_preset_pills(level)
+	GameManager.update_setting("quality_preset", level)
+	var vp = get_viewport()
+	if vp:
+		match level:
+			0: # ECO (Mobile low power)
+				vp.scaling_3d_scale = 0.75
+				RenderingServer.viewport_set_msaa_3d(vp.get_viewport_rid(), RenderingServer.VIEWPORT_MSAA_DISABLED)
+				RenderingServer.directional_shadow_atlas_set_size(1024, true)
+			1: # MEDIO (Mobile 60fps balanced)
+				vp.scaling_3d_scale = 1.0
+				RenderingServer.viewport_set_msaa_3d(vp.get_viewport_rid(), RenderingServer.VIEWPORT_MSAA_2X)
+				RenderingServer.directional_shadow_atlas_set_size(2048, true)
+			2: # ALTO (Full Fidelity)
+				vp.scaling_3d_scale = 1.0
+				RenderingServer.viewport_set_msaa_3d(vp.get_viewport_rid(), RenderingServer.VIEWPORT_MSAA_4X)
+				RenderingServer.directional_shadow_atlas_set_size(4096, true)
+
+func _update_preset_pills(level: int) -> void:
+	_style_pill(preset_btn_eco, level == 0)
+	_style_pill(preset_btn_med, level == 1)
+	_style_pill(preset_btn_high, level == 2)
+
+func _style_pill(btn: Button, is_active: bool) -> void:
+	if not is_instance_valid(btn): return
+	var sb = StyleBoxFlat.new()
+	if is_active:
+		sb.bg_color = Color(0.18, 0.26, 0.42, 0.95)
+		sb.border_color = Color(0.96, 0.66, 0.16) # Amber selected
+		sb.set_border_width_all(2)
+		btn.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4))
+	else:
+		sb.bg_color = Color(0.08, 0.10, 0.16, 0.85)
+		sb.border_color = Color(0.25, 0.30, 0.42, 0.6)
+		sb.set_border_width_all(1)
+		btn.add_theme_color_override("font_color", Color(0.65, 0.72, 0.85))
+	sb.set_corner_radius_all(6)
+	btn.add_theme_stylebox_override("normal", sb)
 
 func _update_slider_labels() -> void:
 	master_val_label.text = "%d%%" % int(master_slider.value * 100)
@@ -1131,7 +1926,10 @@ func _update_slider_labels() -> void:
 func _on_settings_pressed() -> void:
 	AudioManager.play("click")
 	# Mutual exclusivity: Close store if open
-	store_modal.visible = false
+	if store_modal:
+		store_modal.visible = false
+	if store_dimmer:
+		store_dimmer.visible = false
 	
 	# Cache current settings for Discard/Close
 	cached_master = GameManager.master_volume
@@ -1142,10 +1940,15 @@ func _on_settings_pressed() -> void:
 	master_slider.value = cached_master
 	music_slider.value = cached_music
 	sfx_slider.value = cached_sfx
-	lang_option.selected = 0 if cached_lang == "es" else 1
+	if lang_option: lang_option.selected = 0 if cached_lang == "es" else 1
+	_update_language_pills()
 	_update_slider_labels()
 	
+	if settings_dimmer:
+		settings_dimmer.visible = true
 	settings_modal.visible = true
+	_adapt_modal_size()
+	_set_modal_open_state(true)
 
 func _on_save_settings_pressed() -> void:
 	AudioManager.play("click")
@@ -1153,7 +1956,10 @@ func _on_save_settings_pressed() -> void:
 	GameManager.music_volume = music_slider.value
 	GameManager.sfx_volume = sfx_slider.value
 	GameManager.save_settings()
+	if settings_dimmer:
+		settings_dimmer.visible = false
 	settings_modal.visible = false
+	_set_modal_open_state(false)
 
 func _on_close_settings_pressed() -> void:
 	AudioManager.play("click")
@@ -1164,7 +1970,10 @@ func _on_close_settings_pressed() -> void:
 	if GameManager.current_language != cached_lang:
 		GameManager.set_language(cached_lang)
 	GameManager._apply_audio_bus_volumes()
+	if settings_dimmer:
+		settings_dimmer.visible = false
 	settings_modal.visible = false
+	_set_modal_open_state(false)
 
 func _on_reset_defaults_pressed() -> void:
 	AudioManager.play("click")
@@ -1173,7 +1982,10 @@ func _on_reset_defaults_pressed() -> void:
 	music_slider.value = GameManager.music_volume
 	sfx_slider.value = GameManager.sfx_volume
 	_update_slider_labels()
-	lang_option.selected = 0
+	if lang_option: lang_option.selected = 0 if GameManager.current_language == "es" else 1
+	_update_language_pills()
+	_update_fps_pills(60)
+	_update_preset_pills(1)
 	cached_master = GameManager.master_volume
 	cached_music = GameManager.music_volume
 	cached_sfx = GameManager.sfx_volume
@@ -1194,9 +2006,16 @@ func _on_master_slider_changed(val: float) -> void:
 
 func _on_music_slider_changed(val: float) -> void:
 	music_val_label.text = "%d%%" % int(val * 100)
+	GameManager.music_volume = val
 	var idx = AudioServer.get_bus_index("Music")
 	if idx >= 0:
-		AudioServer.set_bus_volume_db(idx, linear_to_db(val))
+		AudioServer.set_bus_mute(idx, val <= 0.001)
+		AudioServer.set_bus_volume_db(idx, linear_to_db(max(0.001, val)))
+	if is_instance_valid(AudioManager) and AudioManager.music_player:
+		if val <= 0.001:
+			AudioManager.music_player.volume_db = -80.0
+		else:
+			AudioManager.music_player.volume_db = AudioManager.default_music_volume_db + linear_to_db(val)
 
 func _on_sfx_slider_changed(val: float) -> void:
 	sfx_val_label.text = "%d%%" % int(val * 100)
@@ -1214,42 +2033,44 @@ func _on_planet_editor_pressed() -> void:
 func _on_store_pressed() -> void:
 	AudioManager.play("click")
 	# Mutual exclusivity: Close settings if open
-	settings_modal.visible = false
-	open_store_modal(GameManager.loc("pro_sector_locked"), GameManager.loc("pro_sector_desc"), false)
+	if settings_modal:
+		settings_modal.visible = false
+	if settings_dimmer:
+		settings_dimmer.visible = false
+	open_store_modal()
 
 var current_store_tab: String = "skins"
 
-const STORE_ITEMS: Array[Dictionary] = [
-	# Skins
+const SUIT_ITEMS: Array[Dictionary] = [
 	{
 		"id": "apollo_white",
 		"category": "skins",
 		"name": "APOLO CLÁSICO",
 		"badge": "[EVA-01]",
-		"color": Color(0.9, 0.9, 0.95),
+		"color": Color(0.92, 0.94, 0.97),
 		"cost": 0,
 		"currency": "coins",
-		"desc": "Traje presurizado estándar de polímero aislante."
+		"desc": "Traje presurizado estándar de polímero aislante multicapa."
 	},
 	{
 		"id": "solar_gold",
 		"category": "skins",
 		"name": "SOLAR ÁUREO",
 		"badge": "[EVA-02]",
-		"color": Color(0.96, 0.66, 0.16),
+		"color": Color(0.96, 0.75, 0.16),
 		"cost": 150,
 		"currency": "coins",
-		"desc": "Aleación reflectante con protección contra radiación solar."
+		"desc": "Aleación reflectante con protección contra radiación solar y llamaradas estelares."
 	},
 	{
 		"id": "abyssal_onyx",
 		"category": "skins",
 		"name": "ABISAL ÓNIX",
 		"badge": "[EVA-03]",
-		"color": Color(0.18, 0.18, 0.22),
+		"color": Color(0.12, 0.14, 0.18),
 		"cost": 250,
 		"currency": "coins",
-		"desc": "Blindaje de nanotubos de carbono de absorción térmica."
+		"desc": "Blindaje de nanotubos de carbono de absorción térmica y sigilo en el vacío."
 	},
 	{
 		"id": "cyber_neon",
@@ -1259,50 +2080,54 @@ const STORE_ITEMS: Array[Dictionary] = [
 		"color": Color(0.15, 0.85, 1.0),
 		"cost": 400,
 		"currency": "coins",
-		"desc": "Canalización de plasma frío electroluminiscente."
-	},
-	# Propulsion
+		"desc": "Canalización de plasma frío electroluminiscente con soporte vital presurizado."
+	}
+]
+
+const SHIP_ITEMS: Array[Dictionary] = [
 	{
 		"id": "capsule_white",
 		"category": "paints",
 		"name": "CÁPSULA BLANCA",
 		"badge": "[HULL-01]",
-		"color": Color(0.85, 0.85, 0.9),
+		"color": Color(0.92, 0.92, 0.95),
 		"cost": 0,
 		"currency": "coins",
-		"desc": "Blindaje cerámico para reentrada atmosférica."
+		"desc": "Blindaje cerámico de ablación térmica estándar para reentrada atmosférica."
 	},
 	{
 		"id": "plasma_cyan",
 		"category": "paints",
 		"name": "PLASMA CIAN",
 		"badge": "[HULL-02]",
-		"color": Color(0.2, 0.85, 1.0),
+		"color": Color(0.15, 0.75, 0.95),
 		"cost": 100,
 		"currency": "coins",
-		"desc": "Tobera de empuje iónico con aceleración de xenón."
+		"desc": "Tobera de empuje iónico con aceleración magnética de xenón electroluminiscente."
 	},
 	{
 		"id": "solar_fire",
 		"category": "paints",
 		"name": "FUEGO SOLAR",
 		"badge": "[HULL-03]",
-		"color": Color(1.0, 0.5, 0.1),
+		"color": Color(0.98, 0.48, 0.08),
 		"cost": 200,
 		"currency": "coins",
-		"desc": "Combustión metanox de alta temperatura y pluma dorada."
+		"desc": "Combustión metanox de alta temperatura y pluma expansiva de propulsión rápida."
 	},
 	{
 		"id": "amethyst_singularity",
 		"category": "paints",
-		"name": "AMATISTA",
+		"name": "SIGILO AMATISTA",
 		"badge": "[HULL-04]",
-		"color": Color(0.75, 0.25, 0.95),
+		"color": Color(0.65, 0.18, 0.85),
 		"cost": 350,
 		"currency": "coins",
-		"desc": "Propulsión exótica de taquiones con rastro violeta."
-	},
-	# Packs
+		"desc": "Propulsión exótica de taquiones con rastro violeta y blindaje antirradar de obsidiana."
+	}
+]
+
+const PACK_ITEMS: Array[Dictionary] = [
 	{
 		"id": "watch_ad_coins",
 		"category": "packs",
@@ -1313,7 +2138,7 @@ const STORE_ITEMS: Array[Dictionary] = [
 		"reward_coins": 50,
 		"is_ad": true,
 		"currency": "ad",
-		"desc": "Sintoniza una transmisión comercial de espacio profundo para recibir 50 Luna Coins gratis."
+		"desc": "Sintoniza una transmisión comercial de espacio profundo (5s) para recibir 50 Luna Coins gratis."
 	},
 	{
 		"id": "pack_scout",
@@ -1324,7 +2149,7 @@ const STORE_ITEMS: Array[Dictionary] = [
 		"cost_label": "$0.99 USD",
 		"reward_coins": 250,
 		"currency": "real",
-		"desc": "Reserva de fondos para exploradores espaciales."
+		"desc": "Reserva de fondos para exploradores espaciales novatos."
 	},
 	{
 		"id": "pack_explorer",
@@ -1336,7 +2161,7 @@ const STORE_ITEMS: Array[Dictionary] = [
 		"reward_coins": 800,
 		"no_ads": true,
 		"currency": "real",
-		"desc": "Vuelo sin publicidad y 800 Luna Coins."
+		"desc": "Vuelo sin publicidad de por vida y 800 Luna Coins inmediatas."
 	},
 	{
 		"id": "pack_protocol",
@@ -1348,8 +2173,18 @@ const STORE_ITEMS: Array[Dictionary] = [
 		"reward_coins": 2500,
 		"unlock_all": true,
 		"currency": "real",
-		"desc": "Todo desbloqueado: editor de planetas, cosméticos y 2500 Luna Coins."
+		"desc": "Todo desbloqueado: editor de planetas, cosméticos exclusivos, sin anuncios y 2500 Luna Coins."
 	}
+]
+
+# Combined list for backwards compatibility
+const STORE_ITEMS: Array[Dictionary] = [
+	# Skins
+	SUIT_ITEMS[0], SUIT_ITEMS[1], SUIT_ITEMS[2], SUIT_ITEMS[3],
+	# Paints
+	SHIP_ITEMS[0], SHIP_ITEMS[1], SHIP_ITEMS[2], SHIP_ITEMS[3],
+	# Packs
+	PACK_ITEMS[0], PACK_ITEMS[1], PACK_ITEMS[2], PACK_ITEMS[3]
 ]
 
 func _update_luna_points_ui() -> void:
@@ -1360,16 +2195,598 @@ func _update_luna_points_ui() -> void:
 	if store_coins_badge:
 		store_coins_badge.text = "%d LUNA COINS" % GameManager.luna_points
 
+func _init_tab_styles() -> void:
+	if tab_active_sb:
+		return
+	tab_active_sb = StyleBoxFlat.new()
+	tab_active_sb.bg_color = Color(0.08, 0.26, 0.46, 0.95)
+	tab_active_sb.border_width_left = 1
+	tab_active_sb.border_width_top = 1
+	tab_active_sb.border_width_right = 1
+	tab_active_sb.border_width_bottom = 1
+	tab_active_sb.border_color = Color(0.2, 0.85, 1.0)
+	tab_active_sb.corner_radius_top_left = 6
+	tab_active_sb.corner_radius_top_right = 6
+	tab_active_sb.corner_radius_bottom_right = 6
+	tab_active_sb.corner_radius_bottom_left = 6
+
+	tab_inactive_sb = StyleBoxFlat.new()
+	tab_inactive_sb.bg_color = Color(0.03, 0.05, 0.10, 0.85)
+	tab_inactive_sb.border_width_left = 1
+	tab_inactive_sb.border_width_top = 1
+	tab_inactive_sb.border_width_right = 1
+	tab_inactive_sb.border_width_bottom = 1
+	tab_inactive_sb.border_color = Color(0.18, 0.24, 0.35, 0.6)
+	tab_inactive_sb.corner_radius_top_left = 6
+	tab_inactive_sb.corner_radius_top_right = 6
+	tab_inactive_sb.corner_radius_bottom_right = 6
+	tab_inactive_sb.corner_radius_bottom_left = 6
+
+func _setup_store_showcase() -> void:
+	if showcase_container:
+		return
+	
+	_init_tab_styles()
+	
+	var store_vbox = get_node_or_null("MenuLayer/StoreModal/VBox")
+	if not store_vbox:
+		return
+		
+	showcase_container = VBoxContainer.new()
+	showcase_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	showcase_container.custom_minimum_size = Vector2(0, 270)
+	showcase_container.add_theme_constant_override("separation", 8)
+	
+	# Top Stepper Row with 3D Viewport
+	var stepper_row = HBoxContainer.new()
+	stepper_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	stepper_row.add_theme_constant_override("separation", 10)
+	showcase_container.add_child(stepper_row)
+	
+	var prev_btn = Button.new()
+	prev_btn.text = "◄"
+	prev_btn.custom_minimum_size = Vector2(40, 40)
+	prev_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_style_menu_button(prev_btn, Color(0.2, 0.85, 1.0), Color(0.04, 0.10, 0.18))
+	stepper_row.add_child(prev_btn)
+	prev_btn.pressed.connect(func():
+		AudioManager.play("click")
+		if current_store_tab == "skins":
+			current_suit_index = (current_suit_index - 1 + SUIT_ITEMS.size()) % SUIT_ITEMS.size()
+		elif current_store_tab == "paints":
+			current_ship_index = (current_ship_index - 1 + SHIP_ITEMS.size()) % SHIP_ITEMS.size()
+		_update_showcase_display()
+	)
+	
+	var vp_container = SubViewportContainer.new()
+	vp_container.custom_minimum_size = Vector2(320, 175)
+	vp_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vp_container.stretch = true
+	stepper_row.add_child(vp_container)
+	
+	showcase_viewport = SubViewport.new()
+	showcase_viewport.transparent_bg = true
+	showcase_viewport.size = Vector2(320, 175)
+	showcase_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	showcase_viewport.own_world_3d = true
+	vp_container.add_child(showcase_viewport)
+	
+	var next_btn = Button.new()
+	next_btn.text = "►"
+	next_btn.custom_minimum_size = Vector2(40, 40)
+	next_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_style_menu_button(next_btn, Color(0.2, 0.85, 1.0), Color(0.04, 0.10, 0.18))
+	stepper_row.add_child(next_btn)
+	next_btn.pressed.connect(func():
+		AudioManager.play("click")
+		if current_store_tab == "skins":
+			current_suit_index = (current_suit_index + 1) % SUIT_ITEMS.size()
+		elif current_store_tab == "paints":
+			current_ship_index = (current_ship_index + 1) % SHIP_ITEMS.size()
+		_update_showcase_display()
+	)
+	
+	# Viewport 3D Setup
+	showcase_cam = Camera3D.new()
+	showcase_cam.position = Vector3(0, 0.25, 2.4)
+	showcase_cam.fov = 44.0
+	showcase_viewport.add_child(showcase_cam)
+	
+	var key_light = DirectionalLight3D.new()
+	key_light.rotation_degrees = Vector3(-25, 45, 0)
+	key_light.light_energy = 1.6
+	key_light.light_color = Color(1.0, 0.96, 0.92)
+	showcase_viewport.add_child(key_light)
+	
+	var fill_light = DirectionalLight3D.new()
+	fill_light.rotation_degrees = Vector3(20, -135, 0)
+	fill_light.light_energy = 0.85
+	fill_light.light_color = Color(0.25, 0.75, 1.0)
+	showcase_viewport.add_child(fill_light)
+	
+	showcase_pivot = Node3D.new()
+	showcase_viewport.add_child(showcase_pivot)
+	
+	showcase_astronaut = _build_astronaut_preview()
+	showcase_pivot.add_child(showcase_astronaut)
+	
+	showcase_ship = _build_spaceship_preview()
+	showcase_pivot.add_child(showcase_ship)
+	
+	# Touch & Mouse 360-Degree Model Drag Rotation
+	vp_container.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton:
+			if ev.button_index == MOUSE_BUTTON_LEFT:
+				is_dragging_showcase = ev.pressed
+		elif ev is InputEventScreenTouch:
+			is_dragging_showcase = ev.pressed
+		elif ev is InputEventMouseMotion and is_dragging_showcase:
+			if showcase_pivot:
+				var dx = ev.relative.x * 0.008
+				var dy = ev.relative.y * 0.008
+				showcase_spin_vel_y = dx * 15.0
+				showcase_spin_vel_x = dy * 15.0
+				showcase_pivot.rotate_y(dx)
+				showcase_pivot.rotate_object_local(Vector3.RIGHT, dy)
+		elif ev is InputEventScreenDrag and is_dragging_showcase:
+			if showcase_pivot:
+				var dx = ev.relative.x * 0.008
+				var dy = ev.relative.y * 0.008
+				showcase_spin_vel_y = dx * 15.0
+				showcase_spin_vel_x = dy * 15.0
+				showcase_pivot.rotate_y(dx)
+				showcase_pivot.rotate_object_local(Vector3.RIGHT, dy)
+	)
+	
+	# Bottom Item Card Panel
+	var card_panel = PanelContainer.new()
+	var card_sb = StyleBoxFlat.new()
+	card_sb.bg_color = Color(0.04, 0.07, 0.12, 0.92)
+	card_sb.border_width_left = 1
+	card_sb.border_width_top = 1
+	card_sb.border_width_right = 1
+	card_sb.border_width_bottom = 1
+	card_sb.border_color = Color(0.2, 0.75, 1.0, 0.5)
+	card_sb.corner_radius_top_left = 8
+	card_sb.corner_radius_top_right = 8
+	card_sb.corner_radius_bottom_right = 8
+	card_sb.corner_radius_bottom_left = 8
+	card_sb.content_margin_left = 16
+	card_sb.content_margin_right = 16
+	card_sb.content_margin_top = 8
+	card_sb.content_margin_bottom = 8
+	card_panel.add_theme_stylebox_override("panel", card_sb)
+	showcase_container.add_child(card_panel)
+	
+	var info_vbox = VBoxContainer.new()
+	info_vbox.add_theme_constant_override("separation", 3)
+	card_panel.add_child(info_vbox)
+	
+	showcase_title_lbl = Label.new()
+	showcase_title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	showcase_title_lbl.add_theme_font_size_override("font_size", 14)
+	info_vbox.add_child(showcase_title_lbl)
+	
+	showcase_desc_lbl = Label.new()
+	showcase_desc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	showcase_desc_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	showcase_desc_lbl.add_theme_font_size_override("font_size", 11)
+	showcase_desc_lbl.modulate = Color(0.68, 0.76, 0.86)
+	info_vbox.add_child(showcase_desc_lbl)
+	
+	showcase_action_btn = Button.new()
+	showcase_action_btn.custom_minimum_size = Vector2(200, 34)
+	showcase_action_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	showcase_action_btn.add_theme_font_size_override("font_size", 12)
+	info_vbox.add_child(showcase_action_btn)
+	
+	# Add to StoreModal/VBox right next to items_scroll
+	store_vbox.add_child(showcase_container)
+	if items_scroll:
+		store_vbox.move_child(showcase_container, items_scroll.get_index())
+
+func _build_astronaut_preview() -> Node3D:
+	var root_node = Node3D.new()
+	root_node.name = "AstronautPreview"
+	
+	var suit_mat = StandardMaterial3D.new()
+	suit_mat.resource_local_to_scene = true
+	suit_mat.albedo_color = Color(0.92, 0.94, 0.97)
+	suit_mat.metallic = 0.1
+	suit_mat.roughness = 0.35
+	root_node.set_meta("suit_material", suit_mat)
+	
+	var dark_mat = StandardMaterial3D.new()
+	dark_mat.albedo_color = Color(0.14, 0.16, 0.22)
+	dark_mat.roughness = 0.5
+	dark_mat.metallic = 0.7
+	
+	var visor_mat = StandardMaterial3D.new()
+	visor_mat.resource_local_to_scene = true
+	visor_mat.albedo_color = Color(1.0, 0.78, 0.15)
+	visor_mat.metallic = 0.98
+	visor_mat.roughness = 0.05
+	visor_mat.emission_enabled = true
+	visor_mat.emission = Color(0.4, 0.3, 0.05)
+	visor_mat.emission_energy_multiplier = 0.9
+	root_node.set_meta("visor_material", visor_mat)
+	
+	var torso = MeshInstance3D.new()
+	var torso_m = BoxMesh.new()
+	torso_m.size = Vector3(0.68, 0.78, 0.44)
+	torso.mesh = torso_m
+	torso.material_override = suit_mat
+	torso.position = Vector3(0, 0.85, 0)
+	root_node.add_child(torso)
+	
+	var chest = MeshInstance3D.new()
+	var chest_m = BoxMesh.new()
+	chest_m.size = Vector3(0.42, 0.32, 0.12)
+	chest.mesh = chest_m
+	chest.material_override = dark_mat
+	chest.position = Vector3(0, 0.90, 0.26)
+	root_node.add_child(chest)
+	
+	var pack = MeshInstance3D.new()
+	var pack_m = BoxMesh.new()
+	pack_m.size = Vector3(0.56, 0.70, 0.28)
+	pack.mesh = pack_m
+	pack.material_override = dark_mat
+	pack.position = Vector3(0, 0.88, -0.32)
+	root_node.add_child(pack)
+	
+	for side in [-0.18, 0.18]:
+		var cyl = MeshInstance3D.new()
+		var cyl_m = CylinderMesh.new()
+		cyl_m.top_radius = 0.08
+		cyl_m.bottom_radius = 0.08
+		cyl_m.height = 0.58
+		cyl.mesh = cyl_m
+		var o2_mat = StandardMaterial3D.new()
+		o2_mat.albedo_color = Color(0.15, 0.75, 0.95)
+		o2_mat.emission_enabled = true
+		o2_mat.emission = Color(0.1, 0.5, 0.8)
+		cyl.material_override = o2_mat
+		cyl.position = Vector3(side, 0.90, -0.44)
+		root_node.add_child(cyl)
+		
+	var helmet = MeshInstance3D.new()
+	var helmet_m = SphereMesh.new()
+	helmet_m.radius = 0.32
+	helmet_m.height = 0.62
+	helmet.mesh = helmet_m
+	helmet.material_override = suit_mat
+	helmet.position = Vector3(0, 1.48, 0)
+	root_node.add_child(helmet)
+	
+	var visor = MeshInstance3D.new()
+	var visor_m = SphereMesh.new()
+	visor_m.radius = 0.24
+	visor_m.height = 0.38
+	visor.mesh = visor_m
+	visor.material_override = visor_mat
+	visor.position = Vector3(0, 1.48, 0.16)
+	visor.scale = Vector3(1.1, 0.75, 0.7)
+	root_node.add_child(visor)
+	
+	for side in [-0.46, 0.46]:
+		var arm = MeshInstance3D.new()
+		var arm_m = BoxMesh.new()
+		arm_m.size = Vector3(0.20, 0.68, 0.20)
+		arm.mesh = arm_m
+		arm.material_override = suit_mat
+		arm.position = Vector3(side, 0.82, 0)
+		root_node.add_child(arm)
+		
+		var glove = MeshInstance3D.new()
+		var glove_m = BoxMesh.new()
+		glove_m.size = Vector3(0.22, 0.18, 0.22)
+		glove.mesh = glove_m
+		glove.material_override = dark_mat
+		glove.position = Vector3(side, 0.44, 0)
+		root_node.add_child(glove)
+		
+	for side in [-0.20, 0.20]:
+		var leg = MeshInstance3D.new()
+		var leg_m = BoxMesh.new()
+		leg_m.size = Vector3(0.24, 0.74, 0.24)
+		leg.mesh = leg_m
+		leg.material_override = suit_mat
+		leg.position = Vector3(side, 0.37, 0)
+		root_node.add_child(leg)
+		
+		var boot = MeshInstance3D.new()
+		var boot_m = BoxMesh.new()
+		boot_m.size = Vector3(0.26, 0.16, 0.34)
+		boot.mesh = boot_m
+		boot.material_override = dark_mat
+		boot.position = Vector3(side, 0.08, 0.05)
+		root_node.add_child(boot)
+		
+	root_node.position = Vector3(0, -0.85, 0)
+	return root_node
+
+func _build_spaceship_preview() -> Node3D:
+	var root_node = Node3D.new()
+	root_node.name = "SpaceshipPreview"
+	
+	var hull_mat = StandardMaterial3D.new()
+	hull_mat.resource_local_to_scene = true
+	hull_mat.albedo_color = Color(0.92, 0.92, 0.95)
+	hull_mat.metallic = 0.2
+	hull_mat.roughness = 0.35
+	root_node.set_meta("hull_material", hull_mat)
+	
+	var dark_mat = StandardMaterial3D.new()
+	dark_mat.albedo_color = Color(0.14, 0.16, 0.20)
+	dark_mat.metallic = 0.8
+	dark_mat.roughness = 0.4
+	
+	var glass_mat = StandardMaterial3D.new()
+	glass_mat.albedo_color = Color(0.15, 0.85, 1.0, 0.85)
+	glass_mat.metallic = 0.9
+	glass_mat.roughness = 0.1
+	glass_mat.emission_enabled = true
+	glass_mat.emission = Color(0.1, 0.6, 0.9)
+	glass_mat.emission_energy_multiplier = 0.8
+	
+	var nozzle_mat = StandardMaterial3D.new()
+	nozzle_mat.resource_local_to_scene = true
+	nozzle_mat.albedo_color = Color(0.2, 0.22, 0.25)
+	nozzle_mat.metallic = 0.9
+	nozzle_mat.roughness = 0.2
+	nozzle_mat.emission_enabled = true
+	nozzle_mat.emission = Color(0.2, 0.8, 1.0)
+	nozzle_mat.emission_energy_multiplier = 1.2
+	root_node.set_meta("nozzle_material", nozzle_mat)
+	
+	var fuselage = MeshInstance3D.new()
+	var fuse_m = CylinderMesh.new()
+	fuse_m.top_radius = 0.45
+	fuse_m.bottom_radius = 0.85
+	fuse_m.height = 1.8
+	fuselage.mesh = fuse_m
+	fuselage.material_override = hull_mat
+	fuselage.rotation_degrees = Vector3(90, 0, 0)
+	root_node.add_child(fuselage)
+	
+	var nose = MeshInstance3D.new()
+	var nose_m = CylinderMesh.new()
+	nose_m.top_radius = 0.05
+	nose_m.bottom_radius = 0.45
+	nose_m.height = 0.75
+	nose.mesh = nose_m
+	nose.material_override = hull_mat
+	nose.rotation_degrees = Vector3(90, 0, 0)
+	nose.position = Vector3(0, 0, 1.27)
+	root_node.add_child(nose)
+	
+	var canopy = MeshInstance3D.new()
+	var can_m = SphereMesh.new()
+	can_m.radius = 0.32
+	can_m.height = 0.7
+	canopy.mesh = can_m
+	canopy.material_override = glass_mat
+	canopy.scale = Vector3(0.9, 0.55, 1.2)
+	canopy.position = Vector3(0, 0.38, 0.55)
+	root_node.add_child(canopy)
+	
+	for side in [-1.0, 1.0]:
+		var wing = MeshInstance3D.new()
+		var wing_m = BoxMesh.new()
+		wing_m.size = Vector3(0.85, 0.06, 0.95)
+		wing.mesh = wing_m
+		wing.material_override = hull_mat
+		wing.position = Vector3(side * 0.95, -0.05, -0.2)
+		wing.rotation_degrees = Vector3(0, side * -12, side * -6)
+		root_node.add_child(wing)
+		
+		var tip = MeshInstance3D.new()
+		var tip_m = CylinderMesh.new()
+		tip_m.top_radius = 0.08
+		tip_m.bottom_radius = 0.10
+		tip_m.height = 0.45
+		tip.mesh = tip_m
+		tip.material_override = dark_mat
+		tip.rotation_degrees = Vector3(90, 0, 0)
+		tip.position = Vector3(side * 1.38, -0.02, -0.25)
+		root_node.add_child(tip)
+		
+	var nozzle = MeshInstance3D.new()
+	var noz_m = CylinderMesh.new()
+	noz_m.top_radius = 0.40
+	noz_m.bottom_radius = 0.60
+	noz_m.height = 0.45
+	nozzle.mesh = noz_m
+	nozzle.material_override = nozzle_mat
+	nozzle.rotation_degrees = Vector3(90, 0, 0)
+	nozzle.position = Vector3(0, 0, -1.05)
+	root_node.add_child(nozzle)
+	
+	root_node.scale = Vector3(0.82, 0.82, 0.82)
+	root_node.position = Vector3(0, 0, 0)
+	return root_node
+
 func _switch_store_tab(tab: String) -> void:
 	AudioManager.play("click")
 	current_store_tab = tab
+	_init_tab_styles()
+	_setup_store_showcase()
+	
 	if tab_skins_btn:
-		tab_skins_btn.modulate = Color(1.0, 0.9, 0.4) if tab == "skins" else Color(0.7, 0.7, 0.7)
+		tab_skins_btn.add_theme_stylebox_override("normal", tab_active_sb if tab == "skins" else tab_inactive_sb)
+		tab_skins_btn.modulate = Color(1.0, 1.0, 1.0) if tab == "skins" else Color(0.65, 0.72, 0.8)
 	if tab_paints_btn:
-		tab_paints_btn.modulate = Color(1.0, 0.9, 0.4) if tab == "paints" else Color(0.7, 0.7, 0.7)
+		tab_paints_btn.add_theme_stylebox_override("normal", tab_active_sb if tab == "paints" else tab_inactive_sb)
+		tab_paints_btn.modulate = Color(1.0, 1.0, 1.0) if tab == "paints" else Color(0.65, 0.72, 0.8)
 	if tab_packs_btn:
-		tab_packs_btn.modulate = Color(1.0, 0.9, 0.4) if tab == "packs" else Color(0.7, 0.7, 0.7)
-	_render_store_items()
+		tab_packs_btn.add_theme_stylebox_override("normal", tab_active_sb if tab == "packs" else tab_inactive_sb)
+		tab_packs_btn.modulate = Color(1.0, 1.0, 1.0) if tab == "packs" else Color(0.65, 0.72, 0.8)
+		
+	if tab == "skins" or tab == "paints":
+		if items_scroll: items_scroll.visible = false
+		if showcase_container: showcase_container.visible = true
+		_update_showcase_display()
+	else:
+		if showcase_container: showcase_container.visible = false
+		if items_scroll: items_scroll.visible = true
+		_render_store_items()
+
+func _update_showcase_display() -> void:
+	if not showcase_container:
+		return
+		
+	if current_store_tab == "skins":
+		if showcase_astronaut: showcase_astronaut.visible = true
+		if showcase_ship: showcase_ship.visible = false
+		if showcase_cam: showcase_cam.position = Vector3(0, 0.25, 2.4)
+		
+		var it = SUIT_ITEMS[current_suit_index]
+		var suit_mat = showcase_astronaut.get_meta("suit_material") as StandardMaterial3D
+		var visor_mat = showcase_astronaut.get_meta("visor_material") as StandardMaterial3D
+		
+		if suit_mat:
+			suit_mat.albedo_color = it["color"]
+			if it["id"] == "solar_gold":
+				suit_mat.metallic = 0.92
+				suit_mat.roughness = 0.15
+				suit_mat.emission_enabled = true
+				suit_mat.emission = Color(0.4, 0.25, 0.05)
+				suit_mat.emission_energy_multiplier = 0.8
+				if visor_mat: visor_mat.albedo_color = Color(1.0, 0.92, 0.45)
+			elif it["id"] == "abyssal_onyx":
+				suit_mat.metallic = 0.75
+				suit_mat.roughness = 0.25
+				suit_mat.emission_enabled = false
+				if visor_mat: visor_mat.albedo_color = Color(0.2, 0.85, 1.0)
+			elif it["id"] == "cyber_neon":
+				suit_mat.metallic = 0.85
+				suit_mat.roughness = 0.2
+				suit_mat.emission_enabled = true
+				suit_mat.emission = Color(0.15, 0.85, 1.0)
+				suit_mat.emission_energy_multiplier = 0.7
+				if visor_mat: visor_mat.albedo_color = Color(0.15, 0.95, 1.0)
+			else:
+				suit_mat.metallic = 0.10
+				suit_mat.roughness = 0.35
+				suit_mat.emission_enabled = false
+				if visor_mat: visor_mat.albedo_color = Color(1.0, 0.78, 0.15)
+				
+		showcase_title_lbl.text = "[ %d / %d ] %s  %s" % [current_suit_index + 1, SUIT_ITEMS.size(), it["badge"], it["name"]]
+		showcase_title_lbl.modulate = it["color"]
+		showcase_desc_lbl.text = it["desc"]
+		
+		# Button Action
+		for c in showcase_action_btn.get_signal_connection_list("pressed"):
+			showcase_action_btn.disconnect("pressed", c["callable"])
+			
+		var unlocked = (it["cost"] == 0 or it["id"] in GameManager.unlocked_skins)
+		var equipped = (GameManager.active_skin == it["id"])
+		
+		if equipped:
+			showcase_action_btn.text = "EQUIPADO ✓"
+			showcase_action_btn.disabled = true
+			_style_menu_button(showcase_action_btn, Color(0.2, 0.85, 0.4), Color(0.04, 0.14, 0.08))
+		elif unlocked:
+			showcase_action_btn.text = "EQUIPAR"
+			showcase_action_btn.disabled = false
+			_style_menu_button(showcase_action_btn, Color(0.2, 0.75, 1.0), Color(0.04, 0.11, 0.18))
+			showcase_action_btn.pressed.connect(func():
+				GameManager.active_skin = it["id"]
+				GameManager.save_player_progression()
+				AudioManager.play("click")
+				_update_showcase_display()
+			)
+		else:
+			showcase_action_btn.text = "%d LUNA COINS" % it["cost"]
+			showcase_action_btn.disabled = false
+			_style_menu_button(showcase_action_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
+			showcase_action_btn.pressed.connect(func():
+				if GameManager.spend_luna_coins(it["cost"]):
+					GameManager.unlocked_skins.append(it["id"])
+					GameManager.active_skin = it["id"]
+					GameManager.save_player_progression()
+					AudioManager.play("click")
+					_update_luna_points_ui()
+					_update_showcase_display()
+				else:
+					if store_status_label:
+						store_status_label.visible = true
+						store_status_label.text = "LUNA COINS INSUFICIENTES (FALTAN %d)" % (it["cost"] - GameManager.luna_points)
+						store_status_label.modulate = Color(1.0, 0.4, 0.4)
+			)
+			
+	elif current_store_tab == "paints":
+		if showcase_astronaut: showcase_astronaut.visible = false
+		if showcase_ship: showcase_ship.visible = true
+		if showcase_cam: showcase_cam.position = Vector3(0, 0.35, 2.7)
+		
+		var it = SHIP_ITEMS[current_ship_index]
+		var hull_mat = showcase_ship.get_meta("hull_material") as StandardMaterial3D
+		var nozzle_mat = showcase_ship.get_meta("nozzle_material") as StandardMaterial3D
+		
+		if hull_mat:
+			hull_mat.albedo_color = it["color"]
+			if it["id"] == "plasma_cyan":
+				hull_mat.metallic = 0.85
+				hull_mat.roughness = 0.18
+				if nozzle_mat: nozzle_mat.emission = Color(0.15, 0.85, 1.0)
+			elif it["id"] == "solar_fire":
+				hull_mat.metallic = 0.80
+				hull_mat.roughness = 0.20
+				if nozzle_mat: nozzle_mat.emission = Color(1.0, 0.5, 0.08)
+			elif it["id"] == "amethyst_singularity":
+				hull_mat.metallic = 0.90
+				hull_mat.roughness = 0.15
+				if nozzle_mat: nozzle_mat.emission = Color(0.75, 0.25, 0.95)
+			else:
+				hull_mat.metallic = 0.20
+				hull_mat.roughness = 0.35
+				if nozzle_mat: nozzle_mat.emission = Color(0.2, 0.8, 1.0)
+				
+		showcase_title_lbl.text = "[ %d / %d ] %s  %s" % [current_ship_index + 1, SHIP_ITEMS.size(), it["badge"], it["name"]]
+		showcase_title_lbl.modulate = it["color"]
+		showcase_desc_lbl.text = it["desc"]
+		
+		# Button Action
+		for c in showcase_action_btn.get_signal_connection_list("pressed"):
+			showcase_action_btn.disconnect("pressed", c["callable"])
+			
+		var unlocked = (it["cost"] == 0 or it["id"] in GameManager.unlocked_ship_paints)
+		var equipped = (GameManager.active_ship_paint == it["id"])
+		
+		if equipped:
+			showcase_action_btn.text = "EQUIPADO ✓"
+			showcase_action_btn.disabled = true
+			_style_menu_button(showcase_action_btn, Color(0.2, 0.85, 0.4), Color(0.04, 0.14, 0.08))
+		elif unlocked:
+			showcase_action_btn.text = "EQUIPAR"
+			showcase_action_btn.disabled = false
+			_style_menu_button(showcase_action_btn, Color(0.2, 0.75, 1.0), Color(0.04, 0.11, 0.18))
+			showcase_action_btn.pressed.connect(func():
+				GameManager.active_ship_paint = it["id"]
+				GameManager.save_player_progression()
+				AudioManager.play("click")
+				_update_showcase_display()
+			)
+		else:
+			showcase_action_btn.text = "%d LUNA COINS" % it["cost"]
+			showcase_action_btn.disabled = false
+			_style_menu_button(showcase_action_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
+			showcase_action_btn.pressed.connect(func():
+				if GameManager.spend_luna_coins(it["cost"]):
+					GameManager.unlocked_ship_paints.append(it["id"])
+					GameManager.active_ship_paint = it["id"]
+					GameManager.save_player_progression()
+					AudioManager.play("click")
+					_update_luna_points_ui()
+					_update_showcase_display()
+				else:
+					if store_status_label:
+						store_status_label.visible = true
+						store_status_label.text = "LUNA COINS INSUFICIENTES (FALTAN %d)" % (it["cost"] - GameManager.luna_points)
+						store_status_label.modulate = Color(1.0, 0.4, 0.4)
+			)
 
 func _render_store_items() -> void:
 	if not store_items_container:
@@ -1377,18 +2794,15 @@ func _render_store_items() -> void:
 	for c in store_items_container.get_children():
 		c.queue_free()
 		
-	for it in STORE_ITEMS:
-		if it["category"] != current_store_tab:
-			continue
-			
+	for it in PACK_ITEMS:
 		var card = PanelContainer.new()
 		var card_sb = StyleBoxFlat.new()
-		card_sb.bg_color = Color(0.04, 0.07, 0.12, 0.88)
+		card_sb.bg_color = Color(0.04, 0.07, 0.12, 0.90)
 		card_sb.border_width_left = 1
 		card_sb.border_width_top = 1
 		card_sb.border_width_right = 1
 		card_sb.border_width_bottom = 1
-		card_sb.border_color = (it["color"] as Color).lerp(Color(0.96, 0.66, 0.16), 0.4)
+		card_sb.border_color = (it["color"] as Color).lerp(Color(0.2, 0.85, 1.0), 0.4)
 		card_sb.corner_radius_top_left = 8
 		card_sb.corner_radius_top_right = 8
 		card_sb.corner_radius_bottom_right = 8
@@ -1402,7 +2816,32 @@ func _render_store_items() -> void:
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
 		
-		# Visual badge
+		# Visual Thumbnail
+		var thumb_panel = PanelContainer.new()
+		thumb_panel.custom_minimum_size = Vector2(40, 40)
+		var thumb_sb = StyleBoxFlat.new()
+		thumb_sb.bg_color = Color(0.03, 0.06, 0.10, 0.95)
+		thumb_sb.border_width_left = 1
+		thumb_sb.border_width_top = 1
+		thumb_sb.border_width_right = 1
+		thumb_sb.border_width_bottom = 1
+		thumb_sb.border_color = (it["color"] as Color).lerp(Color(0.2, 0.85, 1.0), 0.5)
+		thumb_sb.corner_radius_top_left = 4
+		thumb_sb.corner_radius_top_right = 4
+		thumb_sb.corner_radius_bottom_right = 4
+		thumb_sb.corner_radius_bottom_left = 4
+		thumb_panel.add_theme_stylebox_override("panel", thumb_sb)
+		
+		var thumb_tex = TextureRect.new()
+		thumb_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		thumb_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		thumb_tex.custom_minimum_size = Vector2(32, 32)
+		thumb_tex.texture = load("res://assets/sprites/crystal_gold.png")
+		thumb_tex.modulate = it["color"]
+		thumb_panel.add_child(thumb_tex)
+		row.add_child(thumb_panel)
+		
+		# Badge
 		var badge_lbl = Label.new()
 		badge_lbl.text = it["badge"]
 		badge_lbl.modulate = it["color"]
@@ -1432,143 +2871,244 @@ func _render_store_items() -> void:
 		var act_btn = Button.new()
 		act_btn.custom_minimum_size = Vector2(140, 36)
 		act_btn.add_theme_font_size_override("font_size", 12)
+		act_btn.text = it["cost_label"]
 		
-		var is_skin = it["category"] == "skins"
-		var is_paint = it["category"] == "paints"
-		var is_pack = it["category"] == "packs"
-		
-		if is_skin:
-			var unlocked = it["cost"] == 0 or it["id"] in GameManager.unlocked_skins
-			var equipped = GameManager.active_skin == it["id"]
-			if equipped:
-				act_btn.text = "EQUIPADO ✓"
-				act_btn.disabled = true
-				_style_menu_button(act_btn, Color(0.2, 0.85, 0.4), Color(0.04, 0.14, 0.08))
-			elif unlocked:
-				act_btn.text = "EQUIPAR"
-				_style_menu_button(act_btn, Color(0.2, 0.75, 1.0), Color(0.04, 0.11, 0.18))
-				act_btn.pressed.connect(func():
-					GameManager.active_skin = it["id"]
-					GameManager.save_player_progression()
-					AudioManager.play("click")
-					_render_store_items()
-				)
-			else:
-				act_btn.text = "%d LUNA COINS" % it["cost"]
-				_style_menu_button(act_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
-				act_btn.pressed.connect(func():
-					if GameManager.spend_luna_coins(it["cost"]):
-						GameManager.unlocked_skins.append(it["id"])
-						GameManager.active_skin = it["id"]
-						GameManager.save_player_progression()
-						AudioManager.play("click")
-						_update_luna_points_ui()
-						_render_store_items()
-					else:
-						if store_status_label:
-							store_status_label.visible = true
-							store_status_label.text = "LUNA COINS INSUFICIENTES (FALTAN %d)" % (it["cost"] - GameManager.luna_points)
-							store_status_label.modulate = Color(1.0, 0.4, 0.4)
-				)
-		elif is_paint:
-			var unlocked = it["cost"] == 0 or it["id"] in GameManager.unlocked_ship_paints
-			var equipped = GameManager.active_ship_paint == it["id"]
-			if equipped:
-				act_btn.text = "EQUIPADO ✓"
-				act_btn.disabled = true
-				_style_menu_button(act_btn, Color(0.2, 0.85, 0.4), Color(0.04, 0.14, 0.08))
-			elif unlocked:
-				act_btn.text = "EQUIPAR"
-				_style_menu_button(act_btn, Color(0.2, 0.75, 1.0), Color(0.04, 0.11, 0.18))
-				act_btn.pressed.connect(func():
-					GameManager.active_ship_paint = it["id"]
-					GameManager.save_player_progression()
-					AudioManager.play("click")
-					_render_store_items()
-				)
-			else:
-				act_btn.text = "%d LUNA COINS" % it["cost"]
-				_style_menu_button(act_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
-				act_btn.pressed.connect(func():
-					if GameManager.spend_luna_coins(it["cost"]):
-						GameManager.unlocked_ship_paints.append(it["id"])
-						GameManager.active_ship_paint = it["id"]
-						GameManager.save_player_progression()
-						AudioManager.play("click")
-						_update_luna_points_ui()
-						_render_store_items()
-					else:
-						if store_status_label:
-							store_status_label.visible = true
-							store_status_label.text = "LUNA COINS INSUFICIENTES (FALTAN %d)" % (it["cost"] - GameManager.luna_points)
-							store_status_label.modulate = Color(1.0, 0.4, 0.4)
-				)
-		elif is_pack:
-			act_btn.text = it["cost_label"]
-			_style_menu_button(act_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
-			if it.get("is_ad", false):
-				_style_menu_button(act_btn, Color(0.2, 0.85, 1.0), Color(0.04, 0.12, 0.18))
-				act_btn.pressed.connect(func():
-					AudioManager.play("click")
-					AdManager.show_rewarded_ad(func():
-						GameManager.add_luna_coins(50)
-						_update_luna_points_ui()
-						if store_status_label:
-							store_status_label.visible = true
-							store_status_label.text = "TRANSMISIÓN COMPLETADA: +50 LUNA COINS"
-							store_status_label.modulate = Color(0.3, 0.95, 0.5)
-					)
-				)
-			else:
-				act_btn.pressed.connect(func():
-					AudioManager.play("click")
-					GameManager.add_luna_coins(it["reward_coins"])
-					if it.get("no_ads", false):
-						RevenueCatManager.has_purchased_no_ads = true
-					if it.get("unlock_all", false):
-						RevenueCatManager.has_full_game_access = true
-						RevenueCatManager.has_purchased_editor = true
-						RevenueCatManager.has_purchased_no_ads = true
+		if it.get("is_ad", false):
+			_style_menu_button(act_btn, Color(0.2, 0.85, 1.0), Color(0.04, 0.12, 0.18))
+			act_btn.pressed.connect(func():
+				AudioManager.play("click")
+				AdManager.show_rewarded_ad(func():
+					GameManager.add_luna_coins(50)
 					_update_luna_points_ui()
-					_render_store_items()
 					if store_status_label:
 						store_status_label.visible = true
-						store_status_label.text = "SUMINISTRO CONFIRMADO: +%d LUNA COINS" % it["reward_coins"]
-						store_status_label.modulate = Color(0.3, 0.95, 0.5)
+						store_status_label.text = GameManager.loc("reward_coins_feedback")
+						store_status_label.modulate = Color(1.0, 0.85, 0.25)
 				)
+			)
+		else:
+			_style_menu_button(act_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
+			act_btn.pressed.connect(func():
+				AudioManager.play("click")
+				_show_checkout_modal(it)
+			)
 			
 		row.add_child(act_btn)
 		card.add_child(row)
 		store_items_container.add_child(card)
 
-func open_store_modal(title: String, desc: String, _highlight_editor: bool = false) -> void:
-	store_title.text = title if not title.is_empty() else "TIENDA LUNA"
+func _show_checkout_modal(pack: Dictionary) -> void:
+	if active_checkout_modal:
+		active_checkout_modal.queue_free()
+		active_checkout_modal = null
+		
+	var layer = CanvasLayer.new()
+	layer.layer = 160
+	add_child(layer)
+	active_checkout_modal = layer
+	
+	var bg = ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.01, 0.02, 0.05, 0.92)
+	layer.add_child(bg)
+	
+	var center = CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(center)
+	
+	var panel = PanelContainer.new()
+	panel.custom_minimum_size = Vector2(440, 310)
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.07, 0.13, 0.98)
+	sb.border_width_left = 2
+	sb.border_width_top = 2
+	sb.border_width_right = 2
+	sb.border_width_bottom = 2
+	sb.border_color = Color(0.96, 0.66, 0.16)
+	sb.corner_radius_top_left = 8
+	sb.corner_radius_top_right = 8
+	sb.corner_radius_bottom_right = 8
+	sb.corner_radius_bottom_left = 8
+	sb.content_margin_left = 24
+	sb.content_margin_right = 24
+	sb.content_margin_top = 20
+	sb.content_margin_bottom = 20
+	panel.add_theme_stylebox_override("panel", sb)
+	center.add_child(panel)
+	
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 10)
+	panel.add_child(vbox)
+	
+	var title = Label.new()
+	title.text = "[ PASARELA DE PAGO // REVENUECAT ]" if GameManager.current_language == "es" else "[ REVENUECAT CHECKOUT GATEWAY ]"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 13)
+	title.modulate = Color(0.96, 0.66, 0.16)
+	vbox.add_child(title)
+	
+	var prod_name = Label.new()
+	prod_name.text = pack["name"]
+	prod_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prod_name.add_theme_font_size_override("font_size", 16)
+	prod_name.modulate = Color.WHITE
+	vbox.add_child(prod_name)
+	
+	var prod_desc = Label.new()
+	prod_desc.text = pack["desc"]
+	prod_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prod_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	prod_desc.add_theme_font_size_override("font_size", 11)
+	prod_desc.modulate = Color(0.7, 0.78, 0.88)
+	vbox.add_child(prod_desc)
+	
+	var price_box = PanelContainer.new()
+	var psb = StyleBoxFlat.new()
+	psb.bg_color = Color(0.02, 0.04, 0.08, 0.8)
+	psb.border_width_left = 1
+	psb.border_width_top = 1
+	psb.border_width_right = 1
+	psb.border_width_bottom = 1
+	psb.border_color = Color(0.2, 0.75, 1.0, 0.4)
+	psb.corner_radius_top_left = 4
+	psb.corner_radius_top_right = 4
+	psb.corner_radius_bottom_right = 4
+	psb.corner_radius_bottom_left = 4
+	psb.content_margin_top = 8
+	psb.content_margin_bottom = 8
+	price_box.add_theme_stylebox_override("panel", psb)
+	vbox.add_child(price_box)
+	
+	var price_lbl = Label.new()
+	price_lbl.text = ("TOTAL A PAGAR: %s
+Tarjeta Sandbox: •••• •••• •••• 4242 (Aprobación Real)" if GameManager.current_language == "es" else "TOTAL DUE: %s
+Sandbox Card: •••• •••• •••• 4242 (Live Simulation)") % pack["cost_label"]
+	price_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	price_lbl.add_theme_font_size_override("font_size", 12)
+	price_lbl.modulate = Color(0.3, 0.95, 0.5)
+	price_box.add_child(price_lbl)
+	
+	var status_msg = Label.new()
+	status_msg.text = ""
+	status_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_msg.add_theme_font_size_override("font_size", 11)
+	status_msg.modulate = Color(0.96, 0.75, 0.2)
+	vbox.add_child(status_msg)
+	
+	var btn_row = HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 12)
+	vbox.add_child(btn_row)
+	
+	var cancel_btn = Button.new()
+	cancel_btn.text = "CANCELAR" if GameManager.current_language == "es" else "CANCEL"
+	cancel_btn.custom_minimum_size = Vector2(110, 36)
+	_style_menu_button(cancel_btn, Color(0.7, 0.3, 0.3), Color(0.12, 0.05, 0.05))
+	btn_row.add_child(cancel_btn)
+	
+	var pay_btn = Button.new()
+	pay_btn.text = ("PAGAR " + pack["cost_label"]) if GameManager.current_language == "es" else ("PAY " + pack["cost_label"])
+	pay_btn.custom_minimum_size = Vector2(170, 36)
+	_style_menu_button(pay_btn, Color(0.2, 0.85, 0.4), Color(0.04, 0.16, 0.08))
+	btn_row.add_child(pay_btn)
+	
+	cancel_btn.pressed.connect(func():
+		AudioManager.play("click")
+		if active_checkout_modal:
+			active_checkout_modal.queue_free()
+			active_checkout_modal = null
+	)
+	
+	pay_btn.pressed.connect(func():
+		AudioManager.play("click")
+		pay_btn.disabled = true
+		cancel_btn.disabled = true
+		status_msg.text = "PROCESANDO TRANSACCIÓN CON REVENUECAT..." if GameManager.current_language == "es" else "PROCESSING REVENUECAT TRANSACTION..."
+		
+		# 1.2s delay simulating secure cloud payment processing
+		var tw = create_tween()
+		tw.tween_interval(1.2)
+		tw.finished.connect(func():
+			if pack.get("no_ads", false):
+				RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_NO_ADS)
+			elif pack.get("unlock_all", false):
+				RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_FULL_GAME)
+			elif pack.get("id") == "pack_editor":
+				RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_PLANET_EDITOR)
+				
+			GameManager.add_luna_coins(pack["reward_coins"])
+			_update_luna_points_ui()
+			_update_direct_iap_buttons()
+			_render_store_items()
+			
+			if active_checkout_modal:
+				active_checkout_modal.queue_free()
+				active_checkout_modal = null
+				
+			if store_status_label:
+				store_status_label.visible = true
+				store_status_label.text = ("✓ COMPRA APROBADA: +%d LUNA COINS (RECIBO #RC-%d)" if GameManager.current_language == "es" else "✓ PAYMENT APPROVED: +%d LUNA COINS (RECEIPT #RC-%d)") % [pack["reward_coins"], randi_range(10000, 99999)]
+				store_status_label.modulate = Color(0.3, 0.95, 0.5)
+		)
+	)
+
+func open_store_modal(title: String = "", desc: String = "", _highlight_editor: bool = false) -> void:
+	# Store title must always be LUNA STORE in EN, TIENDA LUNA in ES (never Sector Pro Bloqueado)
+	store_title.text = GameManager.loc("store_title")
+	
+	# If opened because of a locked sector or editor, show clean gold badge in store info
+	if sector_notice_badge:
+		if _highlight_editor:
+			sector_notice_badge.visible = true
+			sector_notice_badge.text = GameManager.loc("store_badge_locked_editor")
+		elif not title.is_empty() and title != "TIENDA LUNA" and title != "LUNA STORE":
+			sector_notice_badge.visible = true
+			sector_notice_badge.text = GameManager.loc("store_badge_locked_sector")
+		else:
+			sector_notice_badge.visible = false
+			
 	_update_luna_points_ui()
-	_switch_store_tab(current_store_tab)
+	_update_direct_iap_buttons()
+	_switch_store_tab("packs" if _highlight_editor else current_store_tab)
+	if store_dimmer:
+		store_dimmer.visible = true
 	store_modal.visible = true
+	_set_modal_open_state(true)
 	if store_status_label:
 		store_status_label.visible = false
 
 func _on_close_store_pressed() -> void:
 	AudioManager.play("click")
+	if store_dimmer:
+		store_dimmer.visible = false
 	store_modal.visible = false
+	_set_modal_open_state(false)
 
 func _on_buy_no_ads_pressed() -> void:
 	AudioManager.play("click")
 	RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_NO_ADS)
+	if store_dimmer:
+		store_dimmer.visible = false
 	store_modal.visible = false
+	_set_modal_open_state(false)
 	_update_launch_button_text()
 
 func _on_buy_full_game_pressed() -> void:
 	AudioManager.play("click")
 	RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_FULL_GAME)
+	if store_dimmer:
+		store_dimmer.visible = false
 	store_modal.visible = false
+	_set_modal_open_state(false)
 	_update_launch_button_text()
 
 func _on_buy_editor_pressed() -> void:
 	AudioManager.play("click")
 	RevenueCatManager.purchase_product(RevenueCatManager.PRODUCT_PLANET_EDITOR)
+	if store_dimmer:
+		store_dimmer.visible = false
 	store_modal.visible = false
+	_set_modal_open_state(false)
 	_update_launch_button_text()
 	if RevenueCatManager.has_planet_editor():
 		get_tree().change_scene_to_file("res://scenes/screens/planet_editor.tscn")
@@ -1594,6 +3134,40 @@ func _on_purchases_restored(success: bool) -> void:
 
 func _on_entitlement_updated(_entitlement: String, _active: bool) -> void:
 	_update_launch_button_text()
+	_update_direct_iap_buttons()
+
+func _update_direct_iap_buttons() -> void:
+	var is_es = (GameManager.current_language == "es")
+	
+	if buy_no_ads_btn:
+		if RevenueCatManager.has_no_ads():
+			buy_no_ads_btn.text = "[ ACTIVO ✓ ] " + ("SIN ANUNCIOS DE POR VIDA" if is_es else "NO ADS LIFETIME")
+			buy_no_ads_btn.disabled = true
+			_style_menu_button(buy_no_ads_btn, Color(0.2, 0.85, 0.4), Color(0.04, 0.14, 0.08))
+		else:
+			buy_no_ads_btn.text = "⚡ " + ("QUITAR ANUNCIOS - $0.99" if is_es else "REMOVE ADS - $0.99")
+			buy_no_ads_btn.disabled = false
+			_style_menu_button(buy_no_ads_btn, Color(0.2, 0.75, 1.0), Color(0.04, 0.11, 0.18))
+			
+	if buy_full_game_btn:
+		if RevenueCatManager.has_full_game():
+			buy_full_game_btn.text = "[ ADQUIRIDO ✓ ] CIVITUS FOUNDER FULL GAME"
+			buy_full_game_btn.disabled = true
+			_style_menu_button(buy_full_game_btn, Color(0.96, 0.75, 0.2), Color(0.18, 0.14, 0.04))
+		else:
+			buy_full_game_btn.text = "★ " + ("CIVITUS FULL GAME (TODO INCLUIDO) - $2.99" if is_es else "CIVITUS FULL GAME (ALL INCLUDED) - $2.99")
+			buy_full_game_btn.disabled = false
+			_style_menu_button(buy_full_game_btn, Color(0.96, 0.66, 0.16), Color(0.14, 0.09, 0.03))
+			
+	if buy_editor_btn:
+		if RevenueCatManager.has_planet_editor():
+			buy_editor_btn.text = "[ ADQUIRIDO ✓ ] " + ("EDITOR DE PLANETAS HABILITADO" if is_es else "PLANET EDITOR UNLOCKED")
+			buy_editor_btn.disabled = true
+			_style_menu_button(buy_editor_btn, Color(0.2, 0.85, 0.4), Color(0.04, 0.14, 0.08))
+		else:
+			buy_editor_btn.text = "✦ " + ("DESBLOQUEAR EDITOR DE PLANETAS - $1.99" if is_es else "UNLOCK PLANET EDITOR - $1.99")
+			buy_editor_btn.disabled = false
+			_style_menu_button(buy_editor_btn, Color(0.3, 0.85, 0.6), Color(0.04, 0.14, 0.10))
 
 # ----------------- Ads & VIP Transmission System -----------------
 

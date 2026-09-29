@@ -3,6 +3,7 @@ extends BaseButton
 class_name CircularArtButton
 
 signal drag_transferred(from_data: Dictionary, target_slot: String)
+signal right_clicked()
 
 enum IconType {
 	NONE,
@@ -47,9 +48,19 @@ enum IconType {
 	WIRE,
 	MICROCHIP,
 	REACTOR_CELL,
+	LASER_PISTOL,
 	LUNA_COIN,
 	SUIT_ALERT,
-	HEADLAMP
+	HEADLAMP,
+	AUDIO,
+	MUSIC,
+	SFX,
+	DISPLAY,
+	CONTROLS,
+	LANGUAGE,
+	CHECK,
+	RESET,
+	RADAR
 }
 
 @export var icon_type: IconType = IconType.NONE:
@@ -160,9 +171,19 @@ func _resolve_icon_name() -> void:
 		"wire": icon_type = IconType.WIRE
 		"microchip": icon_type = IconType.MICROCHIP
 		"reactor_cell": icon_type = IconType.REACTOR_CELL
+		"laser_pistol", "pistol", "laser_gun": icon_type = IconType.LASER_PISTOL
 		"coin", "luna_coin", "luna": icon_type = IconType.LUNA_COIN
 		"suit_alert", "suit", "helmet", "alert", "eva": icon_type = IconType.SUIT_ALERT
 		"headlamp", "flashlight", "torch", "light", "lights": icon_type = IconType.HEADLAMP
+		"audio", "sound", "volume": icon_type = IconType.AUDIO
+		"music", "song", "tune": icon_type = IconType.MUSIC
+		"sfx", "effects", "effect": icon_type = IconType.SFX
+		"display", "graphics", "video", "screen": icon_type = IconType.DISPLAY
+		"controls", "input", "gamepad", "touch": icon_type = IconType.CONTROLS
+		"language", "globe", "world_lang": icon_type = IconType.LANGUAGE
+		"check", "save", "confirm": icon_type = IconType.CHECK
+		"reset", "reload", "defaults": icon_type = IconType.RESET
+		"radar", "minimap", "map": icon_type = IconType.RADAR
 		_: pass
 
 func _on_mouse_entered() -> void:
@@ -184,6 +205,11 @@ func _on_button_up() -> void:
 	tw.tween_property(self, "scale", Vector2(1.0, 1.0), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	pivot_offset = size * 0.5
 	queue_redraw()
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+		right_clicked.emit()
+		accept_event()
 
 # ==========================================
 # DRAG & DROP HANDLING
@@ -346,12 +372,32 @@ func _draw() -> void:
 			_draw_tool_microchip(icon_center, icon_scale)
 		IconType.REACTOR_CELL:
 			_draw_tool_reactor_cell(icon_center, icon_scale)
+		IconType.LASER_PISTOL:
+			_draw_laser_pistol_icon(icon_center, icon_scale)
 		IconType.LUNA_COIN:
 			_draw_luna_coin(icon_center, icon_scale)
 		IconType.SUIT_ALERT:
 			_draw_suit_alert(icon_center, icon_scale)
 		IconType.HEADLAMP:
 			_draw_headlamp_beam(icon_center, icon_scale)
+		IconType.AUDIO:
+			_draw_audio_speaker(icon_center, icon_scale)
+		IconType.MUSIC:
+			_draw_music_note(icon_center, icon_scale)
+		IconType.SFX:
+			_draw_sfx_spark(icon_center, icon_scale)
+		IconType.DISPLAY:
+			_draw_display_monitor(icon_center, icon_scale)
+		IconType.CONTROLS:
+			_draw_controls_gamepad(icon_center, icon_scale)
+		IconType.LANGUAGE:
+			_draw_language_globe(icon_center, icon_scale)
+		IconType.CHECK:
+			_draw_check_mark(icon_center, icon_scale)
+		IconType.RESET:
+			_draw_reset_arrow(icon_center, icon_scale)
+		IconType.RADAR:
+			_draw_radar_scanner(icon_center, icon_scale)
 			
 	# 5. Badge Overlay (e.g. "x4", "100%")
 	if badge_text != "":
@@ -916,6 +962,29 @@ func _draw_tool_reactor_cell(c: Vector2, s: float) -> void:
 		c + Vector2(-8.0, 11.0) * s
 	]), blue, 2.0 * s, true)
 
+func _draw_laser_pistol_icon(c: Vector2, s: float) -> void:
+	var dark_body = Color(0.18, 0.22, 0.28)
+	var cyan = Color(0.2, 0.9, 1.0)
+	var gold = Color(0.96, 0.66, 0.16)
+	
+	# Slide / Receiver
+	draw_rect(Rect2(c + Vector2(-8.0, -6.0) * s, Vector2(15.0, 6.0) * s), dark_body, true)
+	draw_rect(Rect2(c + Vector2(-8.0, -6.0) * s, Vector2(15.0, 6.0) * s), gold, false, 1.2 * s)
+	# Barrel & emitter nozzle
+	draw_rect(Rect2(c + Vector2(7.0, -4.5) * s, Vector2(6.0, 3.5) * s), dark_body, true)
+	draw_circle(c + Vector2(13.0, -2.7) * s, 2.5 * s, cyan)
+	# Grip
+	var grip_pts = PackedVector2Array([
+		c + Vector2(-6.0, 0.0) * s,
+		c + Vector2(-2.0, 0.0) * s,
+		c + Vector2(-4.5, 9.0) * s,
+		c + Vector2(-8.5, 9.0) * s
+	])
+	draw_colored_polygon(grip_pts, dark_body)
+	draw_polyline(grip_pts, gold, 1.2 * s, true)
+	# Power cell indicator
+	draw_line(c + Vector2(-1.0, -3.0) * s, c + Vector2(4.0, -3.0) * s, cyan, 2.0 * s)
+
 # ----------------------------------------------------
 # 11. SUIT ALERT (ASTRONAUT HELMET & STATUS VISOR)
 # ----------------------------------------------------
@@ -1043,3 +1112,91 @@ func _draw_caption(pos: Vector2, c_text: String) -> void:
 	draw_rect(rect, Color(0.06, 0.05, 0.12, 0.85), true)
 	draw_rect(rect, Color(0.96, 0.66, 0.16, 0.6), false, 1.0)
 	draw_string(font, pos - Vector2(str_size.x * 0.5, -str_size.y * 0.32), clean_text, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, Color(0.95, 0.96, 1.0))
+
+# ----------------------------------------------------
+# 13. SETTINGS & SYSTEM ICONS (AUDIO, DISPLAY, CONTROLS, ETC.)
+# ----------------------------------------------------
+func _draw_audio_speaker(c: Vector2, s: float) -> void:
+	var cyan = Color(0.2, 0.85, 1.0)
+	var body = PackedVector2Array([
+		c + Vector2(-9.0, -5.0) * s,
+		c + Vector2(-4.0, -5.0) * s,
+		c + Vector2(2.0, -10.0) * s,
+		c + Vector2(2.0, 10.0) * s,
+		c + Vector2(-4.0, 5.0) * s,
+		c + Vector2(-9.0, 5.0) * s
+	])
+	draw_colored_polygon(body, cyan)
+	draw_arc(c + Vector2(2.0, 0.0) * s, 6.0 * s, -PI*0.3, PI*0.3, 12, cyan, 2.0 * s)
+	draw_arc(c + Vector2(2.0, 0.0) * s, 10.0 * s, -PI*0.3, PI*0.3, 12, Color(0.2, 0.85, 1.0, 0.7), 2.0 * s)
+
+func _draw_music_note(c: Vector2, s: float) -> void:
+	var gold = Color(0.96, 0.72, 0.22)
+	draw_circle(c + Vector2(-5.0, 6.0) * s, 3.5 * s, gold)
+	draw_circle(c + Vector2(5.0, 3.0) * s, 3.5 * s, gold)
+	draw_line(c + Vector2(-2.5, 6.0) * s, c + Vector2(-2.5, -7.0) * s, gold, 2.0 * s)
+	draw_line(c + Vector2(7.5, 3.0) * s, c + Vector2(7.5, -10.0) * s, gold, 2.0 * s)
+	draw_line(c + Vector2(-3.5, -7.0) * s, c + Vector2(8.5, -10.0) * s, gold, 3.0 * s)
+
+func _draw_sfx_spark(c: Vector2, s: float) -> void:
+	var orange = Color(1.0, 0.5, 0.2)
+	var white = Color(1.0, 0.95, 0.9)
+	var pts = PackedVector2Array([
+		c + Vector2(0.0, -12.0) * s,
+		c + Vector2(3.0, -3.0) * s,
+		c + Vector2(12.0, 0.0) * s,
+		c + Vector2(3.0, 3.0) * s,
+		c + Vector2(0.0, 12.0) * s,
+		c + Vector2(-3.0, 3.0) * s,
+		c + Vector2(-12.0, 0.0) * s,
+		c + Vector2(-3.0, -3.0) * s
+	])
+	draw_colored_polygon(pts, orange)
+	draw_circle(c, 2.5 * s, white)
+
+func _draw_display_monitor(c: Vector2, s: float) -> void:
+	var cyan = Color(0.3, 0.88, 1.0)
+	var screen_rect = Rect2(c + Vector2(-11.0, -9.0) * s, Vector2(22.0, 14.0) * s)
+	draw_rect(screen_rect, cyan, false, 2.0 * s)
+	draw_line(c + Vector2(0.0, 5.0) * s, c + Vector2(0.0, 9.0) * s, cyan, 2.0 * s)
+	draw_line(c + Vector2(-6.0, 9.0) * s, c + Vector2(6.0, 9.0) * s, cyan, 2.0 * s)
+
+func _draw_controls_gamepad(c: Vector2, s: float) -> void:
+	var gold = Color(0.96, 0.72, 0.22)
+	draw_line(c + Vector2(-10.0, 0.0) * s, c + Vector2(10.0, 0.0) * s, gold, 2.2 * s)
+	draw_line(c + Vector2(0.0, -10.0) * s, c + Vector2(0.0, 10.0) * s, gold, 2.2 * s)
+	draw_circle(c, 4.0 * s, Color(0.08, 0.1, 0.16))
+	draw_arc(c, 4.0 * s, 0, TAU, 16, gold, 1.8 * s)
+
+func _draw_language_globe(c: Vector2, s: float) -> void:
+	var cyan = Color(0.35, 0.8, 0.98)
+	draw_arc(c, 10.0 * s, 0, TAU, 24, cyan, 2.0 * s)
+	draw_line(c + Vector2(-10.0, 0.0) * s, c + Vector2(10.0, 0.0) * s, cyan, 1.5 * s)
+	draw_line(c + Vector2(0.0, -10.0) * s, c + Vector2(0.0, 10.0) * s, cyan, 1.5 * s)
+
+func _draw_check_mark(c: Vector2, s: float) -> void:
+	var green = Color(0.25, 0.95, 0.45)
+	draw_line(c + Vector2(-8.0, 0.0) * s, c + Vector2(-2.0, 6.0) * s, green, 3.2 * s)
+	draw_line(c + Vector2(-2.0, 6.0) * s, c + Vector2(9.0, -7.0) * s, green, 3.2 * s)
+
+func _draw_reset_arrow(c: Vector2, s: float) -> void:
+	var cyan = Color(0.4, 0.85, 1.0)
+	draw_arc(c, 8.5 * s, 0.3, TAU - 0.7, 24, cyan, 2.4 * s)
+	var head_c = c + Vector2(cos(0.3), sin(0.3)) * 8.5 * s
+	var pts = PackedVector2Array([
+		head_c + Vector2(3.0, -4.0) * s,
+		head_c + Vector2(3.0, 4.0) * s,
+		head_c + Vector2(-4.0, 2.0) * s
+	])
+	draw_colored_polygon(pts, cyan)
+
+func _draw_radar_scanner(c: Vector2, s: float) -> void:
+	var cyan = Color(0.18, 0.85, 1.0, 0.9)
+	var sweep_angle = pulse_time * 2.5
+	draw_arc(c, 11.5 * s, 0.0, TAU, 28, Color(cyan.r, cyan.g, cyan.b, 0.45), 1.5 * s)
+	draw_arc(c, 6.0 * s, 0.0, TAU, 18, Color(cyan.r, cyan.g, cyan.b, 0.3), 1.0 * s)
+	draw_line(c - Vector2(13.0, 0.0) * s, c + Vector2(13.0, 0.0) * s, Color(cyan.r, cyan.g, cyan.b, 0.25), 1.0 * s)
+	draw_line(c - Vector2(0.0, 13.0) * s, c + Vector2(0.0, 13.0) * s, Color(cyan.r, cyan.g, cyan.b, 0.25), 1.0 * s)
+	draw_line(c, c + Vector2(cos(sweep_angle), sin(sweep_angle)) * 11.5 * s, Color(1.0, 0.9, 0.3, 0.85), 1.6 * s)
+	draw_circle(c + Vector2(cos(sweep_angle - 0.5), sin(sweep_angle - 0.5)) * 7.5 * s, 2.0 * s, Color(1.0, 0.8, 0.2))
+	draw_circle(c, 2.0 * s, cyan)

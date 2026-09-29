@@ -56,6 +56,11 @@ func _process(delta: float) -> void:
 				if sphere_node:
 					sphere_node.rotation.y += delta * 0.25
 
+	if is_instance_valid(star_mesh_instance):
+		var disk = star_mesh_instance.get_node_or_null("AccretionDisk")
+		if is_instance_valid(disk):
+			disk.rotation.y += delta * 1.6
+
 func setup_system(sys: Dictionary, sel_idx: int = 0) -> void:
 	system_data = sys
 	selected_index = sel_idx
@@ -80,6 +85,59 @@ func _update_selection_halo(sel_idx: int) -> void:
 				halo.visible = (i == sel_idx)
 
 func _build_star_visuals(star_data: Dictionary) -> void:
+	# Clear previous black hole accretion accessories if any
+	for child in star_mesh_instance.get_children():
+		child.queue_free()
+
+	if star_data.get("is_black_hole", false):
+		# 1. Gargantua Black Hole Event Horizon (Completely black, unshaded)
+		var eh_radius = float(star_data.get("event_horizon_radius", 2.2))
+		var s_mesh = SphereMesh.new()
+		s_mesh.radius = eh_radius
+		s_mesh.height = eh_radius * 2.0
+		s_mesh.radial_segments = 48
+		s_mesh.rings = 24
+		star_mesh_instance.mesh = s_mesh
+		
+		var bh_mat = StandardMaterial3D.new()
+		bh_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		bh_mat.albedo_color = Color(0.005, 0.005, 0.01, 1.0)
+		star_mesh_instance.material_override = bh_mat
+		star_mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		
+		# 2. Photon Sphere (Luminous gravitational lensing shell)
+		var ps_mesh_inst = MeshInstance3D.new()
+		ps_mesh_inst.name = "PhotonSphere"
+		var ps_radius = float(star_data.get("photon_sphere_radius", 3.0))
+		var ps_mesh = SphereMesh.new()
+		ps_mesh.radius = ps_radius
+		ps_mesh.height = ps_radius * 2.0
+		ps_mesh_inst.mesh = ps_mesh
+		var ps_mat = StandardMaterial3D.new()
+		ps_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ps_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ps_mat.albedo_color = Color(1.0, 0.92, 0.70, 0.45)
+		ps_mesh_inst.material_override = ps_mat
+		star_mesh_instance.add_child(ps_mesh_inst)
+		
+		# 3. Relativistic Glowing Accretion Disk
+		var disk_mesh_inst = MeshInstance3D.new()
+		disk_mesh_inst.name = "AccretionDisk"
+		var disk_mesh = TorusMesh.new()
+		disk_mesh.inner_radius = float(star_data.get("accretion_inner_radius", 3.5))
+		disk_mesh.outer_radius = float(star_data.get("accretion_outer_radius", 11.5))
+		disk_mesh.rings = 64
+		disk_mesh.ring_segments = 32
+		disk_mesh_inst.mesh = disk_mesh
+		var disk_mat = StandardMaterial3D.new()
+		disk_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		disk_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		disk_mat.albedo_color = Color(1.0, 0.68, 0.18, 0.92)
+		disk_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		disk_mesh_inst.material_override = disk_mat
+		star_mesh_instance.add_child(disk_mesh_inst)
+		return
+
 	var s_col: Color = star_data.get("color", Color(1.0, 0.88, 0.35))
 	var s_lum: float = star_data.get("luminosity", 1.0)
 	

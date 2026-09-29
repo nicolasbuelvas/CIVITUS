@@ -127,6 +127,51 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_TabActive"]
+content_margin_left = 10.0
+content_margin_top = 6.0
+content_margin_right = 10.0
+content_margin_bottom = 6.0
+bg_color = Color(0.12, 0.35, 0.65, 0.92)
+border_width_bottom = 2
+border_color = Color(0.35, 0.90, 1.0, 1.0)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_TabInactive"]
+content_margin_left = 10.0
+content_margin_top = 6.0
+content_margin_right = 10.0
+content_margin_bottom = 6.0
+bg_color = Color(0.05, 0.10, 0.18, 0.65)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.20, 0.35, 0.50, 0.35)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_StepBtn"]
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
+bg_color = Color(0.08, 0.16, 0.28, 0.90)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.55, 0.85, 0.50)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
 [node name="PlanetEditor" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -237,7 +282,7 @@ anchors_preset = 11
 anchor_left = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -510.0
+offset_left = -480.0
 offset_top = 68.0
 offset_right = -14.0
 offset_bottom = -14.0
@@ -253,270 +298,444 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_DockPanel")
 
-[node name="ScrollContainer" type="ScrollContainer" parent="ControlDock/PanelContainer"]
+[node name="DockVBox" type="VBoxContainer" parent="ControlDock/PanelContainer"]
 layout_mode = 2
-horizontal_scroll_mode = 0
+theme_override_constants/separation = 10
 
-[node name="ControlsVBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer"]
+[node name="NameBox" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NameLabel" type="Label" parent="ControlDock/PanelContainer/DockVBox/NameBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.8, 0.95, 1)
+theme_override_font_sizes/font_size = 12
+text = "PLANETA:"
+
+[node name="LineEdit" type="LineEdit" parent="ControlDock/PanelContainer/DockVBox/NameBox"]
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 12
-
-[node name="NameBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="LineEdit" type="LineEdit" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/NameBox"]
-custom_minimum_size = Vector2(0, 36)
-layout_mode = 2
 theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleBoxFlat_Input")
 placeholder_text = "Nombre del Planeta"
 text = "Aurelia Prime"
 
-[node name="HSeparator1" type="HSeparator" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+[node name="TabBar" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TabSurfaceBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleBoxFlat_TabActive")
+text = "[SURFACE]"
+
+[node name="TabAtmoBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleBoxFlat_TabInactive")
+text = "[ATMOSPHERE]"
+
+[node name="TabOceanBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleBoxFlat_TabInactive")
+text = "[OCEAN]"
+
+[node name="TabRingsBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleBoxFlat_TabInactive")
+text = "[RINGS]"
+
+[node name="TabViews" type="MarginContainer" parent="ControlDock/PanelContainer/DockVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SurfaceView" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="RadiusBox" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox"]
 layout_mode = 2
 
-[node name="RadiusBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox/Header"]
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Radio / Tamaño"
 
-[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox/Header"]
+[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox/Header"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 12
 text = "3.5 R⊕"
 
-[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RadiusBox"]
+[node name="StepperRow" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox"]
 layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DecBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox/StepperRow"]
+custom_minimum_size = Vector2(34, 28)
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_StepBtn")
+text = "◄"
+
+[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox/StepperRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 min_value = 2.0
 max_value = 6.0
 step = 0.1
 value = 3.5
 
-[node name="GravityBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+[node name="IncBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/RadiusBox/StepperRow"]
+custom_minimum_size = Vector2(34, 28)
 layout_mode = 2
-theme_override_constants/separation = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_StepBtn")
+text = "►"
 
-[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox"]
+[node name="GravityBox" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox/Header"]
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Gravedad"
 
-[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox/Header"]
+[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox/Header"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 12
 text = "9.8 m/s² (1.00 G)"
 
-[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/GravityBox"]
+[node name="StepperRow" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox"]
 layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DecBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox/StepperRow"]
+custom_minimum_size = Vector2(34, 28)
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_StepBtn")
+text = "◄"
+
+[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox/StepperRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 min_value = 1.0
 max_value = 25.0
 step = 0.1
 value = 9.8
 
-[node name="TempBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+[node name="IncBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/GravityBox/StepperRow"]
+custom_minimum_size = Vector2(34, 28)
 layout_mode = 2
-theme_override_constants/separation = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_StepBtn")
+text = "►"
 
-[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox"]
+[node name="SurfaceColorBox" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView"]
 layout_mode = 2
+theme_override_constants/separation = 6
 
-[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox/Header"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
-text = "Temperatura"
-
-[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox/Header"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.3, 1, 0.5, 1)
-theme_override_font_sizes/font_size = 12
-text = "+18 °C"
-
-[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/TempBox"]
-layout_mode = 2
-min_value = -180.0
-max_value = 120.0
-step = 1.0
-value = 18.0
-
-[node name="AtmoBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox"]
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/SurfaceColorBox"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox/Header"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
-text = "Densidad Atmosférica"
-
-[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox/Header"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
-theme_override_font_sizes/font_size = 12
-text = "1.00 atm"
-
-[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoBox"]
-layout_mode = 2
-min_value = 0.0
-max_value = 5.0
-step = 0.05
-value = 1.0
-
-[node name="WaterBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox/Header"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
-text = "Cobertura Oceánica"
-
-[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox/Header"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
-theme_override_font_sizes/font_size = 12
-text = "48 %"
-
-[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/WaterBox"]
-layout_mode = 2
-min_value = 0.0
-max_value = 1.0
-step = 0.02
-value = 0.48
-
-[node name="HSeparator2" type="HSeparator" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
-layout_mode = 2
-
-[node name="SurfaceColorBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox/Header"]
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/SurfaceColorBox/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Color de Superficie"
 
-[node name="ColorPicker" type="ColorPickerButton" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox/Header"]
+[node name="ColorPicker" type="ColorPickerButton" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/SurfaceColorBox/Header"]
 custom_minimum_size = Vector2(40, 24)
 layout_mode = 2
 color = Color(0.2, 0.55, 0.26, 1)
 
-[node name="SwatchesRow" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/SurfaceColorBox"]
+[node name="SwatchesRow" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/SurfaceView/SurfaceColorBox"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="AtmoColorBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+[node name="AtmoView" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="AtmoBox" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView"]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox"]
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox/Header"]
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Densidad Atmosférica"
+
+[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "1.00 atm"
+
+[node name="StepperRow" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DecBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox/StepperRow"]
+custom_minimum_size = Vector2(34, 28)
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_StepBtn")
+text = "◄"
+
+[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox/StepperRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.0
+max_value = 5.0
+step = 0.05
+value = 1.0
+
+[node name="IncBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoBox/StepperRow"]
+custom_minimum_size = Vector2(34, 28)
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_StepBtn")
+text = "►"
+
+[node name="TempBox" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Temperatura"
+
+[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 1, 0.5, 1)
+theme_override_font_sizes/font_size = 12
+text = "+18 °C"
+
+[node name="StepperRow" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DecBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox/StepperRow"]
+custom_minimum_size = Vector2(34, 28)
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_StepBtn")
+text = "◄"
+
+[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox/StepperRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -180.0
+max_value = 120.0
+step = 1.0
+value = 18.0
+
+[node name="IncBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/TempBox/StepperRow"]
+custom_minimum_size = Vector2(34, 28)
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_StepBtn")
+text = "►"
+
+[node name="AtmoColorBox" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoColorBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoColorBox/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Tinte Atmosférico"
 
-[node name="ColorPicker" type="ColorPickerButton" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox/Header"]
+[node name="ColorPicker" type="ColorPickerButton" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoColorBox/Header"]
 custom_minimum_size = Vector2(40, 24)
 layout_mode = 2
 color = Color(0.3, 0.7, 1, 1)
 
-[node name="SwatchesRow" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/AtmoColorBox"]
+[node name="SwatchesRow" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/AtmoView/AtmoColorBox"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="RingsBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+[node name="OceanView" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="WaterBox" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView"]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox"]
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/Header"]
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 12
+text = "Cobertura Oceánica"
+
+[node name="ValLabel" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "48 %"
+
+[node name="StepperRow" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DecBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox/StepperRow"]
+custom_minimum_size = Vector2(34, 28)
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_StepBtn")
+text = "◄"
+
+[node name="HSlider" type="HSlider" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox/StepperRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.0
+max_value = 1.0
+step = 0.02
+value = 0.48
+
+[node name="IncBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView/WaterBox/StepperRow"]
+custom_minimum_size = Vector2(34, 28)
+layout_mode = 2
+focus_mode = 0
+theme_override_styles/normal = SubResource("StyleBoxFlat_StepBtn")
+text = "►"
+
+[node name="OceanDescBox" type="PanelContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_Input")
+
+[node name="Margin" type="MarginContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView/OceanDescBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="DescLabel" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/OceanView/OceanDescBox/Margin"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.85, 0.95, 1)
+theme_override_font_sizes/font_size = 11
+text = "Hidrosfera activa regulada por densidad atmosférica y temperatura de equilibrio."
+autowrap_mode = 2
+
+[node name="RingsView" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="RingsBox" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/RingsView"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsBox/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 12
 text = "Anillos Planetarios"
 
-[node name="CheckButton" type="CheckButton" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/Header"]
+[node name="CheckButton" type="CheckButton" parent="ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsBox/Header"]
 layout_mode = 2
+focus_mode = 0
 
-[node name="RingsColorBox" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox"]
+[node name="RingsColorBox" type="VBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/RingsView"]
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 6
 
-[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox"]
+[node name="Header" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsColorBox"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox/Header"]
+[node name="Label" type="Label" parent="ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsColorBox/Header"]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 11
 text = "Color de Anillos"
 
-[node name="ColorPicker" type="ColorPickerButton" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox/Header"]
+[node name="ColorPicker" type="ColorPickerButton" parent="ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsColorBox/Header"]
 custom_minimum_size = Vector2(40, 24)
 layout_mode = 2
 color = Color(0.85, 0.92, 1, 1)
 
-[node name="SwatchesRow" type="HBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/RingsBox/RingsColorBox"]
+[node name="SwatchesRow" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox/TabViews/RingsView/RingsColorBox"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="HSeparator3" type="HSeparator" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+[node name="HSeparator" type="HSeparator" parent="ControlDock/PanelContainer/DockVBox"]
 layout_mode = 2
 
-[node name="ActionButtons" type="VBoxContainer" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox"]
+[node name="ActionButtons" type="HBoxContainer" parent="ControlDock/PanelContainer/DockVBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="RandomBtn" type="Button" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/ActionButtons"]
-custom_minimum_size = Vector2(0, 38)
+[node name="RandomBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/ActionButtons"]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
+size_flags_horizontal = 3
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleBoxFlat_SecBtn")
 text = "ALEATORIO"
 
-[node name="LaunchBtn" type="Button" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/ActionButtons"]
-custom_minimum_size = Vector2(0, 44)
+[node name="LaunchBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/ActionButtons"]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
-theme_override_styles/normal = SubResource("StyleBoxFlat_PrimaryBtn")
-text = "INICIAR CON ESTE PLANETA"
-
-[node name="BackBtn" type="Button" parent="ControlDock/PanelContainer/ScrollContainer/ControlsVBox/ActionButtons"]
-custom_minimum_size = Vector2(0, 36)
-layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
 theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxFlat_PrimaryBtn")
+text = "INICIAR EXPEDICIÓN"
+
+[node name="BackBtn" type="Button" parent="ControlDock/PanelContainer/DockVBox/ActionButtons"]
+custom_minimum_size = Vector2(80, 42)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 12
 theme_override_styles/normal = SubResource("StyleBoxFlat_OutlineBtn")
-text = "VOLVER AL MENÚ"
+text = "VOLVER"

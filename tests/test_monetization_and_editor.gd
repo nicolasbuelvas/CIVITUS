@@ -24,12 +24,12 @@ func _init() -> void:
 	GameManager.master_volume = 0.2
 	GameManager.music_volume = 0.3
 	GameManager.sfx_volume = 0.4
-	GameManager.current_language = "en"
+	GameManager.current_language = "es"
 	GameManager.reset_settings_to_default()
 	
-	if GameManager.current_language == "es" and abs(GameManager.master_volume - 0.85) < 0.01 and abs(GameManager.music_volume - 0.70) < 0.01 and abs(GameManager.sfx_volume - 0.90) < 0.01:
+	if GameManager.current_language == "en" and abs(GameManager.master_volume - 0.85) < 0.01 and abs(GameManager.music_volume - 0.70) < 0.01 and abs(GameManager.sfx_volume - 0.90) < 0.01:
 		passed += 1
-		print("[PASS] Setting 'Volver a Default' correctly restores 85%, 70%, 90% and 'es'")
+		print("[PASS] Setting 'Volver a Default' correctly restores 85%, 70%, 90% and 'en'")
 	else:
 		failed += 1
 		print("[FAIL] Setting 'Volver a Default' failed to restore default values")

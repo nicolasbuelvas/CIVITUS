@@ -62,6 +62,8 @@ var carrier_player: CharacterBody3D = null
 var is_in_ragdoll: bool = false
 var ragdoll_timer: float = 0.0
 var is_stranded_on_land: bool = false
+var is_fed: bool = false
+var target_enemy: Node3D = null
 
 var loot_item_defeat: String = "alien_chitin"
 var loot_item_friendly: String = "biogel_sample"
@@ -124,8 +126,16 @@ func _ready() -> void:
 	current_health = max_health
 
 func setup_creature(planet_params: Dictionary, aggressive: bool = false, domain_override: int = -1) -> void:
+	add_to_group("creatures")
 	is_aggressive = aggressive
 	ai_archetype = AIArchetype.AGGRESSIVE if aggressive else AIArchetype.PEACEFUL
+	is_fed = false
+	is_being_carried = false
+	is_dead = false
+	target_enemy = null
+	is_in_ragdoll = false
+	attack_cooldown = 0.0
+	current_health = max_health
 	
 	var p_type = planet_params.get("type", "Habitable")
 	var lvl = planet_params.get("level", 1)
@@ -677,28 +687,46 @@ func _physics_process(delta: float) -> void:
 				velocity -= up_dir * v_out
 	else:
 		# Terrestrial: Hard floor and ceiling clamp
-		var min_ground = surf_r + 0.40 * scale.y
-		var max_ground = surf_r + 0.85 * scale.y
+		var min_ground = surf_r + 0.55 * scale.y
+		var max_ground = surf_r + 1.25 * scale.y
 		if p_len < min_ground:
 			global_position = up_dir * min_ground
 			var v_in = velocity.dot(up_dir)
 			if v_in < 0.0:
 				velocity -= up_dir * v_in
-		elif p_len > max_ground:
+		elif p_len > max_ground and not is_in_ragdoll and is_on_floor():
 			global_position = up_dir * max_ground
 			var v_out = velocity.dot(up_dir)
 			if v_out > 0.0:
 				velocity -= up_dir * v_out
 
-	# Ragdoll Tumbling State
+	# Ragdoll Tumbling State with Planetary Gravity
 	if is_in_ragdoll:
 		ragdoll_timer -= delta
-		rotate(up_dir.cross(velocity.normalized() + Vector3(0.01, 0.01, 0.01)).normalized(), delta * 8.0)
+		velocity += -up_dir * 18.0 * delta # Planetary gravity toward core
+		var rot_axis = up_dir.cross(velocity.normalized() + Vector3(0.015, 0.025, 0.035)).normalized()
+		rotate(rot_axis, delta * 9.0)
 		up_direction = up_dir
 		move_and_slide()
-		if is_on_floor() or ragdoll_timer <= 0.0:
+		
+		# Prevent falling below ground surface
+		if p_len < surf_r + 0.35 * scale.y:
+			global_position = up_dir * (surf_r + 0.35 * scale.y)
+			var v_in = velocity.dot(up_dir)
+			if v_in < 0.0:
+				velocity -= up_dir * v_in
+				
+		if is_on_floor():
+			velocity = velocity.slide(up_dir) * 0.84
+			if ragdoll_timer <= 0.0 or velocity.length_squared() < 0.2:
+				if is_dead:
+					velocity = Vector3.ZERO
+				else:
+					is_in_ragdoll = false
+					velocity = Vector3.ZERO
+					global_transform.basis = Basis.looking_at(-wander_tangent, up_dir).orthonormalized()
+		elif ragdoll_timer <= 0.0 and not is_dead:
 			is_in_ragdoll = false
-			velocity = Vector3.ZERO
 		return
 
 	# Proximity Hazards
@@ -719,18 +747,65 @@ func _physics_process(delta: float) -> void:
 
 	# AI Tangent
 	var desired_tangent = Vector3.ZERO
-	if is_instance_valid(target_player):
+	if is_fed:
+		# Tamed Pet Defense & Loyalty Follow AI
+		if not is_instance_valid(target_enemy) or target_enemy.get("is_dead") == true:
+			target_enemy = null
+			var min_threat_dist: float = 16.0
+			for other in get_tree().get_nodes_in_group("creatures"):
+				if is_instance_valid(other) and other != self and not other.is_queued_for_deletion() and not other.get("is_dead") and other.get("is_aggressive"):
+					var d_threat = pos.distance_to(other.global_position)
+					if d_threat < min_threat_dist:
+						min_threat_dist = d_threat
+						target_enemy = other
+		
+		if is_instance_valid(target_enemy) and not target_enemy.get("is_dead"):
+			var to_enemy = target_enemy.global_position - pos
+			var dist_e = to_enemy.length()
+			var tangent_to_enemy = (to_enemy - up_dir * to_enemy.dot(up_dir)).normalized()
+			desired_tangent = tangent_to_enemy
+			if dist_e < 2.3:
+				_perform_attack(delta)
+		elif is_instance_valid(target_player):
+			var to_player = target_player.global_position - pos
+			var dist_to_player = to_player.length()
+			var tangent_to_player = (to_player - up_dir * to_player.dot(up_dir)).normalized()
+			if dist_to_player > 4.2:
+				desired_tangent = tangent_to_player
+			elif dist_to_player < 1.8:
+				desired_tangent = -tangent_to_player * 0.5
+			else:
+				desired_tangent = Vector3.ZERO
+		else:
+			desired_tangent = _get_wander_tangent(up_dir, delta)
+	elif is_instance_valid(target_player):
 		var p_pos = target_player.global_position
 		var to_player = p_pos - pos
 		var dist_to_player = to_player.length()
 		var tangent_to_player = (to_player - up_dir * to_player.dot(up_dir)).normalized()
 		
 		if is_aggressive:
-			if dist_to_player < 16.0:
+			# Check if retaliating against pet or rival in inter-mob combat
+			if is_instance_valid(target_enemy) and not target_enemy.get("is_dead"):
+				var to_enemy = target_enemy.global_position - pos
+				var dist_e = to_enemy.length()
+				var tangent_to_enemy = (to_enemy - up_dir * to_enemy.dot(up_dir)).normalized()
+				desired_tangent = tangent_to_enemy
+				if dist_e < 2.2:
+					_perform_attack(delta)
+			elif dist_to_player < 16.0:
 				desired_tangent = tangent_to_player
 				if dist_to_player < 2.2:
 					_perform_attack(delta)
 			else:
+				# Territorial battles with other hostile mobs or wild pets
+				if randf() < 0.05 and not is_instance_valid(target_enemy):
+					for other in get_tree().get_nodes_in_group("creatures"):
+						if is_instance_valid(other) and other != self and not other.get("is_dead"):
+							if other.get("is_fed") or (other.get("is_aggressive") and other.get("sub_species") != sub_species):
+								if pos.distance_to(other.global_position) < 6.0:
+									target_enemy = other
+									break
 				desired_tangent = _get_wander_tangent(up_dir, delta)
 		elif ai_archetype == AIArchetype.NEUTRAL:
 			if dist_to_player < 1.5:
@@ -805,29 +880,61 @@ func _get_wander_tangent(up_dir: Vector3, delta: float) -> Vector3:
 		wander_tangent = (rand_vec - up_dir * rand_vec.dot(up_dir)).normalized()
 	return wander_tangent
 
-func _perform_attack(delta: float) -> void:
+func _perform_attack(delta: float, force: bool = false) -> void:
 	attack_cooldown -= delta
-	if attack_cooldown <= 0.0:
-		attack_cooldown = 1.3
-		if target_player and target_player.has_method("take_damage"):
-			var dmg = 12.0
-			if creature_size == CreatureSize.COLOSSAL: dmg = 25.0
-			elif creature_size == CreatureSize.SMALL: dmg = 6.0
-			target_player.take_damage(dmg)
+	if force or attack_cooldown <= 0.0:
+		attack_cooldown = 1.2
+		var dmg = 12.0
+		var knock_force = 9.0
+		if creature_size == CreatureSize.COLOSSAL:
+			dmg = 26.0
+			knock_force = 16.0
+		elif creature_size == CreatureSize.SMALL:
+			dmg = 7.0
+			knock_force = 6.0
+		
+		var up_dir = global_position.normalized()
+		
+		if is_fed and is_instance_valid(target_enemy) and not target_enemy.get("is_dead"):
+			# Tamed companion defends player by attacking hostile mob!
+			var knock = (target_enemy.global_position - global_position).normalized() * knock_force + up_dir * 3.5
+			if target_enemy.has_method("take_plasma_damage"):
+				target_enemy.take_plasma_damage(dmg, knock)
+			elif target_enemy.has_method("take_damage"):
+				target_enemy.take_damage(dmg, knock)
+			# Enemy retaliates against pet
+			if target_enemy.get("target_enemy") == null:
+				target_enemy.set("target_enemy", self)
 			AudioManager.play("thruster", 1.4, -4.0)
+		elif is_aggressive and is_instance_valid(target_enemy) and not target_enemy.get("is_dead"):
+			# Hostile mob attacks pet or rival in inter-mob battle!
+			var knock = (target_enemy.global_position - global_position).normalized() * knock_force + up_dir * 3.5
+			if target_enemy.has_method("take_plasma_damage"):
+				target_enemy.take_plasma_damage(dmg, knock)
+			elif target_enemy.has_method("take_damage"):
+				target_enemy.take_damage(dmg, knock)
+			AudioManager.play("thruster", 1.4, -4.0)
+		elif target_player and target_player.has_method("take_damage"):
+			# Hostile mob attacks player with real damage, screen kick, sound, and knockback!
+			target_player.take_damage(dmg, global_position)
+			AudioManager.play("thruster", 1.4, -2.0)
 
 # Carrying & Interaction Interface
 func can_be_carried() -> bool:
-	return not is_dead and not is_aggressive and creature_size != CreatureSize.COLOSSAL
+	return is_fed and not is_dead and not is_aggressive and creature_size != CreatureSize.COLOSSAL
 
-func pick_up(carrier: CharacterBody3D) -> void:
+func pick_up(carrier: Node3D) -> void:
 	is_being_carried = true
 	carrier_player = carrier
+	if is_fed:
+		target_player = carrier
 	if col_shape: col_shape.set_deferred("disabled", true)
 	AudioManager.play("hop", 1.1, 0.0)
 
 func drop_gently() -> void:
 	is_being_carried = false
+	if is_fed and is_instance_valid(carrier_player):
+		target_player = carrier_player
 	carrier_player = null
 	if col_shape: col_shape.set_deferred("disabled", false)
 	AudioManager.play("hop", 0.9, 0.0)
@@ -847,22 +954,41 @@ func rescue_creature() -> String:
 	is_stranded_on_land = false
 	var reward = "ocean_pearl"
 	creature_rescued.emit(reward)
-	GameManager.crafting.add_resource("copper", 2)
+	if GameManager and GameManager.crafting:
+		GameManager.crafting.add_resource("ocean_pearl", 1)
+		GameManager.crafting.add_resource("pearl", 1)
 	var hud = get_tree().get_first_node_in_group("hud")
 	if hud and hud.has_method("show_status_toast"):
 		hud.show_status_toast("¡CRIATURA RESCATADA! Devuelta al océano.")
 	AudioManager.play("collect", 1.3, 2.0)
 	return reward
 
-func take_damage(dmg: float) -> Dictionary:
+func take_damage(dmg: float, hit_impulse: Vector3 = Vector3.ZERO) -> Dictionary:
 	if is_dead:
 		return {}
-	if ai_archetype == AIArchetype.NEUTRAL:
+	is_fed = false
+	if ai_archetype == AIArchetype.NEUTRAL or ai_archetype == AIArchetype.PEACEFUL:
 		is_aggressive = true
 		ai_archetype = AIArchetype.AGGRESSIVE
 	current_health = maxf(0.0, current_health - dmg)
 	creature_damaged.emit(current_health, max_health)
 	AudioManager.play("mine", 1.3, 0.0)
+	
+	var up_dir = global_position.normalized()
+	if hit_impulse == Vector3.ZERO:
+		var from_pos = global_position - global_transform.basis.z
+		if is_instance_valid(target_player):
+			from_pos = target_player.global_position
+		var knock_dir = (global_position - from_pos).normalized()
+		var tangent_knock = (knock_dir - up_dir * knock_dir.dot(up_dir)).normalized()
+		var pwr = 8.5 if creature_size != CreatureSize.COLOSSAL else 4.0
+		hit_impulse = tangent_knock * pwr + up_dir * 3.8
+		
+	if current_health > 0.0:
+		is_in_ragdoll = true
+		ragdoll_timer = 0.80
+		velocity = hit_impulse
+		
 	if body_mesh and body_mesh.material_override is StandardMaterial3D:
 		var m = body_mesh.material_override as StandardMaterial3D
 		m.albedo_color = Color.WHITE
@@ -870,53 +996,112 @@ func take_damage(dmg: float) -> Dictionary:
 			if is_instance_valid(m): m.albedo_color = creature_color
 		)
 	if current_health <= 0.0:
-		return _die()
+		return _die(hit_impulse)
 	return {}
 
 func take_plasma_damage(amount: float, hit_impulse: Vector3 = Vector3.ZERO) -> void:
-	take_damage(amount)
-	if hit_impulse.length_squared() > 1.0 and not is_dead:
-		is_in_ragdoll = true
-		ragdoll_timer = 0.85
-		velocity = hit_impulse
+	take_damage(amount, hit_impulse)
 
-func feed_creature(_food_item: String = "fiber") -> String:
-	if is_dead or is_aggressive:
+func feed_creature(food_item: String = "plant_fibers") -> String:
+	if is_dead or creature_size == CreatureSize.COLOSSAL:
 		return ""
-	AudioManager.play("collect", 1.2, 0.0)
+	is_fed = true
+	is_aggressive = false
+	ai_archetype = AIArchetype.PEACEFUL
+	current_health = max_health
+	
+	# Warm friendly eye glow
+	eye_color = Color(0.2, 0.95, 0.45)
+	if eye_l and eye_l.material_override is StandardMaterial3D:
+		(eye_l.material_override as StandardMaterial3D).emission = eye_color
+	if eye_r and eye_r.material_override is StandardMaterial3D:
+		(eye_r.material_override as StandardMaterial3D).emission = eye_color
+	
+	AudioManager.play("collect", 1.25, 2.0)
+	AudioManager.play("hop", 1.2, 0.0)
 	creature_fed.emit(loot_item_friendly)
-	GameManager.crafting.add_resource("biogel_sample", 1)
-	GameManager.crafting.add_resource("alien_chitin", 1)
+	
 	var hud = get_tree().get_first_node_in_group("hud")
 	if hud and hud.has_method("show_status_toast"):
-		hud.show_status_toast("¡CRIATURA ALIMENTADA! Recompensa simbiótica obtenida.")
+		hud.show_status_toast("¡CRIATURA DOMADA! Alimentada con %s. Te seguirá y defenderá." % food_item.capitalize().replace("_", " "))
+		
 	var tw = create_tween()
-	tw.tween_property(self, "scale", scale * 1.15, 0.2)
-	tw.tween_property(self, "scale", scale, 0.2)
+	tw.tween_property(self, "scale", scale * 1.25, 0.18).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(self, "scale", scale, 0.22)
+	
+	if GameManager and GameManager.crafting:
+		GameManager.crafting.add_resource("biogel_sample", 1)
 	return loot_item_friendly
 
-func _die() -> Dictionary:
+func _die(death_impulse: Vector3 = Vector3.ZERO) -> Dictionary:
 	is_dead = true
-	velocity = Vector3.ZERO
-	if col_shape: col_shape.set_deferred("disabled", true)
-	if is_instance_valid(carrier_player): carrier_player.drop_carried_creature()
+	is_in_ragdoll = true
+	ragdoll_timer = 1.4
+	
+	var up_dir = global_position.normalized()
+	if death_impulse != Vector3.ZERO:
+		velocity = death_impulse * 1.25
+	else:
+		velocity = -global_transform.basis.z * 5.0 + up_dir * 4.5
+		
+	collision_layer = 0
+	collision_mask = 1
+	if is_instance_valid(carrier_player):
+		carrier_player.drop_carried_creature()
+		
 	var loot = { "item": loot_item_defeat, "amount": 2, "alien_meat": 2, "alien_chitin": 1 }
 	creature_died.emit(loot)
 	AudioManager.play("collect", 0.9, 2.0)
-	GameManager.crafting.add_resource("alien_meat", 2)
-	GameManager.crafting.add_resource("alien_chitin", 1)
-	if is_aggressive:
-		GameManager.crafting.add_resource("alien_fang", 1)
-		loot["alien_fang"] = 1
-	if elemental_type == ElementalType.MAGMA_PYRO:
-		GameManager.crafting.add_resource("iron", 2)
-	elif elemental_type == ElementalType.RADIOACTIVE_URANIUM:
-		GameManager.crafting.add_resource("uranium", 2)
-	elif elemental_type == ElementalType.MINERAL_SILICON:
-		GameManager.crafting.add_resource("silicon", 2)
-	else:
-		GameManager.crafting.add_resource("copper", 1)
+	AudioManager.play("hop", 0.7, 4.0)
+	
+	if GameManager and GameManager.crafting:
+		GameManager.crafting.add_resource("alien_meat", 2)
+		GameManager.crafting.add_resource("alien_chitin", 1)
+		if is_aggressive:
+			GameManager.crafting.add_resource("alien_fang", 1)
+			loot["alien_fang"] = 1
+		if elemental_type == ElementalType.MAGMA_PYRO:
+			GameManager.crafting.add_resource("iron", 2)
+		elif elemental_type == ElementalType.RADIOACTIVE_URANIUM:
+			GameManager.crafting.add_resource("uranium", 2)
+		elif elemental_type == ElementalType.MINERAL_SILICON:
+			GameManager.crafting.add_resource("silicon", 2)
+		else:
+			GameManager.crafting.add_resource("copper", 1)
+			
 	var tw = create_tween()
-	tw.tween_property(self, "scale", Vector3.ZERO, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.tween_interval(1.2)
+	tw.tween_property(self, "scale", Vector3.ZERO, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	tw.tween_callback(queue_free)
 	return loot
+
+func set_lod_level(level: int) -> void:
+	if level >= 3:
+		visible = false
+		process_mode = Node.PROCESS_MODE_DISABLED
+		return
+	visible = true
+	match level:
+		0:
+			process_mode = Node.PROCESS_MODE_INHERIT
+			set_physics_process(true)
+			set_process(true)
+			_set_shadow_casting(GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
+			if lantern_lure: lantern_lure.visible = (sub_species == SubSpecies.LANTERN_ANGLER or sub_species == SubSpecies.HEXAPOD_LUMEN)
+		1:
+			process_mode = Node.PROCESS_MODE_INHERIT
+			set_physics_process(true)
+			set_process(true)
+			_set_shadow_casting(GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+		2:
+			process_mode = Node.PROCESS_MODE_DISABLED
+			set_physics_process(false)
+			set_process(false)
+			_set_shadow_casting(GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+			if horn_l: horn_l.visible = false
+			if horn_r: horn_r.visible = false
+			if lantern_lure: lantern_lure.visible = false
+
+func _set_shadow_casting(setting: GeometryInstance3D.ShadowCastingSetting) -> void:
+	if body_mesh: body_mesh.cast_shadow = setting
+	if head_mesh: head_mesh.cast_shadow = setting

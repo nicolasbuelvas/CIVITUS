@@ -353,6 +353,20 @@ theme_override_font_sizes/font_size = 15
 text = "Civitus-Alpha"
 horizontal_alignment = 1
 
+[node name="RadarBtn" type="BaseButton" parent="TopLayer"]
+custom_minimum_size = Vector2(46, 46)
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -23.0
+offset_top = 46.0
+offset_right = 23.0
+offset_bottom = 92.0
+grow_horizontal = 2
+script = ExtResource("6_art_btn")
+icon_name = "radar"
+
 [node name="TopBarCluster" type="HBoxContainer" parent="TopLayer"]
 layout_mode = 1
 anchors_preset = 1

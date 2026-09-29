@@ -59,6 +59,7 @@ func _show_diegetic_ad_overlay(is_rewarded: bool, fallback_callable: Callable = 
 
 	var layer = CanvasLayer.new()
 	layer.layer = 150
+	add_child(layer)
 	active_ad_overlay = layer
 
 	var bg = ColorRect.new()
@@ -122,13 +123,37 @@ func _show_diegetic_ad_overlay(is_rewarded: bool, fallback_callable: Callable = 
 	var progress_bar = ProgressBar.new()
 	progress_bar.custom_minimum_size = Vector2(0, 10)
 	progress_bar.show_percentage = false
-	progress_bar.value = 100.0
+	progress_bar.value = 0.0
 	vbox.add_child(progress_bar)
 
+	var btn_row = HBoxContainer.new()
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	btn_row.add_theme_constant_override("separation", 10)
+	vbox.add_child(btn_row)
+
+	var cancel_btn = Button.new()
+	cancel_btn.custom_minimum_size = Vector2(100, 38)
+	cancel_btn.text = "CANCELAR"
+	cancel_btn.add_theme_font_size_override("font_size", 11)
+	var cancel_sb = StyleBoxFlat.new()
+	cancel_sb.bg_color = Color(0.12, 0.06, 0.06, 0.9)
+	cancel_sb.border_width_left = 1
+	cancel_sb.border_width_top = 1
+	cancel_sb.border_width_right = 1
+	cancel_sb.border_width_bottom = 1
+	cancel_sb.border_color = Color(0.8, 0.3, 0.3, 0.6)
+	cancel_sb.corner_radius_top_left = 6
+	cancel_sb.corner_radius_top_right = 6
+	cancel_sb.corner_radius_bottom_right = 6
+	cancel_sb.corner_radius_bottom_left = 6
+	cancel_btn.add_theme_stylebox_override("normal", cancel_sb)
+	btn_row.add_child(cancel_btn)
+
 	var action_btn = Button.new()
-	action_btn.custom_minimum_size = Vector2(220, 38)
-	action_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	action_btn.text = "RECLAMAR RECOMPENSA (+50 COINS)" if is_rewarded else "CONTINUAR EXPEDICIÓN"
+	action_btn.custom_minimum_size = Vector2(240, 38)
+	action_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	action_btn.disabled = true
+	action_btn.text = "TRANSMISIÓN EN CURSO (5s)..."
 	action_btn.add_theme_font_size_override("font_size", 12)
 	
 	var btn_sb = StyleBoxFlat.new()
@@ -145,12 +170,43 @@ func _show_diegetic_ad_overlay(is_rewarded: bool, fallback_callable: Callable = 
 	action_btn.add_theme_stylebox_override("normal", btn_sb)
 	action_btn.add_theme_stylebox_override("hover", btn_sb)
 	action_btn.add_theme_stylebox_override("pressed", btn_sb)
-	action_btn.modulate = Color(0.3, 0.95, 0.5) if is_rewarded else Color(0.7, 0.9, 1.0)
-	vbox.add_child(action_btn)
+	action_btn.modulate = Color(0.6, 0.6, 0.6)
+	btn_row.add_child(action_btn)
+
+	# 5-second countdown timer for realistic ad broadcast
+	var duration: float = 5.0
+	var tw = layer.create_tween()
+	tw.tween_property(progress_bar, "value", 100.0, duration).set_trans(Tween.TRANS_LINEAR)
+	
+	var timer_tw = layer.create_tween().set_loops(int(duration))
+	var remaining_time: Array = [int(duration)]
+	timer_tw.tween_callback(func():
+		remaining_time[0] -= 1
+		if remaining_time[0] > 0 and action_btn and is_instance_valid(action_btn) and action_btn.disabled:
+			action_btn.text = "TRANSMISIÓN EN CURSO (%ds)..." % remaining_time[0]
+	).set_delay(1.0)
+
+	tw.finished.connect(func():
+		if action_btn and is_instance_valid(action_btn):
+			action_btn.disabled = false
+			action_btn.modulate = Color(0.3, 0.95, 0.5) if is_rewarded else Color(0.7, 0.9, 1.0)
+			action_btn.text = "RECLAMAR RECOMPENSA (+50 COINS)" if is_rewarded else "CONTINUAR EXPEDICIÓN"
+	)
+
+	cancel_btn.pressed.connect(func():
+		if tw: tw.kill()
+		if timer_tw: timer_tw.kill()
+		if active_ad_overlay:
+			active_ad_overlay.queue_free()
+			active_ad_overlay = null
+		print("[AdManager] Ad cancelled by user. No reward granted.")
+	)
 
 	action_btn.pressed.connect(func():
 		var am = Engine.get_main_loop().root.get_node_or_null("AudioManager") if Engine.get_main_loop() else null
 		if am: am.play("click")
+		if tw: tw.kill()
+		if timer_tw: timer_tw.kill()
 		if active_ad_overlay:
 			active_ad_overlay.queue_free()
 			active_ad_overlay = null
@@ -165,8 +221,6 @@ func _show_diegetic_ad_overlay(is_rewarded: bool, fallback_callable: Callable = 
 			else:
 				interstitial_completed.emit()
 	)
-
-	add_child(layer)
 
 func _on_native_rewarded_completed(type: String, amount: int) -> void:
 	print("[AdManager] Native reward earned: ", amount, " ", type)

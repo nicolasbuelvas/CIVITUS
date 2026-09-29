@@ -10,6 +10,8 @@ signal expedition_completed(summary: Dictionary)
 signal luna_coins_changed(new_amount: int)
 signal game_saved()
 signal game_loaded()
+signal escaped_systems_count_changed(new_count: int)
+signal outro_sequence_triggered(telemetry: Dictionary)
 
 enum Difficulty {
 	LEVEL_0 = 0, # Tierra / Seguro
@@ -25,12 +27,12 @@ const SolarSystemClass = preload("res://scripts/systems/solar_system.gd")
 
 var current_difficulty: Difficulty = Difficulty.LEVEL_0
 var is_sandbox: bool = false
-var crafting = CraftingSystemClass.new()
+var crafting: CraftingSystem = CraftingSystem.new()
 var current_solar_system: Dictionary = {}
 var current_planet: Dictionary = {}
 
 # Default Settings Constants
-const DEFAULT_LANGUAGE: String = "es"
+const DEFAULT_LANGUAGE: String = "en"
 const DEFAULT_MASTER_VOLUME: float = 0.85
 const DEFAULT_MUSIC_VOLUME: float = 0.70
 const DEFAULT_SFX_VOLUME: float = 0.90
@@ -43,6 +45,7 @@ var sfx_volume: float = DEFAULT_SFX_VOLUME
 
 # Progression and Ads/VIP tracking
 var expeditions_completed: int = 0
+var escaped_systems_count: int = 0 # 0 to 10 systems along the galactic corridor to Gargantua
 var temp_unlocked_vip_levels: Array[int] = []
 
 # Player Expedition Session stats
@@ -168,8 +171,26 @@ const LOCALIZATION: Dictionary = {
 		"hazard": "Nivel de Peligro",
 		"star_type": "Estrella Central",
 		"planets_count": "Cuerpos Orbitales",
-		"store_title": "TERMINAL DE SUMINISTROS // LICENCIAS",
+		"store_title": "TIENDA LUNA",
 		"store_desc": "Adquiere autorizaciones de vuelo y herramientas avanzadas de exploración.",
+		"store_badge_locked_sector": "[ ⬡ SECTOR CLASIFICADO PRO // SECTOR 4-5 REQUERIDO ]",
+		"store_badge_locked_editor": "[ ⬡ MÓDULO ARQUITECTO REQUERIDO ]",
+		"menu_play_title": "JUGAR",
+		"menu_play_sub": "Iniciar expedición al espacio profundo",
+		"menu_architect_title": "MODO ARQUITECTO",
+		"menu_architect_sub": "Generador de mundos y terraformación",
+		"menu_store_title": "TIENDA LUNA",
+		"menu_store_sub": "Licencias, propulsores, trajes y suministros",
+		"menu_settings_title": "AJUSTES",
+		"menu_settings_sub": "Volumen de audio e idioma de interfaz",
+		"menu_exit_title": "SALIR",
+		"menu_exit_sub": "Finalizar sesión de simulación",
+		"tab_surface": "SUPERFICIE",
+		"tab_atmosphere": "ATMÓSFERA",
+		"tab_ocean": "OCÉANO",
+		"tab_rings": "ANILLOS",
+		"reward_coins_awarded": "+50 LUNA COINS ACREDITADAS",
+		"reward_coins_feedback": "¡Transmisión completada! +50 Luna Coins acreditadas.",
 		"buy_no_ads": "Supresión de Anuncios - $0.99 USD",
 		"buy_no_ads_desc": "Elimina las transmisiones orbitales entre expediciones.",
 		"buy_full_game": "Protocolo Total (Juego Completo) - $2.99 USD",
@@ -243,6 +264,17 @@ const LOCALIZATION: Dictionary = {
 		"craft_cables": "Cables Conductores x2 (1 Cobre)",
 		"craft_microchip": "Microprocesador (1 Silicio + 1 Cable)",
 		"craft_core": "Núcleo de Fisión (1 Uranio + 2 Hierro)",
+		"tab_suits": "TRAJES",
+		"tab_thrusters": "NAVES",
+		"tab_packs": "PAQUETES",
+		"watch_ad_btn": "VER TRANSMISIÓN (+50 ☾)",
+		"watch_ad_desc": "Sintoniza una transmisión comercial de espacio profundo para recibir 50 Luna Coins gratis.",
+		"pack_scout_name": "SUMINISTRO INICIAL",
+		"pack_scout_desc": "Reserva de fondos para exploradores espaciales.",
+		"pack_advanced_name": "EXPEDICIÓN AVANZADA",
+		"pack_advanced_desc": "Vuelo sin anuncios y 800 Luna Coins.",
+		"pack_protocol_name": "PROTOCOLO TOTAL VIP",
+		"pack_protocol_desc": "Todo desbloqueado: Modo Arquitecto, trajes y propulsión, y 2500 Luna Coins.",
 		"cam_mode": "CÁMARA",
 		"context_mine": "EXTRAER",
 		"context_open": "ABRIR ESCOTILLA",
@@ -358,8 +390,26 @@ const LOCALIZATION: Dictionary = {
 		"hazard": "Hazard Rating",
 		"star_type": "Host Star",
 		"planets_count": "Orbital Bodies",
-		"store_title": "FLEET PROCUREMENT // LICENSES",
+		"store_title": "LUNA STORE",
 		"store_desc": "Acquire flight authorizations and specialized exploration modules.",
+		"store_badge_locked_sector": "[ ⬡ CLASSIFIED PRO SECTOR // SECTOR 4-5 REQUIRED ]",
+		"store_badge_locked_editor": "[ ⬡ ARCHITECT MODULE REQUIRED ]",
+		"menu_play_title": "PLAY",
+		"menu_play_sub": "Launch expedition into deep space",
+		"menu_architect_title": "PLANET ARCHITECT",
+		"menu_architect_sub": "Custom world generator & terraforming",
+		"menu_store_title": "LUNA STORE",
+		"menu_store_sub": "Licenses, thrusters, suits & supplies",
+		"menu_settings_title": "SETTINGS",
+		"menu_settings_sub": "Audio volume and interface language",
+		"menu_exit_title": "EXIT",
+		"menu_exit_sub": "Terminate simulation session",
+		"tab_surface": "SURFACE",
+		"tab_atmosphere": "ATMOSPHERE",
+		"tab_ocean": "OCEAN",
+		"tab_rings": "RINGS",
+		"reward_coins_awarded": "+50 LUNA COINS AWARDED",
+		"reward_coins_feedback": "Transmission completed! +50 Luna Coins added.",
 		"buy_no_ads": "Ad Suppression License - $0.99 USD",
 		"buy_no_ads_desc": "Eliminates orbital broadcast ads between expeditions.",
 		"buy_full_game": "Total Protocol (Full Game) - $2.99 USD",
@@ -433,6 +483,17 @@ const LOCALIZATION: Dictionary = {
 		"craft_cables": "Conductive Cables x2 (1 Copper)",
 		"craft_microchip": "Microprocessor (1 Silicon + 1 Cable)",
 		"craft_core": "Fission Core (1 Uranium + 2 Iron)",
+		"tab_suits": "SUITS",
+		"tab_thrusters": "SHIPS",
+		"tab_packs": "PACKS",
+		"watch_ad_btn": "WATCH TRANSMISSION (+50 ☾)",
+		"watch_ad_desc": "Tune in to a deep space commercial transmission to receive 50 free Luna Coins.",
+		"pack_scout_name": "STARTER SUPPLY",
+		"pack_scout_desc": "Reserve funds for space explorers.",
+		"pack_advanced_name": "ADVANCED EXPEDITION",
+		"pack_advanced_desc": "Ad-free flight and 800 Luna Coins.",
+		"pack_protocol_name": "VIP TOTAL PROTOCOL",
+		"pack_protocol_desc": "All unlocked: Architect Mode, suits and thrusters, and 2500 Luna Coins.",
 		"cam_mode": "CAMERA",
 		"context_mine": "MINE",
 		"context_open": "OPEN HATCH",
@@ -460,12 +521,13 @@ func set_language(lang: String) -> void:
 		save_settings()
 		language_changed.emit(lang)
 
-func generate_new_solar_system(custom_seed: int = -1) -> void:
+func generate_new_solar_system(custom_seed: int = -1, sys_progression: int = -1) -> void:
 	# Discard previous solar system permanently and generate fresh one
 	current_solar_system.clear()
-	current_solar_system = SolarSystemClass.generate_system(custom_seed)
+	var progression_idx = sys_progression if sys_progression >= 0 else escaped_systems_count
+	current_solar_system = SolarSystemClass.generate_system(custom_seed, progression_idx)
 	
-	# Default to the first habitable planet (Level 0)
+	# Default to the first planet (or habitable world)
 	if current_solar_system.get("planets", []).size() > 0:
 		select_planet(current_solar_system["planets"][0])
 		
@@ -534,10 +596,14 @@ func start_new_game(diff_level: int = 0) -> void:
 	crafting.reset_inventory()
 	crafting.init_level_requirements(int(current_difficulty))
 	reset_player_stats()
+	escaped_systems_count = 0
+	escaped_systems_count_changed.emit(0)
 
 func start_expedition() -> void:
 	reset_player_stats()
 	get_tree().change_scene_to_file("res://scenes/screens/loading_screen.tscn")
+
+var custom_settings: Dictionary = {}
 
 func save_settings() -> void:
 	var cfg = ConfigFile.new()
@@ -545,6 +611,8 @@ func save_settings() -> void:
 	cfg.set_value("audio", "master", master_volume)
 	cfg.set_value("audio", "music", music_volume)
 	cfg.set_value("audio", "sfx", sfx_volume)
+	for k in custom_settings.keys():
+		cfg.set_value("custom", k, custom_settings[k])
 	cfg.save("user://settings.cfg")
 
 func get_setting(key: String, default_val = null):
@@ -553,9 +621,13 @@ func get_setting(key: String, default_val = null):
 		"music_volume": return music_volume
 		"sfx_volume": return sfx_volume
 		"language": return current_language
-		_: return default_val
+		_: return custom_settings.get(key, default_val)
+
+func load_setting(key: String, default_val = null):
+	return get_setting(key, default_val)
 
 func update_setting(key: String, val) -> void:
+	custom_settings[key] = val
 	match key:
 		"master_volume":
 			master_volume = float(val)
@@ -575,18 +647,35 @@ func load_settings() -> void:
 		master_volume = cfg.get_value("audio", "master", DEFAULT_MASTER_VOLUME)
 		music_volume = cfg.get_value("audio", "music", DEFAULT_MUSIC_VOLUME)
 		sfx_volume = cfg.get_value("audio", "sfx", DEFAULT_SFX_VOLUME)
+		if cfg.has_section("custom"):
+			for k in cfg.get_section_keys("custom"):
+				custom_settings[k] = cfg.get_value("custom", k)
 		_apply_audio_bus_volumes()
 
 func _apply_audio_bus_volumes() -> void:
+	if AudioServer.get_bus_index("Music") == -1:
+		AudioServer.add_bus()
+		var m_idx = AudioServer.get_bus_count() - 1
+		AudioServer.set_bus_name(m_idx, "Music")
+		AudioServer.set_bus_send(m_idx, "Master")
+	if AudioServer.get_bus_index("SFX") == -1:
+		AudioServer.add_bus()
+		var s_idx = AudioServer.get_bus_count() - 1
+		AudioServer.set_bus_name(s_idx, "SFX")
+		AudioServer.set_bus_send(s_idx, "Master")
+
 	var master_idx = AudioServer.get_bus_index("Master")
 	if master_idx >= 0:
-		AudioServer.set_bus_volume_db(master_idx, linear_to_db(master_volume))
+		AudioServer.set_bus_mute(master_idx, master_volume <= 0.001)
+		AudioServer.set_bus_volume_db(master_idx, linear_to_db(max(0.001, master_volume)))
 	var music_idx = AudioServer.get_bus_index("Music")
 	if music_idx >= 0:
-		AudioServer.set_bus_volume_db(music_idx, linear_to_db(music_volume))
+		AudioServer.set_bus_mute(music_idx, music_volume <= 0.001)
+		AudioServer.set_bus_volume_db(music_idx, linear_to_db(max(0.001, music_volume)))
 	var sfx_idx = AudioServer.get_bus_index("SFX")
 	if sfx_idx >= 0:
-		AudioServer.set_bus_volume_db(sfx_idx, linear_to_db(sfx_volume))
+		AudioServer.set_bus_mute(sfx_idx, sfx_volume <= 0.001)
+		AudioServer.set_bus_volume_db(sfx_idx, linear_to_db(max(0.001, sfx_volume)))
 
 func reset_settings_to_default() -> void:
 	current_language = DEFAULT_LANGUAGE
@@ -762,7 +851,8 @@ func save_game() -> bool:
 		"ship_energy": ship_energy_val,
 		"o2_tube_1_charge": o2_tube_1_val,
 		"o2_tube_2_charge": o2_tube_2_val,
-		"flight_state": flight_state_val
+		"flight_state": flight_state_val,
+		"escaped_systems_count": escaped_systems_count
 	}
 	var file = FileAccess.open(SAVEGAME_PATH, FileAccess.WRITE)
 	if not file:
@@ -791,6 +881,9 @@ func load_game() -> bool:
 		current_difficulty = data["difficulty"] as Difficulty
 	if data.has("player_stats"):
 		player_stats = data["player_stats"]
+	if data.has("escaped_systems_count"):
+		escaped_systems_count = clampi(int(data["escaped_systems_count"]), 0, 10)
+		escaped_systems_count_changed.emit(escaped_systems_count)
 		
 	if crafting:
 		if data.has("inventory"):
@@ -805,7 +898,8 @@ func load_game() -> bool:
 			crafting.hyperdrive_requirements = data["hyperdrive_requirements"]
 			
 	game_loaded.emit()
-	get_tree().change_scene_to_file("res://scenes/screens/loading_screen.tscn")
+	if is_inside_tree() and get_tree().current_scene and not get_tree().current_scene.name.begins_with("Test"):
+		get_tree().change_scene_to_file("res://scenes/screens/loading_screen.tscn")
 	return true
 
 func new_game() -> void:
@@ -851,5 +945,60 @@ func start_interplanetary_transit(target_planet: Dictionary) -> void:
 	interplanetary_transit_started.emit(target_planet)
 	select_planet(target_planet)
 	interplanetary_transit_completed.emit(target_planet)
+
+# ----------------- 10-System Journey & Gargantua Outro -----------------
+
+func is_in_gargantua_system() -> bool:
+	return escaped_systems_count >= 9 or bool(current_solar_system.get("is_gargantua", false))
+
+func trigger_victory_outro() -> Dictionary:
+	escaped_systems_count = 10
+	escaped_systems_count_changed.emit(escaped_systems_count)
+	var victory_telemetry = {
+		"status": "ESCAPED THE EVENT HORIZON - HOMEWORLD RESTORED",
+		"escaped_systems_count": 10,
+		"final_system": "Gargantua",
+		"homeworld_restored": true,
+		"time_dilation_overcome": true,
+		"planet": current_planet.get("name", "Miller"),
+		"difficulty": int(current_difficulty),
+		"telemetry": {
+			"total_systems_traversed": 10,
+			"galactic_corridor_cleared": true,
+			"singularity_status": "Event Horizon Escaped",
+			"black_hole": "Gargantua Supermassive Black Hole",
+			"time_dilation_ratio": "61,320:1 Relativistic Factor Overcome",
+			"tidal_wave_hazard": "Surpassed",
+			"crew_status": "Vital Signs Nominal - Homeworld Coordinates Restored"
+		},
+		"credits": [
+			"CIVITUS: THE UNMILKY WAY HOME",
+			"EXPEDITION COMMANDER: DEEP SPACE SURVIVOR",
+			"CORRIDOR SURVEY: ALL 10 SOLAR SYSTEMS TRAVERSED",
+			"ASTROPHYSICS: RELATIVISTIC SINGULARITY OVERCOME",
+			"HOMEWORLD RESTORATION PROTOCOL COMPLETE",
+			"THANK YOU FOR PLAYING CIVITUS!"
+		]
+	}
+	save_game()
+	outro_sequence_triggered.emit(victory_telemetry)
+	expedition_completed.emit(victory_telemetry)
+	return victory_telemetry
+
+func complete_expedition(summary: Dictionary = {}) -> Dictionary:
+	if is_in_gargantua_system() or escaped_systems_count >= 9:
+		return trigger_victory_outro()
+	else:
+		escaped_systems_count += 1
+		escaped_systems_count_changed.emit(escaped_systems_count)
+		generate_new_solar_system()
+		save_game()
+		var res = summary.duplicate()
+		res["escaped_systems_count"] = escaped_systems_count
+		res["planet"] = current_planet.get("name", "")
+		res["difficulty"] = int(current_difficulty)
+		expedition_completed.emit(res)
+		return res
+
 
 

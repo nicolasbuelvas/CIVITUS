@@ -97,8 +97,8 @@ grow_vertical = 0
 focus_mode = 0
 theme_override_colors/font_color = Color(0.8, 0.85, 0.95, 0.65)
 theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 14
-text = "Omitir ⏭"
+theme_override_font_sizes/font_size = 12
+text = "[ ⬡ SKIP ]"
 flat = true
 
 [node name="FadeOverlay" type="ColorRect" parent="."]

@@ -22,7 +22,10 @@ var cave_scene: PackedScene = null
 var creature_scene: PackedScene = null
 var basalt_scene: PackedScene = null
 var flora_scene: PackedScene = null
+var shipwreck_scene: PackedScene = null
 
+var planet_params: Dictionary = {}
+var active_cam: Camera3D = null
 var spaceship_instance: Node3D = null
 var ocean_instance: MeshInstance3D = null
 var atmosphere_instance: MeshInstance3D = null
@@ -38,6 +41,7 @@ var spawned_flora: Array = []
 var spawned_ores_tier1: Array = []
 var spawned_ores_tier2: Array = []
 var spawned_caves: Array = []
+var spawned_wrecks: Array = []
 var spawned_creatures: Array = []
 var is_orbital_lod_active: bool = false
 
@@ -100,6 +104,7 @@ func get_ocean_surface_radius() -> float:
 const TOTAL_SUBSTEPS: int = 40
 
 func _ready() -> void:
+	add_to_group("planet")
 	_ensure_resource_references()
 	_init_planet_world()
 
@@ -113,6 +118,7 @@ func _ensure_resource_references() -> void:
 	if not creature_scene: creature_scene = load("res://scenes/entities/alien_creature.tscn")
 	if not basalt_scene: basalt_scene = load("res://scenes/entities/basalt_column.tscn")
 	if not flora_scene: flora_scene = load("res://scenes/entities/procedural_flora.tscn")
+	if not shipwreck_scene: shipwreck_scene = load("res://scenes/entities/abandoned_shipwreck.tscn")
 
 func _process(delta: float) -> void:
 	# Update dynamic tidal oscillation on planetary fluid
@@ -191,7 +197,7 @@ func _process(delta: float) -> void:
 				_spawn_shooting_star()
 
 	# Dynamic Orbital LOD based on active Camera3D distance
-	var active_cam = get_viewport().get_camera_3d()
+	active_cam = get_viewport().get_camera_3d() if is_inside_tree() and get_viewport() else null
 	if is_instance_valid(active_cam):
 		var cam_dist = active_cam.global_position.distance_to(global_position)
 		if cam_dist > radius + 55.0:
@@ -201,37 +207,285 @@ func _process(delta: float) -> void:
 			if is_orbital_lod_active:
 				set_orbital_lod(false)
 
+	# Radial streaming update (culls beyond radius, renders & processes near camera/astronaut)
+	if not is_generating and not is_orbital_lod_active:
+		radial_streaming_timer -= delta
+		if radial_streaming_timer <= 0.0:
+			radial_streaming_timer = 0.15
+			update_radial_streaming()
+
+const HIGH_DETAIL_LOGIC_DISTANCE: float = 40.0
+const MEDIUM_DETAIL_DISTANCE: float = 85.0
+const PLANET_HORIZON_DOT_THRESHOLD: float = 0.10
+var radial_streaming_timer: float = 0.0
+
+func update_radial_streaming(custom_player_pos: Vector3 = Vector3.ZERO) -> void:
+	if is_orbital_lod_active:
+		return
+	var player_pos = custom_player_pos
+	if player_pos == Vector3.ZERO:
+		if is_instance_valid(player_instance):
+			player_pos = player_instance.global_position
+		elif is_instance_valid(active_cam):
+			player_pos = active_cam.global_position
+		else:
+			var vp_cam = get_viewport().get_camera_3d() if is_inside_tree() and get_viewport() else null
+			if is_instance_valid(vp_cam):
+				player_pos = vp_cam.global_position
+			else:
+				return
+	
+	var player_dir = player_pos.normalized()
+	
+	# Progressive Multi-Stage LOD & Smooth Horizon Occlusion Culling
+	for c in spawned_creatures:
+		if is_instance_valid(c):
+			var dot = player_dir.dot(c.global_position.normalized())
+			if dot > PLANET_HORIZON_DOT_THRESHOLD:
+				var dist = c.global_position.distance_to(player_pos)
+				if c.has_method("set_lod_level"):
+					if dist <= HIGH_DETAIL_LOGIC_DISTANCE:
+						c.set_lod_level(0)
+					elif dist <= MEDIUM_DETAIL_DISTANCE:
+						c.set_lod_level(1)
+					else:
+						c.set_lod_level(2)
+				else:
+					c.visible = true
+					var is_near = dist <= HIGH_DETAIL_LOGIC_DISTANCE
+					c.process_mode = Node.PROCESS_MODE_INHERIT if is_near else Node.PROCESS_MODE_DISABLED
+					c.set_process(is_near)
+					c.set_physics_process(is_near)
+			else:
+				if c.has_method("set_lod_level"):
+					c.set_lod_level(3)
+				else:
+					c.visible = false
+					c.process_mode = Node.PROCESS_MODE_DISABLED
+			
+	for f in spawned_flora:
+		if is_instance_valid(f):
+			var dot = player_dir.dot(f.global_position.normalized())
+			if dot > PLANET_HORIZON_DOT_THRESHOLD:
+				var dist = f.global_position.distance_to(player_pos)
+				if f.has_method("set_lod_level"):
+					if dist <= HIGH_DETAIL_LOGIC_DISTANCE:
+						f.set_lod_level(0)
+					elif dist <= MEDIUM_DETAIL_DISTANCE:
+						f.set_lod_level(1)
+					else:
+						f.set_lod_level(2)
+				else:
+					f.visible = true
+					var is_near = dist <= HIGH_DETAIL_LOGIC_DISTANCE
+					f.process_mode = Node.PROCESS_MODE_INHERIT if is_near else Node.PROCESS_MODE_DISABLED
+					f.set_process(is_near)
+			else:
+				if f.has_method("set_lod_level"):
+					f.set_lod_level(3)
+				else:
+					f.visible = false
+					f.process_mode = Node.PROCESS_MODE_DISABLED
+			
+	for t in spawned_trees:
+		if is_instance_valid(t):
+			var dot = player_dir.dot(t.global_position.normalized())
+			if dot > 0.08:
+				var dist = t.global_position.distance_to(player_pos)
+				if t.has_method("set_lod_level"):
+					if dist <= HIGH_DETAIL_LOGIC_DISTANCE:
+						t.set_lod_level(0)
+					elif dist <= MEDIUM_DETAIL_DISTANCE:
+						t.set_lod_level(1)
+					else:
+						t.set_lod_level(2)
+				else:
+					t.visible = true
+					var is_near = dist <= HIGH_DETAIL_LOGIC_DISTANCE
+					t.process_mode = Node.PROCESS_MODE_INHERIT if is_near else Node.PROCESS_MODE_DISABLED
+					t.set_process(is_near)
+			else:
+				if t.has_method("set_lod_level"):
+					t.set_lod_level(3)
+				else:
+					t.visible = false
+					t.process_mode = Node.PROCESS_MODE_DISABLED
+			
+	for o in spawned_ores_tier1:
+		if is_instance_valid(o):
+			var dot = player_dir.dot(o.global_position.normalized())
+			if dot > PLANET_HORIZON_DOT_THRESHOLD:
+				o.visible = true
+				var dist = o.global_position.distance_to(player_pos)
+				var is_near = dist <= HIGH_DETAIL_LOGIC_DISTANCE
+				o.process_mode = Node.PROCESS_MODE_INHERIT if is_near else Node.PROCESS_MODE_DISABLED
+				o.set_process(is_near)
+			else:
+				o.visible = false
+				o.process_mode = Node.PROCESS_MODE_DISABLED
+			
+	for o in spawned_ores_tier2:
+		if is_instance_valid(o):
+			var dot = player_dir.dot(o.global_position.normalized())
+			if dot > PLANET_HORIZON_DOT_THRESHOLD:
+				o.visible = true
+				var dist = o.global_position.distance_to(player_pos)
+				var is_near = dist <= HIGH_DETAIL_LOGIC_DISTANCE
+				o.process_mode = Node.PROCESS_MODE_INHERIT if is_near else Node.PROCESS_MODE_DISABLED
+				o.set_process(is_near)
+			else:
+				o.visible = false
+				o.process_mode = Node.PROCESS_MODE_DISABLED
+
+	for w in spawned_wrecks:
+		if is_instance_valid(w):
+			var dot = player_dir.dot(w.global_position.normalized())
+			if dot > 0.08:
+				w.visible = true
+				var dist = w.global_position.distance_to(player_pos)
+				var is_near = dist <= 65.0
+				w.process_mode = Node.PROCESS_MODE_INHERIT if is_near else Node.PROCESS_MODE_DISABLED
+				w.set_process(is_near)
+			else:
+				w.visible = false
+				w.process_mode = Node.PROCESS_MODE_DISABLED
+
+func get_surface_snap(dir: Vector3, fallback_elev: float = 0.0) -> Dictionary:
+	var elev = fallback_elev if fallback_elev != 0.0 else _get_elevation(dir)
+	var expected_dist = radius + elev
+	var ray_start = global_position + dir * (expected_dist + 25.0)
+	var ray_end = global_position + dir * (expected_dist - 15.0)
+	if is_inside_tree() and get_world_3d():
+		var space = get_world_3d().direct_space_state
+		if space:
+			var query = PhysicsRayQueryParameters3D.create(ray_start, ray_end)
+			query.collide_with_areas = false
+			query.collide_with_bodies = true
+			var hit = space.intersect_ray(query)
+			if hit and not hit.is_empty():
+				var dist = hit.position.distance_to(global_position)
+				# Anti-subsurface guarantee: hit must be on or above theoretical terrain crust
+				if dist >= expected_dist - 0.05 and absf(dist - expected_dist) < 15.0:
+					return {
+						"position": hit.position,
+						"normal": hit.normal,
+						"snapped": true
+					}
+	return {
+		"position": global_position + dir * expected_dist,
+		"normal": dir,
+		"snapped": false
+	}
+
 func set_orbital_lod(active: bool) -> void:
 	if is_orbital_lod_active == active:
 		return
 	is_orbital_lod_active = active
 	
-	for c in spawned_creatures:
-		if is_instance_valid(c):
-			c.visible = not active
-			c.set_physics_process(not active)
-			c.set_process(not active)
-			
-	for f in spawned_flora:
-		if is_instance_valid(f):
-			f.visible = not active
-			f.set_process(not active)
-			
-	for t in spawned_trees:
-		if is_instance_valid(t):
-			t.visible = not active
-			
-	for o in spawned_ores_tier1:
-		if is_instance_valid(o):
-			o.visible = not active
-			
-	for o in spawned_ores_tier2:
-		if is_instance_valid(o):
-			o.visible = not active
-			
-	for cv in spawned_caves:
-		if is_instance_valid(cv):
-			cv.visible = not active
+	if active:
+		for c in spawned_creatures:
+			if is_instance_valid(c):
+				c.visible = false
+				c.process_mode = Node.PROCESS_MODE_DISABLED
+				c.set_physics_process(false)
+				c.set_process(false)
+				
+		for f in spawned_flora:
+			if is_instance_valid(f):
+				f.visible = false
+				f.process_mode = Node.PROCESS_MODE_DISABLED
+				f.set_process(false)
+				
+		for t in spawned_trees:
+			if is_instance_valid(t):
+				t.visible = false
+				t.process_mode = Node.PROCESS_MODE_DISABLED
+				t.set_process(false)
+				
+		for o in spawned_ores_tier1:
+			if is_instance_valid(o):
+				o.visible = false
+				o.process_mode = Node.PROCESS_MODE_DISABLED
+				o.set_process(false)
+				
+		for o in spawned_ores_tier2:
+			if is_instance_valid(o):
+				o.visible = false
+				o.process_mode = Node.PROCESS_MODE_DISABLED
+				o.set_process(false)
+				
+		for cv in spawned_caves:
+			if is_instance_valid(cv):
+				cv.visible = false
+				cv.process_mode = Node.PROCESS_MODE_DISABLED
+		for w in spawned_wrecks:
+			if is_instance_valid(w):
+				w.visible = false
+				w.process_mode = Node.PROCESS_MODE_DISABLED
+
+		# Culling of any active loose resource chunks, collectibles, dropped items
+		var tree_root = get_tree()
+		if tree_root:
+			for grp in ["resource_chunk", "ore", "collectible", "dropped_item"]:
+				for node in tree_root.get_nodes_in_group(grp):
+					if is_instance_valid(node) and node is Node3D:
+						node.visible = false
+						node.process_mode = Node.PROCESS_MODE_DISABLED
+
+		# Ensure planet surface sphere mesh, ocean and atmosphere halo remain visible from afar!
+		if is_instance_valid(mesh_instance):
+			mesh_instance.visible = true
+		if is_instance_valid(ocean_instance):
+			ocean_instance.visible = true
+		if is_instance_valid(atmosphere_instance):
+			atmosphere_instance.visible = true
+	else:
+		if is_instance_valid(atmosphere_instance):
+			atmosphere_instance.visible = false
+		if is_instance_valid(player_instance):
+			update_radial_streaming()
+		else:
+			for c in spawned_creatures:
+				if is_instance_valid(c):
+					c.visible = true
+					c.process_mode = Node.PROCESS_MODE_INHERIT
+					c.set_physics_process(true)
+					c.set_process(true)
+			for f in spawned_flora:
+				if is_instance_valid(f):
+					f.visible = true
+					f.process_mode = Node.PROCESS_MODE_INHERIT
+					f.set_process(true)
+			for t in spawned_trees:
+				if is_instance_valid(t):
+					t.visible = true
+					t.process_mode = Node.PROCESS_MODE_INHERIT
+					t.set_process(true)
+			for o in spawned_ores_tier1:
+				if is_instance_valid(o):
+					o.visible = true
+					o.process_mode = Node.PROCESS_MODE_INHERIT
+					o.set_process(true)
+			for o in spawned_ores_tier2:
+				if is_instance_valid(o):
+					o.visible = true
+					o.process_mode = Node.PROCESS_MODE_INHERIT
+					o.set_process(true)
+			for cv in spawned_caves:
+				if is_instance_valid(cv):
+					cv.visible = true
+					cv.process_mode = Node.PROCESS_MODE_INHERIT
+			for w in spawned_wrecks:
+				if is_instance_valid(w):
+					w.visible = true
+					w.process_mode = Node.PROCESS_MODE_INHERIT
+			var tree_root = get_tree()
+			if tree_root:
+				for grp in ["resource_chunk", "ore", "collectible", "dropped_item"]:
+					for node in tree_root.get_nodes_in_group(grp):
+						if is_instance_valid(node) and node is Node3D:
+							node.visible = true
+							node.process_mode = Node.PROCESS_MODE_INHERIT
 
 func _init_planet_world() -> void:
 	if is_generating:
@@ -239,9 +493,12 @@ func _init_planet_world() -> void:
 	is_generating = true
 	
 	spawned_trees.clear()
+	spawned_flora.clear()
 	spawned_ores_tier1.clear()
 	spawned_ores_tier2.clear()
 	spawned_caves.clear()
+	spawned_wrecks.clear()
+	spawned_creatures.clear()
 	
 	var planet_params = GameManager.current_planet
 	var p_seed = planet_params.get("seed", 1337)
@@ -395,7 +652,31 @@ func _init_planet_world() -> void:
 	else:
 		cloud_instance = null
 		
-	atmosphere_instance = null
+	if planet_params.get("has_atmosphere", true):
+		var atmo_mesh = SphereMesh.new()
+		atmo_mesh.radius = radius * 1.055
+		atmo_mesh.height = radius * 2.11
+		atmo_mesh.radial_segments = 48
+		atmo_mesh.rings = 24
+		
+		var atmo_mat = StandardMaterial3D.new()
+		atmo_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		atmo_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		atmo_mat.cull_mode = BaseMaterial3D.CULL_BACK
+		var atmo_col: Color = planet_params.get("atmosphere_color", Color(0.30, 0.70, 1.0))
+		atmo_mat.albedo_color = Color(atmo_col.r, atmo_col.g, atmo_col.b, 0.35)
+		atmo_mat.rim_enabled = true
+		atmo_mat.rim = 1.0
+		atmo_mat.rim_tint = 0.85
+		
+		atmosphere_instance = MeshInstance3D.new()
+		atmosphere_instance.name = "AtmosphericHalo3D"
+		atmosphere_instance.mesh = atmo_mesh
+		atmosphere_instance.material_override = atmo_mat
+		atmosphere_instance.visible = false # Surface uses sky shader Rayleigh scattering; halo is strictly for distant orbit
+		add_child(atmosphere_instance)
+	else:
+		atmosphere_instance = null
 		
 	if is_inside_tree():
 		await get_tree().process_frame
@@ -464,7 +745,7 @@ func _init_planet_world() -> void:
 	if ocean_instance:
 		ocean_instance.visible = true
 	if atmosphere_instance:
-		atmosphere_instance.visible = true
+		atmosphere_instance.visible = false # Surface uses sky shader Rayleigh scattering; halo is strictly for distant orbit
 	if cloud_instance:
 		cloud_instance.visible = false # Keep hidden on surface to prevent geometric camera clipping; clouds rendered via sky shader
 	if is_inside_tree():
@@ -514,6 +795,7 @@ func _init_planet_world() -> void:
 	# Sub 34: Precalentar cinemática y traje de astronauta
 	generation_step_changed.emit(34, TOTAL_SUBSTEPS, GameManager.loc("shader_sub_8"))
 	_deploy_astronaut_node(north_dir)
+	update_radial_streaming()
 	if is_inside_tree():
 		await get_tree().process_frame
 
@@ -727,34 +1009,40 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 			
 		# Dedicated Starter Grove & Mines around Landing Site (Bloque Obbe Vermeij: Ecosistema Vivo Inmediato)
 		if b == 0:
-			for s_i in range(6):
-				var s_ang = float(s_i) * (TAU / 6.0) + 0.35
-				var s_dist_factor = 0.14 # ~22 meters from ship
+			for s_i in range(8):
+				var s_ang = float(s_i) * (TAU / 8.0) + 0.35
+				var s_dist_factor = 0.12 + (s_i % 2) * 0.04 # ~18 - 25 meters from ship
 				var s_dir = Vector3(sin(s_ang) * s_dist_factor, 0.975, cos(s_ang) * s_dist_factor).normalized()
 				var s_elev = _get_elevation(s_dir)
-				var s_pos = s_dir * (radius + s_elev)
+				var s_snap = get_surface_snap(s_dir, s_elev)
+				var s_pos = s_snap.position
+				var s_normal = s_snap.normal
 				
 				if resource_scene:
 					var ore = resource_scene.instantiate()
-					ore.ore_type = 0 if s_i % 2 == 0 else 1 # Iron and Copper starter nodes
-					ore.position = s_pos - s_dir * 0.12 # Physically embedded in rock
-					ore.visible = false
-					_align_node_to_up(ore, s_dir)
+					ore.ore_type = s_i % 4 # Iron, Copper, Silicon, Uranium starter nodes
+					ore.position = s_pos - s_normal * 0.20 # Deep subterranean anchor firmly rooted into the planet crust
+					ore.visible = true
+					_align_node_to_up(ore, s_normal)
 					add_child(ore)
-					spawned_ores_tier1.append(ore)
+					if ore.ore_type <= 1:
+						spawned_ores_tier1.append(ore)
+					else:
+						spawned_ores_tier2.append(ore)
 					
 			for t_i in range(12):
 				var t_ang = float(t_i) * (TAU / 12.0) + 0.15
 				var t_dist_factor = 0.16 + (t_i % 3) * 0.04 # 25-35 meters from ship
 				var t_dir = Vector3(sin(t_ang) * t_dist_factor, 0.965, cos(t_ang) * t_dist_factor).normalized()
 				var t_elev = _get_elevation(t_dir)
+				var t_snap = get_surface_snap(t_dir, t_elev)
 				var p_type_start = planet_params.get("type", "Habitable")
 				var is_start_tree_viable = not planet_params.get("is_molten", false) and not p_type_start.contains("Vacío") and not p_type_start.contains("Gaseoso") and not planet_params.get("is_ocean_world", false)
 				if is_start_tree_viable and t_elev >= -0.5 and tree_scene:
 					var tree = tree_scene.instantiate()
-					tree.position = t_dir * (radius + t_elev - 0.25) # Roots buried in crust
+					tree.position = t_snap.position - t_snap.normal * 0.25 # Roots buried in crust
 					tree.visible = false
-					_align_node_to_up(tree, t_dir)
+					_align_node_to_up(tree, t_snap.normal)
 					if tree.has_method("setup_theme"):
 						tree.setup_theme(planet_params)
 					add_child(tree)
@@ -765,10 +1053,11 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 				for c_idx in range(2):
 					var c_dir = Vector3(0.10 + c_idx * 0.08, 0.975, -0.12 - c_idx * 0.05).normalized()
 					var c_elev = _get_elevation(c_dir)
+					var c_snap = get_surface_snap(c_dir, c_elev)
 					var creature = creature_scene.instantiate()
-					creature.position = c_dir * (radius + c_elev + 0.5)
+					creature.position = c_snap.position + c_snap.normal * 0.5
 					creature.visible = false
-					_align_node_to_up(creature, c_dir)
+					_align_node_to_up(creature, c_snap.normal)
 					add_child(creature)
 					if creature.has_method("setup_creature"):
 						creature.setup_creature(planet_params, false, 0) # Peaceful starter terrestrial
@@ -812,7 +1101,9 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 				continue
 				
 			var elev = _get_elevation(dir)
-			var surf_pos = dir * (radius + elev)
+			var surf_snap = get_surface_snap(dir, elev)
+			var surf_pos = surf_snap.position
+			var surf_normal = surf_snap.normal
 			
 			# Multi-Domain Procedural Flora (21 Types: 7 Terrestrial, 7 Aquatic, 7 Exotic)
 			var p_type = planet_params.get("type", "Habitable")
@@ -830,62 +1121,67 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 				elif rng.randf() < 0.28:
 					# 7 Exotic Flora types (14 to 20: Snappers, Tumbleweeds, Floaters, Spores, etc.)
 					chosen_type = 14 + (rng.randi() % 7)
-					flora.position = surf_pos - dir * 0.1
+					flora.position = surf_pos - surf_normal * 0.1
 				elif elev >= -0.2 and elev <= 6.5:
 					# 7 Terrestrial Flora types (0 to 6: Fractal Trees, Pines, Bushes, Ferns, Cacti, Shrooms, Reeds)
 					chosen_type = rng.randi() % 7
-					flora.position = surf_pos - dir * 0.2
+					flora.position = surf_pos - surf_normal * 0.2
 				else:
 					chosen_type = 0
-					flora.position = surf_pos - dir * 0.2
+					flora.position = surf_pos - surf_normal * 0.2
 					
 				flora.visible = false
-				_align_node_to_up(flora, dir)
+				_align_node_to_up(flora, surf_normal)
 				flora.planet_radius = radius
 				if flora.has_method("setup_flora"):
-					flora.setup_flora(chosen_type, planet_params, dir)
+					flora.setup_flora(chosen_type, planet_params, surf_normal)
 				add_child(flora)
 				spawned_flora.append(flora)
 				
 			# Standard Fractal Paper Trees for high-density forest clusters
 			elif is_flora_viable and elev >= -0.2 and elev <= 6.5 and tree_scene and rng.randf() < 0.55:
 				var tree = tree_scene.instantiate()
-				tree.position = surf_pos - dir * 0.25 # Roots solidly anchored in ground
+				tree.position = surf_pos - surf_normal * 0.25 # Roots solidly anchored in ground
 				tree.visible = false
-				_align_node_to_up(tree, dir)
+				_align_node_to_up(tree, surf_normal)
 				if tree.has_method("setup_theme"):
 					tree.setup_theme(planet_params)
 				add_child(tree)
 				spawned_trees.append(tree)
-			elif elev > 1.2 or elev < -1.0:
-				# Mineral deposits exposed in mountain slopes, canyon cliffs or shores
-				if resource_scene:
-					var ore = resource_scene.instantiate()
-					var spawnable = GameManager.get_planet_spawnable_ores(planet_params)
-					var chosen_ore = spawnable[rng.randi() % spawnable.size()]
-					match chosen_ore:
-						"iron": ore.ore_type = 0
-						"copper": ore.ore_type = 1
-						"silicon": ore.ore_type = 2
-						"uranium": ore.ore_type = 3
-						_: ore.ore_type = 0
+			
+			# Procedural Mineral Veins Across All Terrains (Plains, Dunes, Hills & Craters)
+			# High geological concentration emerging from bedrock in Mountain/Rock biomes (elev > 0.9)
+			var is_mountain_rock = (elev > 0.9)
+			var ore_chance = 0.88 if is_mountain_rock else 0.45
+			if resource_scene and (is_mountain_rock or i % 5 == 0 or elev < -0.8) and rng.randf() < ore_chance:
+				var ore = resource_scene.instantiate()
+				var spawnable = GameManager.get_planet_spawnable_ores(planet_params)
+				var chosen_ore = spawnable[rng.randi() % spawnable.size()]
+				match chosen_ore:
+					"iron": ore.ore_type = 0
+					"copper": ore.ore_type = 1
+					"silicon": ore.ore_type = 2
+					"uranium": ore.ore_type = 3
+					_: ore.ore_type = 0
+				
+				# Root subterranean anchor deep into the crust so it physically emerges from the planet
+				ore.position = surf_pos - surf_normal * 0.22
+				ore.visible = false
+				_align_node_to_up(ore, surf_normal)
+				add_child(ore)
+				
+				if ore.ore_type <= 1:
+					spawned_ores_tier1.append(ore)
+				else:
+					spawned_ores_tier2.append(ore)
 					
-					ore.position = surf_pos - dir * 0.12 # Crystalline vein embedded in rock
-					ore.visible = false
-					_align_node_to_up(ore, dir)
-					add_child(ore)
-					
-					if ore.ore_type <= 1:
-						spawned_ores_tier1.append(ore)
-					else:
-						spawned_ores_tier2.append(ore)
 			elif (elev < 1.2 and elev > -2.5) or elev > 5.0:
 				# Hexagonal Basalt Column Stepped Terraces (Giant's Causeway coastal/volcanic formations)
 				if basalt_scene and rng.randf() < 0.35:
 					var basalt = basalt_scene.instantiate()
 					basalt.position = surf_pos
 					basalt.visible = false
-					_align_node_to_up(basalt, dir)
+					_align_node_to_up(basalt, surf_normal)
 					if basalt.has_method("setup_formation"):
 						basalt.setup_formation(p_mount if elev > 3.0 else p_beach)
 					add_child(basalt)
@@ -908,18 +1204,18 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 					spawned_creatures.append(creature)
 				elif has_atmo and rng.randf() < 0.35:
 					# Aerial creature gliding in planetary sky (7 Flying species)
-					creature.position = surf_pos + dir * 5.5
+					creature.position = surf_pos + surf_normal * 5.5
 					creature.visible = false
-					_align_node_to_up(creature, dir)
+					_align_node_to_up(creature, surf_normal)
 					add_child(creature)
 					if creature.has_method("setup_creature"):
 						creature.setup_creature(planet_params, is_aggro, 3) # AERIAL_FLOAT
 					spawned_creatures.append(creature)
 				elif elev >= -0.2:
 					# Terrestrial quadruped/biped walking on ground (7 Land species)
-					creature.position = surf_pos + dir * 0.65
+					creature.position = surf_pos + surf_normal * 0.65
 					creature.visible = false
-					_align_node_to_up(creature, dir)
+					_align_node_to_up(creature, surf_normal)
 					add_child(creature)
 					if creature.has_method("setup_creature"):
 						creature.setup_creature(planet_params, is_aggro, 0 if rng.randf() > 0.3 else 1)
@@ -940,6 +1236,40 @@ func _stream_features_in_batches(planet_params: Dictionary) -> void:
 					cave.setup_theme(planet_params)
 				add_child(cave)
 				spawned_caves.append(cave)
+				
+				# Geologically logical placement: Rich mineral boulders around cave mouths
+				if resource_scene:
+					for cv_ore in range(2):
+						var ore_offset = Vector3(cos(float(cv_ore) * 3.14) * 4.5, 0.0, sin(float(cv_ore) * 3.14) * 4.5)
+						var ore_dir = (c_pos + ore_offset).normalized()
+						var ore_snap = get_surface_snap(ore_dir, _get_elevation(ore_dir))
+						var ore = resource_scene.instantiate()
+						ore.ore_type = 2 if cv_ore == 0 else 3 # Silicon crystals or Uranium deposits inside caverns
+						ore.position = ore_snap.position - ore_snap.normal * 0.20
+						ore.visible = false
+						_align_node_to_up(ore, ore_snap.normal)
+						add_child(ore)
+						spawned_ores_tier2.append(ore)
+				
+		# Procedural Surface Infrastructures: Abandoned Spaceships / Crashed Wrecks
+		if b == 4 and shipwreck_scene and spawned_wrecks.is_empty():
+			var p_seed = planet_params.get("seed", 1337)
+			for w_idx in range(3):
+				var w_th = float((p_seed * 431 + w_idx * 179) % 1000) / 1000.0 * TAU
+				var w_ph = 0.85 + float((p_seed * 719 + w_idx * 283) % 1000) / 1000.0 * 1.3
+				var w_dir = Vector3(sin(w_ph) * cos(w_th), cos(w_ph), sin(w_ph) * sin(w_th)).normalized()
+				var w_elev = _get_elevation(w_dir)
+				var w_snap = get_surface_snap(w_dir, w_elev)
+				var w_pos = w_snap.position
+				var w_norm = w_snap.normal
+				var wreck = shipwreck_scene.instantiate()
+				wreck.wreck_type = w_idx % 3
+				wreck.position = w_pos + w_norm * 0.15 # Rest firmly on surface
+				wreck.visible = false
+				_align_node_to_up(wreck, w_norm)
+				wreck.rotate_object_local(Vector3(1, 0, 0), deg_to_rad(15.0 + w_idx * 4.0))
+				add_child(wreck)
+				spawned_wrecks.append(wreck)
 					
 		if is_inside_tree():
 			await get_tree().process_frame
@@ -1087,7 +1417,7 @@ func _on_meteorite_impact(pos: Vector3, up_dir: Vector3) -> void:
 			ore.ore_type = 2 # Silicon
 		else:
 			ore.ore_type = 0 # Iron
-		ore.position = local_pos + local_up * 0.2
+		ore.position = local_pos - local_up * 0.15
 		_align_node_to_up(ore, local_up)
 		add_child(ore)
 		spawned_ores_tier2.append(ore)
@@ -1706,8 +2036,11 @@ static func get_cenote_direction(seed_val: int, idx: int) -> Vector3:
 	var c_ph = 0.70 + (float((c_hash >> 16) & 0x7FFF) / 32767.0) * 1.5
 	return Vector3(sin(c_ph) * cos(c_th), cos(c_ph), sin(c_ph) * sin(c_th)).normalized()
 
+func get_elevation_at_direction(norm_dir: Vector3) -> float:
+	return _get_elevation(norm_dir)
+
 func _get_elevation(norm_dir: Vector3) -> float:
-	var p_params = GameManager.current_planet if is_instance_valid(GameManager) else {}
+	var p_params = planet_params if not planet_params.is_empty() else (GameManager.current_planet if is_instance_valid(GameManager) else {})
 	return _calc_elevation_static(noise, norm_dir, p_params)
 
 func _align_node_to_up(node: Node3D, target_up: Vector3) -> void:

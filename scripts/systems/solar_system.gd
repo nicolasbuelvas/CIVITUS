@@ -62,9 +62,15 @@ const SPECTRAL_CLASSES: Dictionary = {
 	}
 }
 
-static func generate_system(seed_val: int = -1) -> Dictionary:
+static func generate_system(seed_val: int = -1, escaped_count: int = 0) -> Dictionary:
 	if seed_val < 0:
 		seed_val = randi() % 1000000 + 1
+		
+	if escaped_count >= 9:
+		return SolarSystem._generate_gargantua_system(seed_val, escaped_count)
+		
+	var corridor_sector: int = escaped_count + 1
+	var dist_to_core_ly: float = lerpf(26000.0, 950.0, float(escaped_count) / 8.0)
 		
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed_val
@@ -195,9 +201,116 @@ static func generate_system(seed_val: int = -1) -> Dictionary:
 		"system_seed": seed_val,
 		"coords_str": coords_str,
 		"distance_ly": distance_ly,
+		"distance_to_core_ly": dist_to_core_ly,
+		"system_index": corridor_sector,
+		"escaped_systems_count": escaped_count,
+		"corridor_sector": corridor_sector,
+		"is_gargantua": false,
 		"star": star_data,
 		"system_graph": system_graph,
 		"planets": planets
+	}
+
+static func _generate_gargantua_system(seed_val: int, escaped_count: int = 9) -> Dictionary:
+	var system_name = "Gargantua"
+	var coords_str = "RA 17h 45m 40s | DEC -29° 00' 28\" | DIST CORE: 0 AL (GALACTIC CORE SINGULARITY)"
+	var star_color = Color(1.0, 0.72, 0.20)
+	
+	var star_data: Dictionary = {
+		"name": "Gargantua",
+		"spectral_class": "BH",
+		"label": "Agujero Negro Supermasivo (Gargantua)",
+		"temperature": 150000.0,
+		"luminosity": 45.0,
+		"color": star_color,
+		"is_black_hole": true,
+		"accretion_disk": true,
+		"has_accretion_disk": true,
+		"photon_sphere": true,
+		"has_photon_sphere": true,
+		"relativistic_accretion": true,
+		"event_horizon_radius": 2.2,
+		"photon_sphere_radius": 3.2,
+		"accretion_inner_radius": 3.6,
+		"accretion_outer_radius": 12.0,
+		"hz_inner_au": 1.5,
+		"hz_outer_au": 4.5,
+		"habitable_zone": [1.5, 4.5]
+	}
+	
+	# Exactly 1 extreme planetary body: Miller's Planet (100% ocean pelagic world with extreme time dilation & massive tidal waves)
+	var miller_orbit_au = 2.1
+	var x_km = miller_orbit_au * 149597870.7
+	var miller_planet = {
+		"id": 0,
+		"name": "Miller",
+		"system_name": system_name,
+		"orbit_au": miller_orbit_au,
+		"orbit_angle": 0.0,
+		"coords_str": "[X: %.0f km, Y: 0 km, Z: 0 km]" % x_km,
+		"cartesian_pos": Vector3(x_km, 0.0, 0.0),
+		"type": "Oceánico",
+		"type_label": "Mundo Pelágico Extremo (Miller)",
+		"level": 4, # Level 4 Singularity
+		"is_singularity": true,
+		"is_ocean_world": true,
+		"water_coverage": 1.0, # 100% ocean pelagic world
+		"water_status": "Océano Global de Agua",
+		"has_liquid_water": true,
+		"has_water": true,
+		"has_atmosphere": true,
+		"atmosphere": 1.10,
+		"atmosphere_density": 1.10,
+		"gravity": 1.30, # 1.3g
+		"gravity_label": "1.30g (Gravedad Extrema)",
+		"temperature": 23.0,
+		"radiation": 38.0,
+		"primary_ore": "uranium",
+		"secondary_ore": "iron",
+		"has_rings": false,
+		"radius": 160.0,
+		"time_dilation": 61320.0, # 1 hour = 7 Earth years (61,320x)
+		"time_dilation_factor": 61320.0,
+		"time_dilation_str": "1 hora = 7 años terrestres (Dilatación Relativista x61320)",
+		"has_tidal_waves": true,
+		"tidal_wave_height": 120.0, # Massive tidal waves
+		"tidal_wave_period": 40.0,
+		"ocean_color": Color(0.015, 0.14, 0.38),
+		"beach_color": Color(0.08, 0.28, 0.55),
+		"land_color": Color(0.03, 0.18, 0.42),
+		"mountain_color": Color(0.05, 0.22, 0.50),
+		"peak_color": Color(0.9, 0.95, 1.0),
+		"atmosphere_color": Color(0.25, 0.60, 0.95),
+		"sky_color": Color(0.06, 0.12, 0.25),
+		"water_threshold": 0.0, # Complete submersion of terrain
+		"hazard_name": "Dilatación Temporal Extrema + Megamareas",
+		"star": star_data,
+		"seed": seed_val + 7777,
+		"day_length": 1200.0,
+		"is_in_habitable_zone": true
+	}
+	
+	var system_graph = {
+		"star_temp": 150000.0,
+		"hz_inner": 1.5,
+		"hz_outer": 4.5,
+		"planet_count": 1,
+		"habitable_count": 0
+	}
+	
+	return {
+		"system_name": system_name,
+		"system_seed": seed_val,
+		"coords_str": coords_str,
+		"distance_ly": 0.0,
+		"distance_to_core_ly": 0.0,
+		"system_index": 10,
+		"escaped_systems_count": escaped_count,
+		"corridor_sector": 10,
+		"is_gargantua": true,
+		"star": star_data,
+		"system_graph": system_graph,
+		"planets": [miller_planet]
 	}
 
 static func _generate_planet_orbits_variable_hz(

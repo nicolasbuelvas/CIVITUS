@@ -38,22 +38,35 @@ var inventory: Dictionary = {
 	"cooked_ration": 0,
 	"chitin_spear": 0,
 	"bio_medkit": 0,
-	"chitin_plate": 0
+	"chitin_plate": 0,
+	"plant_fibers": 0,
+	"ocean_pearl": 0,
+	"pearl": 0,
+	"suit_plating": 0,
+	"plasma_lens": 0,
+	"sealant_paste": 0,
+	"bio_fuel": 0,
+	"hyperdrive_catalyst": 0,
+	"laser_pistol": 0
 }
 
 # Astronaut Physical Body Attachment Slots:
-# The astronaut can ONLY carry items on their Hands or Back!
-# 4 physical attachment points:
+# The astronaut can carry items on Hands (2) or Suit Hooks (4 on Back)!
+# 6 physical attachment points:
 # - hand_left  : Left Hand
 # - hand_right : Right Hand
-# - back_1     : Upper Backpack Mount
-# - back_2     : Lower Backpack Mount
+# - back_1     : Upper Left Backpack Mount
+# - back_2     : Upper Right Backpack Mount
+# - back_3     : Lower Left Backpack Mount
+# - back_4     : Lower Right Backpack Mount
 var body_slots: Dictionary = {
 	"hand_left": {"item": "", "count": 0},
 	"hand_right": {"item": "", "count": 0},
 	"back_1": {"item": "", "count": 0},
 	"back_2": {"item": "", "count": 0}
 }
+
+const ALL_BODY_SLOTS: Array = ["hand_right", "hand_left", "back_1", "back_2"]
 
 # Ship Storage Bin (Waste of Space cabin cargo container)
 var ship_storage: Dictionary = {
@@ -82,7 +95,16 @@ var ship_storage: Dictionary = {
 	"cooked_ration": 0,
 	"chitin_spear": 0,
 	"bio_medkit": 0,
-	"chitin_plate": 0
+	"chitin_plate": 0,
+	"plant_fibers": 0,
+	"ocean_pearl": 0,
+	"pearl": 0,
+	"suit_plating": 0,
+	"plasma_lens": 0,
+	"sealant_paste": 0,
+	"bio_fuel": 0,
+	"hyperdrive_catalyst": 0,
+	"laser_pistol": 0
 }
 
 # Hyperdrive requirements per level
@@ -126,7 +148,7 @@ func init_level_requirements(difficulty: int) -> void:
 
 func get_max_stack(item: String) -> int:
 	match item:
-		"wrench", "microchip", "reactor_cell", "hull_plate", "nozzle_core", "hyperdrive_coil", "o2_filter", "energy_cell", "repair_kit_basic", "repair_kit_advanced", "o2_canister", "suit_sealant", "plasma_cutter", "chitin_spear", "bio_medkit", "chitin_plate":
+		"laser_pistol", "wrench", "microchip", "reactor_cell", "hull_plate", "nozzle_core", "hyperdrive_coil", "o2_filter", "energy_cell", "repair_kit_basic", "repair_kit_advanced", "o2_canister", "suit_sealant", "plasma_cutter", "chitin_spear", "bio_medkit", "chitin_plate", "suit_plating", "plasma_lens", "hyperdrive_catalyst":
 			return MAX_STACK_TOOL
 		_:
 			return MAX_STACK_RESOURCE
@@ -142,7 +164,8 @@ func can_astronaut_carry(res_name: String, amount: int = 1) -> bool:
 	var needed = amount
 	
 	# Check matching existing slots first
-	for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
+	for s_key in ALL_BODY_SLOTS:
+		if not body_slots.has(s_key): continue
 		var s = body_slots[s_key]
 		if s["item"] == res_name and s["count"] < max_s:
 			needed -= (max_s - s["count"])
@@ -150,7 +173,8 @@ func can_astronaut_carry(res_name: String, amount: int = 1) -> bool:
 				return true
 				
 	# Check empty slots
-	for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
+	for s_key in ALL_BODY_SLOTS:
+		if not body_slots.has(s_key): continue
 		var s = body_slots[s_key]
 		if s["item"] == "" or s["count"] <= 0:
 			needed -= max_s
@@ -167,7 +191,8 @@ func add_resource(res_name: String, amount: int = 1) -> void:
 	var max_s = get_max_stack(res_name)
 	
 	# 1. First add to existing matching body slots
-	for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
+	for s_key in ALL_BODY_SLOTS:
+		if not body_slots.has(s_key): continue
 		var s = body_slots[s_key]
 		if s["item"] == res_name and s["count"] < max_s:
 			var space = max_s - s["count"]
@@ -179,7 +204,8 @@ func add_resource(res_name: String, amount: int = 1) -> void:
 				
 	# 2. Fill empty body slots next
 	if remaining > 0:
-		for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
+		for s_key in ALL_BODY_SLOTS:
+			if not body_slots.has(s_key): continue
 			var s = body_slots[s_key]
 			if s["item"] == "" or s["count"] <= 0:
 				var to_add = mini(remaining, max_s)
@@ -209,8 +235,9 @@ func _recalculate_inventory_from_body() -> void:
 func reset_inventory() -> void:
 	for k in inventory.keys():
 		inventory[k] = 0
-	for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
-		body_slots[s_key] = {"item": "", "count": 0}
+	for s_key in ALL_BODY_SLOTS:
+		if body_slots.has(s_key):
+			body_slots[s_key] = {"item": "", "count": 0}
 	ship_storage.clear()
 	installed_parts.clear()
 	inventory_changed.emit()
@@ -231,7 +258,8 @@ func sync_body_from_inventory() -> void:
 			var max_s = get_max_stack(item)
 			var placed = false
 			# Try existing matching slot
-			for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
+			for s_key in ALL_BODY_SLOTS:
+				if not body_slots.has(s_key): continue
 				var s = body_slots[s_key]
 				if s["item"] == item and s["count"] < max_s:
 					var take = mini(diff, max_s - s["count"])
@@ -241,7 +269,8 @@ func sync_body_from_inventory() -> void:
 					break
 			if not placed:
 				# Try empty slot
-				for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
+				for s_key in ALL_BODY_SLOTS:
+					if not body_slots.has(s_key): continue
 					var s = body_slots[s_key]
 					if s["item"] == "" or s["count"] <= 0:
 						var take = mini(diff, max_s)
@@ -298,6 +327,68 @@ func deposit_body_slot_to_storage(slot_name: String) -> bool:
 	body_slots_changed.emit()
 	return true
 
+func drop_body_slot(slot_name: String) -> Dictionary:
+	if not body_slots.has(slot_name):
+		return {}
+	var s = body_slots[slot_name]
+	if s["item"] == "" or s["count"] <= 0:
+		return {}
+	var dropped_data = {"item": s["item"], "count": s["count"]}
+	body_slots[slot_name] = {"item": "", "count": 0}
+	_recalculate_inventory_from_body()
+	inventory_changed.emit()
+	body_slots_changed.emit()
+	return dropped_data
+
+func drop_storage_item(item_name: String, count: int = 1) -> Dictionary:
+	var available = ship_storage.get(item_name, 0)
+	if available <= 0:
+		return {}
+	var dropped_count = mini(available, count)
+	ship_storage[item_name] -= dropped_count
+	storage_changed.emit()
+	return {"item": item_name, "count": dropped_count}
+
+func remove_resource(item: String, count: int = 1) -> bool:
+	return consume_item(item, count)
+
+func craft_field_item(recipe_key: String) -> bool:
+	var gm = _get_gm()
+	match recipe_key:
+		"emergency_o2":
+			if inventory.get("plant_fibers", 0) >= 2:
+				remove_resource("plant_fibers", 2)
+				if gm:
+					gm.player_stats.oxygen = minf(100.0, gm.player_stats.oxygen + 35.0)
+					gm.player_vital_updated.emit("oxygen", gm.player_stats.oxygen, 100.0)
+				_play_audio("collect", 1.2, 0.0)
+				return true
+			elif inventory.get("silicon", 0) >= 1:
+				remove_resource("silicon", 1)
+				if gm:
+					gm.player_stats.oxygen = minf(100.0, gm.player_stats.oxygen + 35.0)
+					gm.player_vital_updated.emit("oxygen", gm.player_stats.oxygen, 100.0)
+				_play_audio("collect", 1.2, 0.0)
+				return true
+		"small_biofuel":
+			if inventory.get("plant_fibers", 0) >= 2:
+				remove_resource("plant_fibers", 2)
+				if gm:
+					gm.player_stats.fuel = minf(100.0, gm.player_stats.fuel + 30.0)
+					gm.player_vital_updated.emit("fuel", gm.player_stats.fuel, 100.0)
+				_play_audio("collect", 1.2, 0.0)
+				return true
+		"suit_patch":
+			if inventory.get("plant_fibers", 0) >= 1 and inventory.get("iron", 0) >= 1:
+				remove_resource("plant_fibers", 1)
+				remove_resource("iron", 1)
+				if gm:
+					gm.player_stats.hull = minf(100.0, gm.player_stats.hull + 25.0)
+					gm.player_vital_updated.emit("hull", gm.player_stats.hull, 100.0)
+				_play_audio("collect", 1.2, 0.0)
+				return true
+	return false
+
 func equip_storage_to_body_slot(item: String, target_slot: String = "") -> bool:
 	if ship_storage.get(item, 0) <= 0:
 		return false
@@ -308,7 +399,7 @@ func equip_storage_to_body_slot(item: String, target_slot: String = "") -> bool:
 	# If no specific slot or target slot is occupied by different item:
 	if chosen_slot == "" or not body_slots.has(chosen_slot):
 		# Find first empty slot
-		for k in ["hand_right", "hand_left", "back_1", "back_2"]:
+		for k in ALL_BODY_SLOTS:
 			if body_slots[k]["item"] == "" or body_slots[k]["count"] <= 0:
 				chosen_slot = k
 				break
@@ -369,9 +460,10 @@ func withdraw_all_from_storage() -> void:
 		var available = ship_storage[item]
 		if available <= 0:
 			continue
-		for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
+		for s_key in ALL_BODY_SLOTS:
 			if available <= 0:
 				break
+			if not body_slots.has(s_key): continue
 			var s = body_slots[s_key]
 			var max_s = get_max_stack(item)
 			if s["item"] == "" or s["count"] <= 0:
@@ -423,8 +515,9 @@ func withdraw_item(item: String, amount: int = 1) -> bool:
 	
 	# Place in body slots if space allows
 	var rem = amount
-	for s_key in ["hand_right", "hand_left", "back_1", "back_2"]:
+	for s_key in ALL_BODY_SLOTS:
 		if rem <= 0: break
+		if not body_slots.has(s_key): continue
 		var s = body_slots[s_key]
 		var max_s = get_max_stack(item)
 		if s["item"] == "" or s["count"] <= 0:
@@ -496,6 +589,17 @@ func can_craft(item: String) -> bool:
 			return get_item_count("biogel_sample") >= 1 and get_item_count("alien_chitin") >= 1
 		"chitin_plate":
 			return get_item_count("alien_chitin") >= 2 and get_item_count("iron") >= 1
+		# Drops Utility Expansion Recipes
+		"suit_plating":
+			return get_item_count("alien_chitin") >= 2
+		"plasma_lens":
+			return get_item_count("alien_fang") >= 1
+		"sealant_paste":
+			return get_item_count("plant_fibers") >= 2
+		"bio_fuel":
+			return get_item_count("plant_fibers") >= 2
+		"hyperdrive_catalyst":
+			return get_item_count("pearl") >= 1 or get_item_count("ocean_pearl") >= 1
 	return false
 
 func _consume_craft_material(mat: String, amount: int) -> void:
@@ -596,6 +700,24 @@ func craft(item: String) -> bool:
 			_consume_craft_material("alien_chitin", 2)
 			_consume_craft_material("iron", 1)
 			_add_crafted_item("chitin_plate", 1)
+		"suit_plating":
+			_consume_craft_material("alien_chitin", 2)
+			_add_crafted_item("suit_plating", 1)
+		"plasma_lens":
+			_consume_craft_material("alien_fang", 1)
+			_add_crafted_item("plasma_lens", 1)
+		"sealant_paste":
+			_consume_craft_material("plant_fibers", 2)
+			_add_crafted_item("sealant_paste", 1)
+		"bio_fuel":
+			_consume_craft_material("plant_fibers", 2)
+			_add_crafted_item("bio_fuel", 1)
+		"hyperdrive_catalyst":
+			if get_item_count("pearl") >= 1:
+				_consume_craft_material("pearl", 1)
+			else:
+				_consume_craft_material("ocean_pearl", 1)
+			_add_crafted_item("hyperdrive_catalyst", 1)
 	inventory_changed.emit()
 	storage_changed.emit()
 	body_slots_changed.emit()
@@ -653,10 +775,63 @@ func use_consumable(item: String) -> bool:
 			if gm:
 				gm.player_stats.hull = minf(100.0, gm.player_stats.hull + 45.0)
 				gm.player_vital_updated.emit("hull", gm.player_stats.hull, 100.0)
+		"suit_plating":
+			if gm:
+				var current_max = float(gm.player_stats.get("max_hull", 100.0))
+				var new_max = current_max + 20.0
+				gm.player_stats["max_hull"] = new_max
+				gm.player_stats.hull = minf(new_max, gm.player_stats.hull + 35.0)
+				gm.player_vital_updated.emit("hull", gm.player_stats.hull, new_max)
+		"plasma_lens":
+			if gm:
+				gm.player_stats["mining_speed_boost"] = 2.0
+		"sealant_paste":
+			if gm:
+				var max_h = float(gm.player_stats.get("max_hull", 100.0))
+				gm.player_stats.hull = minf(max_h, gm.player_stats.hull + 35.0)
+				gm.player_vital_updated.emit("hull", gm.player_stats.hull, max_h)
+		"bio_fuel":
+			if gm:
+				gm.player_stats.fuel = minf(100.0, gm.player_stats.fuel + 50.0)
+				gm.player_vital_updated.emit("fuel", gm.player_stats.fuel, 100.0)
+		"pearl", "ocean_pearl":
+			if gm and gm.has_method("add_luna_coins"):
+				gm.add_luna_coins(100)
+		"hyperdrive_catalyst":
+			for part in hyperdrive_requirements.keys():
+				if installed_parts.get(part, 0) < hyperdrive_requirements[part]:
+					installed_parts[part] = installed_parts.get(part, 0) + 1
+					hyperdrive_repaired.emit(part)
+					if is_hyperdrive_complete():
+						hyperdrive_ready.emit()
+					break
 		_:
 			return false
 	_play_audio("craft", 1.0, 1.5)
 	return true
+
+func trade_pearl_for_coins(pearl_name: String = "pearl") -> bool:
+	var item_to_use = ""
+	if get_item_count("pearl") >= 1:
+		item_to_use = "pearl"
+	elif get_item_count("ocean_pearl") >= 1:
+		item_to_use = "ocean_pearl"
+	if item_to_use.is_empty():
+		return false
+	_consume_craft_material(item_to_use, 1)
+	var gm = _get_gm()
+	if gm and gm.has_method("add_luna_coins"):
+		gm.add_luna_coins(100)
+	inventory_changed.emit()
+	storage_changed.emit()
+	body_slots_changed.emit()
+	return true
+
+func craft_item(item: String) -> bool:
+	return craft(item)
+
+func use_item(item: String) -> bool:
+	return use_consumable(item)
 
 func get_item_count(item: String) -> int:
 	return inventory.get(item, 0) + ship_storage.get(item, 0)

@@ -18,6 +18,10 @@ boot_splash/bg_color=Color(0.04, 0.04, 0.08, 1)
 boot_splash/show_image=false
 config/icon="res://icon.png"
 
+[audio]
+
+buses/default_bus_layout="res://default_bus_layout.tres"
+
 [autoload]
 
 RevenueCatManager="*res://scripts/autoloads/revenuecat_manager.gd"

@@ -1,6 +1,7 @@
 extends CharacterBody3D
 
 const LandingFXProfile = preload("res://scripts/effects/landing_fx_profile.gd")
+const LaserPistolBuilder = preload("res://scripts/entities/laser_pistol_builder.gd")
 
 signal stats_changed(oxygen: float, fuel: float, hull: float)
 signal interaction_available(type: String, target_node: Node3D)
@@ -14,6 +15,7 @@ signal first_person_toggled(is_fps: bool)
 
 # Node references
 @onready var visuals: Node3D = get_node_or_null("Visuals")
+@onready var torso: MeshInstance3D = get_node_or_null("Visuals/Torso")
 @onready var head: Node3D = get_node_or_null("Visuals/Head")
 @onready var helmet: Node3D = get_node_or_null("Visuals/Helmet")
 @onready var face: Node3D = get_node_or_null("Visuals/Head/Face")
@@ -32,6 +34,7 @@ var is_sprinting: bool = false
 var is_dead: bool = false
 var is_seated_in_cockpit: bool = false
 var is_in_liquid: bool = false
+var is_in_subterranean_fluid: bool = false
 var was_in_liquid: bool = false
 var nearby_interactable: Node3D = null
 var current_interactable_type: String = ""
@@ -44,6 +47,27 @@ var can_emergency_spark_jump: bool = true
 var is_swimming_manual: bool = false
 var is_jetpack_thrusting: bool = false
 var swim_time: float = 0.0
+
+# Backpack Hooks Inertial Physics & Dynamic Sway
+var hook_sway_rot: Dictionary = {
+	"back_1": Vector3.ZERO,
+	"back_2": Vector3.ZERO,
+	"back_3": Vector3.ZERO,
+	"back_4": Vector3.ZERO
+}
+var hook_sway_vel: Dictionary = {
+	"back_1": Vector3.ZERO,
+	"back_2": Vector3.ZERO,
+	"back_3": Vector3.ZERO,
+	"back_4": Vector3.ZERO
+}
+
+# Dynamic Combat, Laser Unholstering, Recoil & Melee Shove
+var is_unholstering_laser: bool = false
+var unholster_timer: float = 0.0
+var is_melee_thrusting: bool = false
+var melee_thrust_timer: float = 0.0
+var mining_anim_time: float = 0.0
 
 # Helmet Headlamp / Flashlights
 var is_headlamp_on: bool = false
@@ -84,6 +108,8 @@ var suit_effect_intensity: float = 0.0
 var laser_immediate: ImmediateMesh = ImmediateMesh.new()
 var is_action_locked: bool = false
 var carried_creature: Node3D = null
+var screen_kick_trauma: float = 0.0
+var damage_screen_overlay: ColorRect = null
 
 # Orbit camera & zoom state
 var cam_yaw: float = 0.0
@@ -120,6 +146,40 @@ func get_occupied_hands_count() -> int:
 		count += 1
 	return count
 
+const EDIBLE_ITEMS = ["plant_fibers", "wood", "biogel_sample", "biogel", "cooked_ration", "alien_meat", "berries", "fruit", "seeds"]
+
+func is_food_item(item_name: String) -> bool:
+	return EDIBLE_ITEMS.has(item_name)
+
+func get_held_food_item() -> Dictionary:
+	if not is_instance_valid(GameManager) or not GameManager.crafting:
+		return {}
+	var b_slots = GameManager.crafting.body_slots
+	for slot in ["hand_right", "hand_left"]:
+		var s = b_slots.get(slot, {})
+		var item = s.get("item", "")
+		var count = s.get("count", 0)
+		if count > 0 and is_food_item(item):
+			return {"slot": slot, "item": item, "count": count}
+	return {}
+
+func consume_held_food() -> String:
+	var food_info = get_held_food_item()
+	if food_info.is_empty():
+		return ""
+	var slot = food_info["slot"]
+	var item = food_info["item"]
+	var count = food_info["count"]
+	if count <= 1:
+		GameManager.crafting.body_slots[slot] = {"item": "", "count": 0}
+	else:
+		GameManager.crafting.body_slots[slot]["count"] = count - 1
+	GameManager.crafting.body_slots_changed.emit()
+	return item
+
+func has_held_food() -> bool:
+	return not get_held_food_item().is_empty()
+
 # Surface Swimming State
 var is_surface_swimming: bool = false
 
@@ -141,6 +201,12 @@ func _ready() -> void:
 	_setup_helmet_lights()
 	set_suit_mode(true)
 	_check_fps_mode()
+	
+	# Default starter loadout: Laser Pistol holstered on back hook 1 (hands free at start)
+	if is_instance_valid(GameManager) and GameManager.crafting:
+		var back_slot = GameManager.crafting.body_slots.get("back_1", {})
+		if back_slot.get("item", "") == "":
+			GameManager.crafting.set_body_slot("back_1", "laser_pistol", 1)
 
 func _setup_helmet_lights() -> void:
 	# Material for headlamp lenses
@@ -254,6 +320,14 @@ func _setup_underwater_overlay() -> void:
 	underwater_screen_overlay.color = Color(0.04, 0.28, 0.65, 0.0)
 	underwater_screen_overlay.visible = false
 	canvas.add_child(underwater_screen_overlay)
+	
+	damage_screen_overlay = ColorRect.new()
+	damage_screen_overlay.name = "DamageScreenOverlay"
+	damage_screen_overlay.anchors_preset = Control.PRESET_FULL_RECT
+	damage_screen_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	damage_screen_overlay.color = Color(0.85, 0.05, 0.05, 0.0)
+	damage_screen_overlay.visible = false
+	canvas.add_child(damage_screen_overlay)
 
 func setup_spawn(spawn_pos: Vector3, up_dir: Vector3, facing_dir: Vector3) -> void:
 	global_position = spawn_pos
@@ -305,14 +379,69 @@ func set_suit_mode(outside: bool) -> void:
 				helmet.position = HELMET_HEAD_POS
 				helmet.rotation = Vector3.ZERO
 			else:
-				helmet.position = HELMET_HELD_POS
-				helmet.rotation = HELMET_HELD_ROT
+				var hands_occ = get_occupied_hands_count()
+				if hands_occ >= 1:
+					var has_left = is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.body_slots.get("hand_left", {}).get("count", 0) > 0
+					helmet.position = HELMET_HIP_R_POS if has_left else HELMET_HIP_POS
+					helmet.rotation = HELMET_HIP_R_ROT if has_left else HELMET_HIP_ROT
+				else:
+					helmet.position = HELMET_HELD_POS
+					helmet.rotation = HELMET_HELD_ROT
 		if face:
 			face.visible = not outside
 		if not outside:
-			if left_arm: left_arm.rotation = LEFT_ARM_HELD_ROT
-			if right_arm and not is_mining: right_arm.rotation = RIGHT_ARM_HELD_ROT
+			var hands_occ = get_occupied_hands_count()
+			if hands_occ == 0:
+				if left_arm: left_arm.rotation = LEFT_ARM_HELD_ROT
+				if right_arm and not is_mining: right_arm.rotation = RIGHT_ARM_HELD_ROT
+			elif hands_occ == 1:
+				var has_left = is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.body_slots.get("hand_left", {}).get("count", 0) > 0
+				if has_left:
+					if left_arm: left_arm.rotation = Vector3(0.52, 0.05, 0.12)
+					if right_arm and not is_mining: right_arm.rotation = Vector3.ZERO
+				else:
+					if left_arm: left_arm.rotation = Vector3.ZERO
+					if right_arm and not is_mining: right_arm.rotation = Vector3(0.52, -0.05, -0.12)
+			else:
+				if left_arm: left_arm.rotation = Vector3(0.52, 0.05, 0.12)
+				if right_arm and not is_mining: right_arm.rotation = Vector3(0.52, -0.05, -0.12)
 	_update_headlamp_state()
+
+func is_in_safe_breathable_environment() -> bool:
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if ship and ship.get("is_player_in_cabin") == true and not ship.get("is_hatch_open"):
+		return true
+	return false
+
+func can_safely_remove_helmet() -> bool:
+	return is_in_safe_breathable_environment()
+
+func attempt_toggle_helmet() -> bool:
+	if not is_in_space_suit:
+		# Putting helmet back on
+		animate_put_on_helmet()
+		var hud = get_tree().get_first_node_in_group("hud")
+		if hud and hud.has_method("show_status_toast"):
+			var is_es = is_instance_valid(GameManager) and GameManager.current_language == "es"
+			hud.show_status_toast("🛡 CASCO ASEGURADO - SELLADO HERMÉTICO NOMINAL" if is_es else "🛡 HELMET SECURED - HERMETIC SEAL NOMINAL")
+		return true
+	else:
+		# Attempting to take off helmet
+		if not can_safely_remove_helmet():
+			AudioManager.play("alert", 1.0)
+			var hud = get_tree().get_first_node_in_group("hud")
+			if hud and hud.has_method("show_status_toast"):
+				var is_es = is_instance_valid(GameManager) and GameManager.current_language == "es"
+				hud.show_status_toast("⚠ VACÍO / ATMÓSFERA HOSTIL: RETIRAR EL CASCO EN EL EXTERIOR ES FATAL" if is_es else "⚠ VACUUM / HOSTILE ATMOSPHERE: REMOVING HELMET OUTSIDE IS FATAL")
+			return false
+		
+		# Inside ship: proceed to remove helmet!
+		animate_take_off_helmet()
+		var hud = get_tree().get_first_node_in_group("hud")
+		if hud and hud.has_method("show_status_toast"):
+			var is_es = is_instance_valid(GameManager) and GameManager.current_language == "es"
+			hud.show_status_toast("CABINA PRESURIZADA: CASCO RETIRADO A DOS MANOS" if is_es else "CABIN PRESSURIZED: HELMET REMOVED WITH BOTH HANDS")
+		return true
 
 func animate_put_on_helmet() -> void:
 	is_in_space_suit = true
@@ -355,61 +484,45 @@ func animate_put_on_helmet() -> void:
 func animate_take_off_helmet() -> void:
 	is_in_space_suit = false
 	var hands_occ = get_occupied_hands_count()
+	
 	if helmet and not is_first_person:
 		helmet.visible = true
-		if hands_occ >= 2:
-			# Both hands occupied: automated suit collar pops and helmet docks directly to magnetic hip clip
-			var tw = create_tween().set_parallel(true)
-			tw.tween_property(helmet, "position", Vector3(-0.18, 1.45, 0.15), 0.25)
-			tw.chain().tween_property(helmet, "position", HELMET_HIP_POS, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-			tw.tween_property(helmet, "rotation", HELMET_HIP_ROT, 0.35)
+		if hands_occ > 0:
+			# When hands are occupied, magnetize helmet to hip clip
+			var tw_hip = create_tween().set_parallel(true)
+			tw_hip.tween_property(helmet, "position", HELMET_HIP_POS if hands_occ == 2 else HELMET_HIP_POS, 0.35)
+			tw_hip.tween_property(helmet, "rotation", HELMET_HIP_ROT, 0.35)
+			return
+			
+		# Realistic 2-handed helmet removal to chest
+		helmet.position = HELMET_HEAD_POS
+		helmet.rotation = Vector3.ZERO
+		
+		# 1. Hands raise from sides to collar ring
+		var tw1 = create_tween().set_parallel(true)
+		tw1.tween_property(left_arm, "rotation:x", 1.6, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw1.tween_property(left_arm, "rotation:z", 0.35, 0.35)
+		tw1.tween_property(right_arm, "rotation:x", 1.6, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw1.tween_property(right_arm, "rotation:z", -0.35, 0.35)
+		
+		# 2. Hands lift helmet off head & reveal face
+		var tw2 = create_tween().set_parallel(true)
+		tw2.tween_interval(0.35)
+		tw2.chain().tween_callback(func():
 			if face: face.visible = true
 			AudioManager.play("click", 1.1)
-		elif hands_occ == 1:
-			# One hand occupied: free hand unlatches helmet and rests it on side hip
-			var has_left = GameManager.crafting.body_slots.get("hand_left", {}).get("count", 0) > 0
-			var target_pos = HELMET_HIP_R_POS if has_left else HELMET_HIP_POS
-			var target_rot = HELMET_HIP_R_ROT if has_left else HELMET_HIP_ROT
-			var free_arm = right_arm if has_left else left_arm
-			var tw = create_tween().set_parallel(true)
-			if free_arm:
-				tw.tween_property(free_arm, "rotation:x", 1.7, 0.3)
-			tw.chain().tween_property(helmet, "position", target_pos, 0.35)
-			tw.tween_property(helmet, "rotation", target_rot, 0.35)
-			if free_arm:
-				tw.chain().tween_property(free_arm, "rotation", Vector3(0.5, 0.0, 0.1), 0.3)
-			if face: face.visible = true
-			AudioManager.play("click", 1.1)
-		else:
-			# Both hands free: normal 2-handed helmet removal to chest
-			helmet.position = HELMET_HEAD_POS
-			helmet.rotation = Vector3.ZERO
-			
-			# 1. Hands raise from sides to collar ring
-			var tw1 = create_tween().set_parallel(true)
-			tw1.tween_property(left_arm, "rotation:x", 1.6, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-			tw1.tween_property(left_arm, "rotation:z", 0.35, 0.35)
-			tw1.tween_property(right_arm, "rotation:x", 1.6, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-			tw1.tween_property(right_arm, "rotation:z", -0.35, 0.35)
-			
-			# 2. Hands lift helmet off head & reveal face
-			var tw2 = create_tween().set_parallel(true)
-			tw2.tween_interval(0.35)
-			tw2.chain().tween_callback(func():
-				if face: face.visible = true
-				AudioManager.play("click", 1.1)
-			)
-			tw2.chain().tween_property(helmet, "position", Vector3(0, 1.85, -0.1), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-			tw2.tween_property(left_arm, "rotation:x", 2.15, 0.35)
-			tw2.tween_property(right_arm, "rotation:x", 2.15, 0.35)
-			
-			# 3. Lower helmet smoothly down to chest and cradle with both hands
-			var tw3 = create_tween().set_parallel(true)
-			tw3.tween_interval(0.7)
-			tw3.chain().tween_property(helmet, "position", HELMET_HELD_POS, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
-			tw3.tween_property(helmet, "rotation", HELMET_HELD_ROT, 0.45)
-			tw3.tween_property(left_arm, "rotation", Vector3(0.72, 0.22, 0.42), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
-			tw3.tween_property(right_arm, "rotation", Vector3(0.72, -0.22, -0.42), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+		)
+		tw2.chain().tween_property(helmet, "position", Vector3(0, 1.85, -0.1), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw2.tween_property(left_arm, "rotation:x", 2.15, 0.35)
+		tw2.tween_property(right_arm, "rotation:x", 2.15, 0.35)
+		
+		# 3. Lower helmet smoothly down to chest and cradle with both hands
+		var tw3 = create_tween().set_parallel(true)
+		tw3.tween_interval(0.7)
+		tw3.chain().tween_property(helmet, "position", HELMET_HELD_POS, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+		tw3.tween_property(helmet, "rotation", HELMET_HELD_ROT, 0.45)
+		tw3.tween_property(left_arm, "rotation", Vector3(0.72, 0.22, 0.42), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+		tw3.tween_property(right_arm, "rotation", Vector3(0.72, -0.22, -0.42), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 	else:
 		set_suit_mode(false)
 
@@ -505,13 +618,30 @@ func _physics_process(delta: float) -> void:
 		planet = GameManager.current_planet
 	var gravity_val: float = planet.get("gravity", 9.8)
 
-	var up_dir = global_position.normalized()
-	if up_dir.length_squared() < 0.001:
-		up_dir = Vector3.UP
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	var is_in_cabin = (is_instance_valid(ship) and ship.get("is_player_in_cabin") == true)
+	var is_in_space = (is_in_cabin and int(ship.get("flight_state")) != 0)
+	var is_zero_g = false
+	var up_dir = Vector3.UP
+
+	if is_in_cabin:
+		up_dir = ship.global_transform.basis.y
+		if is_in_space:
+			var art_grav = bool(ship.get("is_artificial_gravity_active")) if "is_artificial_gravity_active" in ship else true
+			if not art_grav:
+				is_zero_g = true
+				gravity_val = 0.0
+			else:
+				gravity_val = 9.8
+	else:
+		up_dir = global_position.normalized()
+		if up_dir.length_squared() < 0.001:
+			up_dir = Vector3.UP
 	up_direction = up_dir
 
 	if is_instance_valid(carried_creature):
-		carried_creature.global_position = global_position + up_dir * 1.85
+		var chest_pos = global_position + up_dir * 1.05 + current_facing * 0.70
+		carried_creature.global_position = chest_pos
 		carried_creature.global_transform.basis = global_transform.basis
 
 	# Keyboard camera rotation
@@ -663,8 +793,8 @@ func _physics_process(delta: float) -> void:
 
 	var dist_from_center = global_position.length()
 	var has_planetary_liquid = str(planet.get("water_status", "Seco / Desolado")) != "Seco / Desolado" and str(planet.get("water_status", "")) != ""
-	# Real fluid immersion: astronaut interacts with fluid whenever submerged
-	is_in_liquid = has_planetary_liquid and (dist_from_center < (ocean_surface_r + 0.10))
+	# Real fluid immersion: astronaut interacts with fluid whenever submerged or in subterranean fluid
+	is_in_liquid = (has_planetary_liquid and (dist_from_center < (ocean_surface_r + 0.10))) or is_in_subterranean_fluid
 	
 	# Detect surface transition: spawn fluid splash strictly when crossing the liquid threshold
 	if is_in_liquid != was_in_liquid:
@@ -797,7 +927,18 @@ func _physics_process(delta: float) -> void:
 		_set_jetpack_bubbles(false)
 
 		# --- SALTO Y LOCOMOCIÓN SIN JETPACK / SIN COMBUSTIBLE ---
-		if is_in_liquid:
+		if is_zero_g:
+			floor_snap_length = 0.0
+			is_surface_swimming = false
+			is_swimming_manual = false
+			if is_jump_pressed:
+				vertical_speed = lerpf(vertical_speed, 2.2, delta * 4.0)
+			elif is_crouch_pressed:
+				vertical_speed = lerpf(vertical_speed, -2.2, delta * 4.0)
+			else:
+				vertical_speed = lerpf(vertical_speed, 0.0, delta * 2.5)
+
+		elif is_in_liquid:
 			floor_snap_length = 0.85
 			var fluid_gravity = gravity_val * 0.62
 
@@ -854,7 +995,9 @@ func _physics_process(delta: float) -> void:
 				vertical_speed -= gravity_val * delta
 				vertical_speed = max(vertical_speed, -25.0)
 
-	if is_in_liquid:
+	if is_zero_g:
+		horizontal_vel = horizontal_vel.lerp(move_tangent * (input_str * 2.8), delta * 4.0)
+	elif is_in_liquid:
 		var liq_density = get_liquid_density()
 		var drag_factor = clampf(1.05 / sqrt(liq_density), 0.50, 1.20)
 		var is_hopping = prefers_lunar_hopping()
@@ -989,7 +1132,22 @@ func _physics_process(delta: float) -> void:
 				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(0.1, 0, -0.12), delta * 6.0)
 		else:
 			# Land / Air Postures
-			if is_jetpack_thrusting:
+			if is_instance_valid(carried_creature):
+				# 1) Carrying tamed creature with both hands comfortably in front
+				walk_time += delta * (12.0 if input_str > 0.05 else 1.5)
+				var breath = sin(walk_time * 1.5) * 0.015
+				var swing = sin(walk_time) * 0.35 if input_str > 0.05 else 0.0
+				visuals.position.y = abs(sin(walk_time)) * 0.04 if input_str > 0.05 else sin(walk_time) * 0.012
+				visuals.rotation.x = lerp_angle(visuals.rotation.x, 0.0, delta * 8.0)
+				visuals.rotation.z = -input_vec.x * 0.06 if input_str > 0.05 else 0.0
+				if left_leg: left_leg.rotation.x = swing
+				if right_leg: right_leg.rotation.x = -swing
+				# Both arms comfortably cradling pet in front
+				var arm_cradle_l = Vector3(deg_to_rad(62.0) + breath, deg_to_rad(18.0), deg_to_rad(22.0))
+				var arm_cradle_r = Vector3(deg_to_rad(62.0) + breath, deg_to_rad(-18.0), deg_to_rad(-22.0))
+				if left_arm: left_arm.rotation = left_arm.rotation.lerp(arm_cradle_l, delta * 12.0)
+				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(arm_cradle_r, delta * 12.0)
+			elif is_jetpack_thrusting:
 				# 2) Airborne Jetpack Flight Posture
 				visuals.rotation.x = lerp_angle(visuals.rotation.x, deg_to_rad(14.0), delta * 6.0)
 				visuals.rotation.z = -input_vec.x * 0.10
@@ -1069,11 +1227,23 @@ func _physics_process(delta: float) -> void:
 					if left_leg: left_leg.rotation.x = stride
 					if right_leg: right_leg.rotation.x = -stride
 					
-					# Brazos en abducción espacial balanceando el salto
+					# Brazos en abducción espacial balanceando el salto o sosteniendo recursos
 					var arm_pitch = -deg_to_rad(8.0) - sin(walk_time) * deg_to_rad(14.0 if is_sprint_active else 8.0)
 					var arm_spread = deg_to_rad(20.0 if is_sprint_active else 15.0)
-					if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3(arm_pitch, 0, arm_spread), delta * 8.0)
-					if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3(-arm_pitch, 0, -arm_spread), delta * 8.0)
+					var hands_occ_suit = get_occupied_hands_count()
+					var has_left_suit = is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.body_slots.get("hand_left", {}).get("count", 0) > 0
+					var has_right_suit = is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.body_slots.get("hand_right", {}).get("count", 0) > 0
+					
+					if left_arm:
+						if has_left_suit:
+							left_arm.rotation = left_arm.rotation.lerp(Vector3(0.50, 0.05, 0.12), delta * 10.0)
+						else:
+							left_arm.rotation = left_arm.rotation.lerp(Vector3(arm_pitch, 0, arm_spread), delta * 8.0)
+					if right_arm and not is_mining:
+						if has_right_suit:
+							right_arm.rotation = right_arm.rotation.lerp(Vector3(0.50, -0.05, -0.12), delta * 10.0)
+						else:
+							right_arm.rotation = right_arm.rotation.lerp(Vector3(-arm_pitch, 0, -arm_spread), delta * 8.0)
 				else:
 					# Planetas de gravedad normal/alta (Tierra, mundos densos): marcha terrestre tradicional paso a paso
 					walk_time += delta * (14.0 if is_sprint_active else 8.5)
@@ -1083,8 +1253,21 @@ func _physics_process(delta: float) -> void:
 					visuals.position.y = abs(sin(walk_time)) * 0.05
 					if left_leg: left_leg.rotation.x = swing
 					if right_leg: right_leg.rotation.x = -swing
-					if left_arm: left_arm.rotation = Vector3(-swing * 0.8, 0, 0)
-					if right_arm and not is_mining: right_arm.rotation = Vector3(swing * 0.8, 0, 0)
+					
+					var hands_occ_walk = get_occupied_hands_count()
+					var has_l_walk = is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.body_slots.get("hand_left", {}).get("count", 0) > 0
+					var has_r_walk = is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.body_slots.get("hand_right", {}).get("count", 0) > 0
+					
+					if left_arm:
+						if has_l_walk:
+							left_arm.rotation = left_arm.rotation.lerp(Vector3(0.52, 0.05, 0.12), delta * 12.0)
+						else:
+							left_arm.rotation = Vector3(-swing * 0.8, 0, 0)
+					if right_arm and not is_mining:
+						if has_r_walk:
+							right_arm.rotation = right_arm.rotation.lerp(Vector3(0.52, -0.05, -0.12), delta * 12.0)
+						else:
+							right_arm.rotation = Vector3(swing * 0.8, 0, 0)
 			else:
 				walk_time += delta * 1.5
 				var idle_breath = sin(walk_time) * 0.015
@@ -1093,8 +1276,21 @@ func _physics_process(delta: float) -> void:
 				visuals.rotation.z = lerp_angle(visuals.rotation.z, 0.0, delta * 10.0)
 				if left_leg: left_leg.rotation.x = lerp_angle(left_leg.rotation.x, 0.0, delta * 10.0)
 				if right_leg: right_leg.rotation.x = lerp_angle(right_leg.rotation.x, 0.0, delta * 10.0)
-				if left_arm: left_arm.rotation = left_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
-				if right_arm and not is_mining: right_arm.rotation = right_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
+				
+				var hands_occ_idle = get_occupied_hands_count()
+				var has_l_idle = is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.body_slots.get("hand_left", {}).get("count", 0) > 0
+				var has_r_idle = is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.body_slots.get("hand_right", {}).get("count", 0) > 0
+				
+				if left_arm:
+					if has_l_idle:
+						left_arm.rotation = left_arm.rotation.lerp(Vector3(0.48 + idle_breath, 0.06, 0.12), delta * 10.0)
+					else:
+						left_arm.rotation = left_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
+				if right_arm and not is_mining:
+					if has_r_idle:
+						right_arm.rotation = right_arm.rotation.lerp(Vector3(0.48 + idle_breath, -0.06, -0.12), delta * 10.0)
+					else:
+						right_arm.rotation = right_arm.rotation.lerp(Vector3.ZERO, delta * 10.0)
 
 	# Dynamic Fullscreen Fluid Submersion Overlay
 	if underwater_screen_overlay:
@@ -1120,6 +1316,22 @@ func _physics_process(delta: float) -> void:
 			else:
 				underwater_screen_overlay.visible = false
 
+	# Dynamic Fullscreen Damage Flash Decay & Camera Screen Kick Trauma Jitter
+	if damage_screen_overlay and damage_screen_overlay.visible:
+		if damage_screen_overlay.color.a > 0.02:
+			damage_screen_overlay.color.a = lerpf(damage_screen_overlay.color.a, 0.0, delta * 6.0)
+		else:
+			damage_screen_overlay.visible = false
+
+	if screen_kick_trauma > 0.01:
+		screen_kick_trauma = lerpf(screen_kick_trauma, 0.0, delta * 8.0)
+		if camera:
+			camera.h_offset = randf_range(-0.12, 0.12) * screen_kick_trauma
+			camera.v_offset = randf_range(-0.12, 0.12) * screen_kick_trauma
+	elif camera:
+		camera.h_offset = 0.0
+		camera.v_offset = 0.0
+
 	velocity = horizontal_vel + up_dir * vertical_speed + wave_surge_velocity
 	move_and_slide()
 
@@ -1135,13 +1347,89 @@ func _physics_process(delta: float) -> void:
 	# 8. Nearby Interactables Scan & Mining
 	check_nearby_interactables()
 
-	if is_mining and nearby_interactable and current_interactable_type == "mine":
-		nearby_interactable.mine_tick(delta)
+	# Also allow mining via key F, Left Click or interact action if facing a mineable rock
+	var wants_mine = is_mining
+	if not wants_mine and nearby_interactable and current_interactable_type == "mine":
+		if Input.is_key_pressed(KEY_F) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or (InputMap.has_action("interact") and Input.is_action_pressed("interact")):
+			wants_mine = true
+
+	# Check hand capacity when attempting to mine
+	if wants_mine and nearby_interactable and current_interactable_type == "mine":
+		if is_instance_valid(GameManager) and GameManager.crafting:
+			var r_item = GameManager.crafting.body_slots.get("hand_right", {}).get("item", "")
+			var l_item = GameManager.crafting.body_slots.get("hand_left", {}).get("item", "")
+			var has_laser_in_hand = (r_item == "laser_pistol" or l_item == "laser_pistol")
+			if not has_laser_in_hand:
+				if r_item != "" and l_item != "":
+					# Hands full error toast
+					wants_mine = false
+					is_mining = false
+					var hud = get_tree().get_first_node_in_group("hud")
+					if hud and hud.has_method("show_status_toast"):
+						hud.show_status_toast("⚠ MANOS OCUPADAS: Imposible minar. Suelta un ítem para usar el láser.")
+					AudioManager.play("click", 0.7, 4.0)
+				else:
+					# Free hand available: start quick unholster maneuver from back
+					_trigger_unholster_maneuver()
+
+	if wants_mine and nearby_interactable and current_interactable_type == "mine" and not is_unholstering_laser:
+		# Active plasma mining recoil & fluid aim animation
+		mining_anim_time += delta
+		var recoil_kick = sin(mining_anim_time * 28.0) * 0.045
+		var sway_y = cos(mining_anim_time * 16.0) * 0.03
+		if right_arm:
+			right_arm.rotation.x = deg_to_rad(-68.0) + recoil_kick
+			right_arm.rotation.y = sway_y
+			right_arm.rotation.z = -0.10 + recoil_kick * 0.4
+		if left_arm and is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.body_slots.get("hand_left", {}).get("item", "") == "":
+			left_arm.rotation.x = deg_to_rad(-55.0) + recoil_kick * 0.3
+			left_arm.rotation.y = deg_to_rad(32.0)
+			left_arm.rotation.z = deg_to_rad(14.0)
+
+		var speed_mult = 2.0 if (is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.get_item_count("plasma_lens") > 0) else 1.0
+		var completed = nearby_interactable.mine_tick(delta * speed_mult)
 		_draw_laser(nearby_interactable.global_position)
 		AudioManager.start_laser_loop()
+		if completed:
+			is_mining = false
 	else:
 		if laser_mesh: laser_mesh.visible = false
 		AudioManager.stop_laser_loop()
+
+	# Process unholster backward leap and weapon draw
+	if is_unholstering_laser:
+		unholster_timer -= delta
+		var p = clampf(unholster_timer / 0.35, 0.0, 1.0)
+		if torso:
+			torso.rotation.y = deg_to_rad(-26.0) * p
+			torso.rotation.x = deg_to_rad(-16.0) * p
+		if right_arm:
+			right_arm.rotation.x = deg_to_rad(45.0) * p
+		if unholster_timer <= 0.0:
+			is_unholstering_laser = false
+			if torso: torso.rotation = Vector3.ZERO
+			_transfer_laser_to_hand()
+
+	# Process melee pistol whip / shove impact animation
+	if is_melee_thrusting:
+		melee_thrust_timer -= delta
+		var p = sin(clampf(1.0 - (melee_thrust_timer / 0.35), 0.0, 1.0) * PI)
+		if right_arm:
+			right_arm.rotation.x = deg_to_rad(-85.0) - p * deg_to_rad(22.0)
+			right_arm.position.z = -p * 0.35
+		if left_arm and is_instance_valid(GameManager) and GameManager.crafting and GameManager.crafting.body_slots.get("hand_left", {}).get("item", "") == "":
+			left_arm.rotation.x = deg_to_rad(-78.0) - p * deg_to_rad(16.0)
+			left_arm.position.z = -p * 0.25
+		if torso:
+			torso.rotation.x = deg_to_rad(12.0) * p
+		if melee_thrust_timer <= 0.0:
+			is_melee_thrusting = false
+			if right_arm: right_arm.position.z = 0.0
+			if left_arm: left_arm.position.z = 0.0
+			if torso: torso.rotation.x = 0.0
+
+	# 9. Dynamic Inertial Physics on Backpack Gear Hooks
+	_process_hook_physics(delta)
 
 	stats_changed.emit(GameManager.player_stats.oxygen, GameManager.player_stats.fuel, GameManager.player_stats.hull)
 
@@ -1200,17 +1488,44 @@ func check_nearby_interactables() -> void:
 				else:
 					best_type = "feed"
 
-	# B. Check nearby mineable resource chunks
+	# B. Check nearby dropped physical items to pick up
 	if best_target == null:
+		for item in get_tree().get_nodes_in_group("dropped_items"):
+			if is_instance_valid(item):
+				var d = global_position.distance_to(item.global_position)
+				if d < 2.8 and (best_target == null or d < best_dist):
+					best_dist = d
+					best_target = item
+					best_type = "pickup"
+
+	# C. Check nearby mineable resource chunks (medium range laser mining up to 14.0m!)
+	if best_target == null:
+		var has_laser = false
+		if is_instance_valid(GameManager) and GameManager.crafting:
+			for s_slot in GameManager.crafting.ALL_BODY_SLOTS:
+				if GameManager.crafting.body_slots.get(s_slot, {}).get("item") == "laser_pistol":
+					has_laser = true
+					break
+		var max_mine_range = 14.0 if has_laser else 4.0
 		for r in get_tree().get_nodes_in_group("resource_nodes"):
 			if is_instance_valid(r):
 				var d = global_position.distance_to(r.global_position)
-				if d < 3.2 and d < best_dist:
+				if d < max_mine_range and (best_target == null or d < best_dist):
 					best_dist = d
 					best_target = r
 					best_type = "mine"
 
-	# C. Check spaceship hatch ONLY if close to the doorstep and no creature/ore in front
+	# D. Check nearby abandoned shipwrecks to scavenge
+	if best_target == null:
+		for w in get_tree().get_nodes_in_group("abandoned_ships"):
+			if is_instance_valid(w) and not w.get("is_looted"):
+				var d = global_position.distance_to(w.global_position)
+				if d < 4.5 and d < best_dist:
+					best_dist = d
+					best_target = w
+					best_type = "scavenge"
+
+	# E. Check spaceship hatch ONLY if close to the doorstep and no creature/ore in front
 	if best_target == null and ship and ship.has_method("get_hatch_interaction_state"):
 		var h_state = ship.get_hatch_interaction_state(self)
 		if h_state != "":
@@ -1229,49 +1544,117 @@ func check_nearby_interactables() -> void:
 		current_interactable_type = ""
 		interaction_lost.emit()
 
+func _trigger_unholster_maneuver() -> void:
+	if is_unholstering_laser:
+		return
+	is_unholstering_laser = true
+	unholster_timer = 0.35
+	
+	# Agile backward jump & body turn to dislodge the laser weapon from the back hook
+	vertical_speed = 3.2
+	velocity -= current_facing * 3.6
+	AudioManager.play("jump", 1.2)
+	AudioManager.play("click", 1.4)
+
+func _transfer_laser_to_hand() -> void:
+	if not is_instance_valid(GameManager) or not GameManager.crafting:
+		return
+	var r_item = GameManager.crafting.body_slots.get("hand_right", {}).get("item", "")
+	var l_item = GameManager.crafting.body_slots.get("hand_left", {}).get("item", "")
+	
+	# Determine target free hand (right prioritized)
+	var target_hand = ""
+	if r_item == "":
+		target_hand = "hand_right"
+	elif l_item == "":
+		target_hand = "hand_left"
+	if target_hand == "":
+		return
+		
+	for b_slot in ["back_1", "back_2", "back_3", "back_4"]:
+		if GameManager.crafting.body_slots.get(b_slot, {}).get("item", "") == "laser_pistol":
+			GameManager.crafting.set_body_slot(b_slot, "", 0)
+			GameManager.crafting.set_body_slot(target_hand, "laser_pistol", 1)
+			AudioManager.play("click", 1.8)
+			break
+
 func attack_nearest_target() -> void:
 	if is_action_locked:
 		return
 	if is_instance_valid(carried_creature):
 		throw_carried_creature()
 		return
-	AudioManager.play("thruster", 1.8, -2.0)
+
+	# 1. Check hand occupation when defending against hostile entities
+	if is_instance_valid(GameManager) and GameManager.crafting:
+		var r_item = GameManager.crafting.body_slots.get("hand_right", {}).get("item", "")
+		var l_item = GameManager.crafting.body_slots.get("hand_left", {}).get("item", "")
+		var has_laser_in_hand = (r_item == "laser_pistol" or l_item == "laser_pistol")
+		var has_laser_on_back = false
+		for b in ["back_1", "back_2", "back_3", "back_4"]:
+			if GameManager.crafting.body_slots.get(b, {}).get("item", "") == "laser_pistol":
+				has_laser_on_back = true
+				break
+		
+		if has_laser_on_back and not has_laser_in_hand:
+			if r_item != "" and l_item != "":
+				var hud = get_tree().get_first_node_in_group("hud")
+				if hud and hud.has_method("show_status_toast"):
+					hud.show_status_toast("⚠ MANOS OCUPADAS: Imposible defenderte. Libera una mano para empuñar el arma.")
+				AudioManager.play("click", 0.7, 4.0)
+				return
+			else:
+				# Free hand available: agile quick-draw maneuver from back hook
+				_trigger_unholster_maneuver()
+				_transfer_laser_to_hand()
+
 	var forward = -global_transform.basis.z
 	var attack_origin = global_position + up_direction * 0.8
-	_draw_laser(attack_origin + forward * 3.0)
 	
-	var space = get_world_3d().direct_space_state
-	var q = PhysicsShapeQueryParameters3D.new()
-	var sphere = SphereShape3D.new()
-	sphere.radius = 3.6
-	q.shape = sphere
-	q.transform = Transform3D(Basis.IDENTITY, attack_origin + forward * 1.5)
-	q.collision_mask = 4 # Creature collision layer
-	
-	var hits = space.intersect_shape(q, 4)
-	var dealt_damage = false
-	for hit in hits:
-		var col = hit.get("collider")
-		if col and col.has_method("take_damage"):
-			col.take_damage(35.0)
-			dealt_damage = true
-			break
-			
-	if not dealt_damage:
-		# Direct distance fallback for immediate execution
-		var closest_cr: Node3D = null
-		var min_d: float = 6.0
-		for cr in get_tree().get_nodes_in_group("creatures"):
-			if is_instance_valid(cr) and not cr.is_queued_for_deletion() and not cr.get("is_dead"):
-				var d = global_position.distance_to(cr.global_position)
-				if d < min_d:
-					min_d = d
-					closest_cr = cr
-		if closest_cr and closest_cr.has_method("take_damage"):
-			closest_cr.take_damage(35.0)
+	# Scan for closest creature
+	var closest_cr: Node3D = null
+	var min_d: float = 12.0
+	for cr in get_tree().get_nodes_in_group("creatures"):
+		if is_instance_valid(cr) and not cr.is_queued_for_deletion() and not cr.get("is_dead"):
+			var d = global_position.distance_to(cr.global_position)
+			if d < min_d:
+				min_d = d
+				closest_cr = cr
+
+	var target_hit_pos = attack_origin + forward * 10.0
+	if closest_cr:
+		target_hit_pos = closest_cr.global_position + up_direction * 0.4
+		var hit_imp = (closest_cr.global_position - global_position).normalized() * 11.0 + up_direction * 4.5
+		if closest_cr.has_method("take_plasma_damage"):
+			closest_cr.take_plasma_damage(35.0, hit_imp)
+		elif closest_cr.has_method("take_damage"):
+			closest_cr.take_damage(35.0, hit_imp)
+
+	# 2. Close Quarter Melee: Violent Tactical Pistol Whip / Shove + Ragdoll!
+	if closest_cr and min_d <= 2.5:
+		is_melee_thrusting = true
+		melee_thrust_timer = 0.35
+		var push_dir = (closest_cr.global_position - global_position).normalized()
+		var bash_impulse = push_dir * 14.5 + up_direction * 4.8
+		AudioManager.play("collect", 0.65, 5.0)
+		AudioManager.play("jump", 1.2)
+		if closest_cr.has_method("trigger_ragdoll"):
+			closest_cr.trigger_ragdoll(bash_impulse)
+
+	if right_arm:
+		right_arm.rotation.x = deg_to_rad(-74.0)
+		right_arm.rotation.y = deg_to_rad(randf_range(-3.5, 3.5))
+	_draw_laser(target_hit_pos)
+	AudioManager.play("thruster", 1.8, -2.0)
 
 func pick_up_creature(creature: Node3D) -> void:
 	if not is_instance_valid(creature):
+		return
+	if creature.has_method("can_be_carried") and not creature.can_be_carried():
+		var hud = get_tree().get_first_node_in_group("hud")
+		if hud and hud.has_method("show_status_toast"):
+			hud.show_status_toast("⚠ Primero debes alimentar y domar a la criatura para poder cargarla.")
+		AudioManager.play("click", 0.8, 3.0)
 		return
 	carried_creature = creature
 	if creature.has_method("pick_up"):
@@ -1285,6 +1668,24 @@ func lift_creature(target_creature: Node3D = null) -> void:
 		pick_up_creature(target_creature)
 	elif is_instance_valid(nearby_interactable) and nearby_interactable.is_in_group("creatures"):
 		pick_up_creature(nearby_interactable)
+
+func interact_with_creature(target_creature: Node3D = null) -> void:
+	var cr = target_creature if is_instance_valid(target_creature) else nearby_interactable
+	if not is_instance_valid(cr):
+		return
+	if cr.get("is_fed") == true:
+		pick_up_creature(cr)
+	else:
+		var food_info = get_held_food_item()
+		if food_info.is_empty():
+			var hud = get_tree().get_first_node_in_group("hud")
+			if hud and hud.has_method("show_status_toast"):
+				hud.show_status_toast("⚠ MANOS VACÍAS: Sostén alimento en la mano (madera/fibras, bayas, biogel o ración).")
+			AudioManager.play("click", 0.7, 4.0)
+			return
+		var item_used = consume_held_food()
+		if cr.has_method("feed_creature"):
+			cr.feed_creature(item_used)
 
 func set_seated_in_cockpit(seated: bool, seat_transform: Transform3D = Transform3D()) -> void:
 	is_seated_in_cockpit = seated
@@ -1305,6 +1706,8 @@ func set_seated_in_cockpit(seated: bool, seat_transform: Transform3D = Transform
 func drop_carried_creature() -> void:
 	if not is_instance_valid(carried_creature):
 		return
+	if carried_creature.get("is_fed") == true:
+		carried_creature.target_player = self
 	if carried_creature.has_method("drop_gently"):
 		carried_creature.drop_gently()
 	carried_creature = null
@@ -1315,6 +1718,8 @@ func drop_carried_creature() -> void:
 func throw_carried_creature() -> void:
 	if not is_instance_valid(carried_creature):
 		return
+	if carried_creature.get("is_fed") == true:
+		carried_creature.target_player = self
 	var forward = -global_transform.basis.z
 	var impulse = (forward + up_direction * 0.45).normalized() * 15.0
 	if carried_creature.has_method("throw_ballistic"):
@@ -1325,15 +1730,31 @@ func throw_carried_creature() -> void:
 	interaction_lost.emit()
 
 func _draw_laser(target_pos: Vector3) -> void:
+	if not laser_mesh:
+		return
 	laser_mesh.visible = true
-	var right_hand_pos = right_arm.global_position + global_transform.basis.z * 0.4
+	var right_hand_pos = right_arm.global_position + global_transform.basis.z * 0.4 if right_arm else (global_position + up_direction * 0.8)
 	var local_start = to_local(right_hand_pos)
 	var local_end = to_local(target_pos)
 	
 	laser_immediate.clear_surfaces()
 	laser_immediate.surface_begin(Mesh.PRIMITIVE_LINES)
-	laser_immediate.surface_set_color(Color(0.2, 0.9, 1.0, 1.0))
+	# High-energy primary cyan beam core
+	laser_immediate.surface_set_color(Color(0.25, 0.95, 1.0, 1.0))
 	laser_immediate.surface_add_vertex(local_start)
+	laser_immediate.surface_add_vertex(local_end)
+	# Cross-beams for energy glow thickness
+	var dir = (local_end - local_start).normalized()
+	var side = dir.cross(Vector3.UP).normalized() * 0.035
+	var up = dir.cross(side).normalized() * 0.035
+	laser_immediate.surface_set_color(Color(0.65, 0.98, 1.0, 0.75))
+	laser_immediate.surface_add_vertex(local_start + side)
+	laser_immediate.surface_add_vertex(local_end)
+	laser_immediate.surface_add_vertex(local_start - side)
+	laser_immediate.surface_add_vertex(local_end)
+	laser_immediate.surface_add_vertex(local_start + up)
+	laser_immediate.surface_add_vertex(local_end)
+	laser_immediate.surface_add_vertex(local_start - up)
 	laser_immediate.surface_add_vertex(local_end)
 	laser_immediate.surface_end()
 
@@ -1434,6 +1855,59 @@ func _die(reason: String) -> void:
 	timer.timeout.connect(func():
 		GameManager.game_over.emit(reason)
 	)
+
+func take_damage(amount: float, source_pos: Vector3 = Vector3.ZERO) -> void:
+	if is_dead:
+		return
+	GameManager.player_stats.hull = max(0.0, GameManager.player_stats.hull - amount)
+	GameManager.player_vital_updated.emit("hull", GameManager.player_stats.hull, 100.0)
+	
+	# Audio impact: crisp mechanical warning + heavy kinetic hit
+	AudioManager.play("click", 0.65, 6.0)
+	AudioManager.play("mine", 0.75, 4.0)
+	
+	# Camera Screen Kick & Trauma Shake
+	screen_kick_trauma = clampf(screen_kick_trauma + amount * 0.04 + 0.45, 0.5, 1.5)
+	target_pitch = clampf(target_pitch + randf_range(3.5, 7.0), -80.0, 80.0)
+	target_yaw += randf_range(-0.08, 0.08)
+	
+	# Red Screen Flash Overlay
+	if damage_screen_overlay:
+		damage_screen_overlay.visible = true
+		damage_screen_overlay.color = Color(0.85, 0.05, 0.05, 0.45)
+	
+	# Apply physical knockback impulse
+	var up_dir = global_position.normalized()
+	if source_pos != Vector3.ZERO:
+		var knock_dir = (global_position - source_pos).normalized()
+		var tangent_knock = (knock_dir - up_dir * knock_dir.dot(up_dir)).normalized()
+		velocity += (tangent_knock * 11.5) + (up_dir * 4.2)
+		vertical_speed = 4.2
+	else:
+		velocity += (-current_facing * 9.5) + (up_dir * 3.5)
+		vertical_speed = 3.5
+		
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud and hud.has_method("show_status_toast"):
+		hud.show_status_toast("⚠ IMPACTO HOSTIL: -%d HULL" % int(amount))
+		
+	if GameManager.player_stats.hull <= 0.0:
+		_die(GameManager.loc("game_over_reason_hull"))
+
+func drop_item_to_world(item_name: String, count: int = 1) -> Node:
+	var drop_scene = load("res://scenes/entities/dropped_item.tscn")
+	if not drop_scene:
+		return null
+	var drop = drop_scene.instantiate()
+	drop.setup_drop(item_name, count, planet_radius)
+	var parent_world = get_parent()
+	if parent_world:
+		parent_world.add_child(drop)
+		var p_fwd = -global_transform.basis.z.normalized()
+		var p_up = global_transform.basis.y.normalized()
+		drop.global_position = global_position + p_fwd * 1.4 + p_up * 0.4
+		drop.apply_central_impulse(p_fwd * 3.0 + p_up * 1.5)
+	return drop
 
 func _setup_suit_materials() -> void:
 	active_suit_material = StandardMaterial3D.new()
@@ -1797,7 +2271,9 @@ var slot_prop_nodes: Dictionary = {
 	"hand_left": null,
 	"hand_right": null,
 	"back_1": null,
-	"back_2": null
+	"back_2": null,
+	"back_3": null,
+	"back_4": null
 }
 
 func _setup_body_attachment_props() -> void:
@@ -1819,35 +2295,138 @@ func _setup_body_attachment_props() -> void:
 		r_arm.add_child(n)
 		slot_prop_nodes["hand_right"] = n
 		
-	# Backpack (PLSS) mounts - prominently mounted on the life support backpack
+	# Backpack (PLSS) mounts - 4 natural equipment hooks mounted on the life support backpack
 	var backpack = get_node_or_null("Visuals/Torso/BackpackPLSS")
 	if backpack:
+		var hook_mat = StandardMaterial3D.new()
+		hook_mat.albedo_color = Color(0.4, 0.42, 0.45)
+		hook_mat.metallic = 0.9
+		hook_mat.roughness = 0.25
+		
+		# Hook 1: Upper Left
 		if not slot_prop_nodes["back_1"]:
 			var n1 = Node3D.new()
 			n1.name = "SlotProp_Back1"
-			# Mounted high on rear cargo rack, clearly visible over and between O2 tanks
-			n1.position = Vector3(0.0, 0.28, 0.32)
+			n1.position = Vector3(-0.24, 0.22, 0.30)
 			backpack.add_child(n1)
 			slot_prop_nodes["back_1"] = n1
+			_create_suit_hook_mesh(backpack, Vector3(-0.24, 0.26, 0.26), hook_mat)
 			
+		# Hook 2: Upper Right
 		if not slot_prop_nodes["back_2"]:
 			var n2 = Node3D.new()
 			n2.name = "SlotProp_Back2"
-			# Mounted low on rear cargo rack, clearly visible beneath O2 tanks
-			n2.position = Vector3(0.0, -0.22, 0.32)
+			n2.position = Vector3(0.24, 0.22, 0.30)
 			backpack.add_child(n2)
 			slot_prop_nodes["back_2"] = n2
+			_create_suit_hook_mesh(backpack, Vector3(0.24, 0.26, 0.26), hook_mat)
 			
+		# Hook 3: Lower Left
+		if not slot_prop_nodes["back_3"]:
+			var n3 = Node3D.new()
+			n3.name = "SlotProp_Back3"
+			n3.position = Vector3(-0.24, -0.26, 0.30)
+			backpack.add_child(n3)
+			slot_prop_nodes["back_3"] = n3
+			_create_suit_hook_mesh(backpack, Vector3(-0.24, -0.22, 0.26), hook_mat)
+			
+		# Hook 4: Lower Right
+		if not slot_prop_nodes["back_4"]:
+			var n4 = Node3D.new()
+			n4.name = "SlotProp_Back4"
+			n4.position = Vector3(0.24, -0.26, 0.30)
+			backpack.add_child(n4)
+			slot_prop_nodes["back_4"] = n4
+			_create_suit_hook_mesh(backpack, Vector3(0.24, -0.22, 0.26), hook_mat)
+
 	if is_instance_valid(GameManager) and GameManager.crafting:
 		if not GameManager.crafting.body_slots_changed.is_connected(_update_body_attachment_props):
 			GameManager.crafting.body_slots_changed.connect(_update_body_attachment_props)
 	_update_body_attachment_props()
 
+func _create_suit_hook_mesh(parent: Node3D, pos: Vector3, mat: Material) -> void:
+	var hook_root = Node3D.new()
+	hook_root.name = "SuitHookMount"
+	hook_root.position = pos
+	parent.add_child(hook_root)
+	
+	# Base plate mounted flat on backpack
+	var plate = MeshInstance3D.new()
+	var p_mesh = BoxMesh.new()
+	p_mesh.size = Vector3(0.065, 0.08, 0.02)
+	plate.mesh = p_mesh
+	plate.material_override = mat
+	hook_root.add_child(plate)
+	
+	# Curved Titanium Carabiner D-Ring / Clasp
+	var ring = MeshInstance3D.new()
+	var t_mesh = TorusMesh.new()
+	t_mesh.inner_radius = 0.025
+	t_mesh.outer_radius = 0.045
+	t_mesh.rings = 16
+	t_mesh.ring_segments = 8
+	ring.mesh = t_mesh
+	ring.rotation_degrees = Vector3(90, 0, 0)
+	ring.position = Vector3(0.0, -0.04, 0.025)
+	ring.material_override = mat
+	hook_root.add_child(ring)
+	
+	# Amber Safety Latch Pin
+	var latch = MeshInstance3D.new()
+	var l_mesh = CylinderMesh.new()
+	l_mesh.top_radius = 0.012
+	l_mesh.bottom_radius = 0.012
+	l_mesh.height = 0.05
+	latch.mesh = l_mesh
+	latch.position = Vector3(0.025, -0.04, 0.025)
+	var latch_mat = StandardMaterial3D.new()
+	latch_mat.albedo_color = Color(0.96, 0.66, 0.16)
+	latch_mat.metallic = 0.95
+	latch_mat.roughness = 0.2
+	latch.material_override = latch_mat
+	hook_root.add_child(latch)
+
+func _process_hook_physics(delta: float) -> void:
+	var h_speed = Vector2(velocity.x, velocity.z).length()
+	var is_moving = h_speed > 0.15
+	
+	var walk_swing_x = sin(walk_time * 8.0) * 0.14 if is_moving else 0.0
+	var walk_swing_z = cos(walk_time * 4.0) * 0.09 if is_moving else 0.0
+	
+	for slot_key in ["back_1", "back_2", "back_3", "back_4"]:
+		var p_node: Node3D = slot_prop_nodes.get(slot_key, null)
+		if not is_instance_valid(p_node) or p_node.get_child_count() == 0:
+			continue
+			
+		var side_sign = -1.0 if (slot_key == "back_1" or slot_key == "back_3") else 1.0
+		var is_lower = (slot_key == "back_3" or slot_key == "back_4")
+		var target_rot = Vector3.ZERO
+		
+		# Vertical velocity inertia (jumping/falling swing) + stride sway
+		target_rot.x = walk_swing_x + clampf(-vertical_speed * 0.025, -0.35, 0.35)
+		target_rot.z = (walk_swing_z + clampf(h_speed * 0.018, 0.0, 0.22)) * side_sign
+		target_rot.y = sin(walk_time * 4.0 + side_sign) * 0.08 if is_moving else 0.0
+		
+		if is_lower:
+			target_rot *= 0.85
+			
+		var cur_rot: Vector3 = hook_sway_rot[slot_key]
+		var cur_vel: Vector3 = hook_sway_vel[slot_key]
+		
+		var spring_acc = (target_rot - cur_rot) * 75.0 - cur_vel * 9.5
+		cur_vel += spring_acc * delta
+		cur_rot += cur_vel * delta
+		
+		hook_sway_rot[slot_key] = cur_rot
+		hook_sway_vel[slot_key] = cur_vel
+		
+		p_node.rotation = cur_rot
+
 func _update_body_attachment_props() -> void:
 	if not is_instance_valid(GameManager) or not GameManager.crafting:
 		return
 	var b_slots = GameManager.crafting.body_slots
-	for s_key in ["hand_left", "hand_right", "back_1", "back_2"]:
+	for s_key in ["hand_left", "hand_right", "back_1", "back_2", "back_3", "back_4"]:
 		var p_node: Node3D = slot_prop_nodes.get(s_key, null)
 		if not is_instance_valid(p_node):
 			continue
@@ -1866,6 +2445,13 @@ func _update_body_attachment_props() -> void:
 		# Build and attach new 3D prop
 		var prop_inst = _create_resource_3d_prop(item_name)
 		if prop_inst:
+			if s_key.begins_with("back_"):
+				if item_name == "laser_pistol":
+					# Holster vertically muzzle down hanging directly inside the carabiner ring
+					prop_inst.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+					prop_inst.position = Vector3(0.0, -0.05, 0.0)
+				else:
+					prop_inst.position = Vector3(0.0, -0.08, 0.0)
 			p_node.add_child(prop_inst)
 
 func _create_resource_3d_prop(item_name: String) -> Node3D:
@@ -1873,6 +2459,9 @@ func _create_resource_3d_prop(item_name: String) -> Node3D:
 	root.name = "Prop_" + item_name
 	
 	match item_name:
+		"laser_pistol":
+			var p_mesh = LaserPistolBuilder.create_laser_pistol()
+			root.add_child(p_mesh)
 		"iron":
 			var m = BoxMesh.new()
 			m.size = Vector3(0.20, 0.20, 0.20)

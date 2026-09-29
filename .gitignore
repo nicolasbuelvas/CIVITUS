@@ -24,8 +24,12 @@ Thumbs.db
 .agents/
 .specify/
 _bmad/
+_bmad_config/
 android/version.txt
 screenshot_*.png
 screenshot_*.png.import
 test_*.png
 test_*.png.import
+
+# Local development simulators & secret keys
+SIMULAR_COMPRAS_Y_ANUNCIOS.bat

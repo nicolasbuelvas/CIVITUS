@@ -31,6 +31,16 @@ CIVITUS integrates **RevenueCat** to deliver a respectful, transparent freemium 
 
 ---
 
+## 💡 Inspiration & Vision
+
+> *"I have always had a deep passion for space exploration games—especially the thrill of touching down and surviving on alien worlds no one has ever charted or imagined before. But in the mobile gaming landscape, that wonder is almost always broken: titles either demand flagship hardware that overheats budget phones, or lock the experience behind aggressive paywalls, energy meters, and predatory microtransactions."*
+
+CIVITUS was born from a personal ambition: to combine what I love most from games like **Outer Wilds** (seamless miniature spherical physics and orbital mechanics) and **Waste of Space** (tactile, diegetic spaceship maintenance and life-support survival) into something I had never dared attempt before. I set out to build a full 3D procedural space survival game for Android with living biomes—procedural terrain, strange flora, reactive alien fauna, and distinct planetary ecosystems where every world and star system feels genuinely unique.
+
+Crucially, it had to run at a solid **60 FPS on everyday low-end hardware** (benchmarked down to an entry-level 32-bit ARMv7 Moto C) without loading screens or fake backdrops. Integrating **RevenueCat** became the cornerstone of this vision: proving that an ambitious mobile 3D game can deliver real scientific grounding, procedural wonder, and an uncompromised survival loop through an ethical, transparent purchasing architecture that treats players with respect.
+
+---
+
 ## ✨ Core Gameplay Systems
 
 ### 🪐 Procedural Spherical Diorama Planets

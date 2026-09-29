@@ -22,6 +22,7 @@ var swim_icon = preload("res://assets/sprites/icon_swim.png")
 @onready var header_node: Control = $TopLayer/Header if has_node("TopLayer/Header") else null
 @onready var hyperdrive_badge = $TopLayer/TopBarCluster/HyperdriveBadge if has_node("TopLayer/TopBarCluster/HyperdriveBadge") else $TopLayer/HyperdriveBadge
 @onready var pause_btn = $TopLayer/TopBarCluster/PauseBtn if has_node("TopLayer/TopBarCluster/PauseBtn") else $TopLayer/PauseBtn
+@onready var radar_btn = $TopLayer/RadarBtn if has_node("TopLayer/RadarBtn") else ($TopLayer/TopBarCluster/RadarBtn if has_node("TopLayer/TopBarCluster/RadarBtn") else null)
 @onready var suit_alert_btn = $TopLayer/TopBarCluster/SuitAlertBtn if has_node("TopLayer/TopBarCluster/SuitAlertBtn") else null
 @onready var headlamp_btn = $TopLayer/TopBarCluster/HeadlampBtn if has_node("TopLayer/TopBarCluster/HeadlampBtn") else null
 @onready var top_layer: Control = $TopLayer
@@ -88,10 +89,31 @@ var touch_cam_touches: Dictionary = {}
 var initial_pinch_dist: float = 0.0
 var is_mouse_looking: bool = false
 
+# Mobile Orbital Flight Controls & Interplanetary Telemetry (Space Agency 2138 / KSP)
+var orbital_controls_container: Control = null
+var flight_pad_left: Control = null
+var flight_pad_right: Control = null
+var transit_banner: PanelContainer = null
+var orbital_telemetry_lbl: Label = null
+var orbital_fuel_bar: ProgressBar = null
+var orbital_energy_bar: ProgressBar = null
+var btn_quick_energy: Button = null
+var btn_quick_fuel: Button = null
+var transit_info_lbl: Label = null
+
+var is_holding_pitch_up: bool = false
+var is_holding_pitch_down: bool = false
+var is_holding_yaw_left: bool = false
+var is_holding_yaw_right: bool = false
+var is_holding_thrust: bool = false
+var is_holding_brake: bool = false
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	close_all_modals()
 	context_action_btn.visible = false
+	_setup_orbital_flight_controls()
+	_apply_custom_touch_layout()
 	if top_layer:
 		top_layer.visible = visible
 	if mobile_layer:
@@ -101,6 +123,8 @@ func _ready() -> void:
 	
 	if cam_toggle_btn:
 		cam_toggle_btn.pressed.connect(_on_cam_toggle_pressed)
+	if radar_btn:
+		radar_btn.pressed.connect(toggle_top_radar)
 	
 	if player and visible:
 		_on_first_person_toggled(player.is_first_person)
@@ -207,6 +231,11 @@ func _update_localization() -> void:
 	if vic_menu_btn: vic_menu_btn.text = "⌂ " + GameManager.loc("return_menu")
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_M or event.keycode == KEY_R:
+			toggle_top_radar()
+			return
+
 	if event.is_action_pressed("ui_cancel"):
 		if settings_modal.visible:
 			_on_close_settings_pressed()
@@ -216,6 +245,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_pause_resume_pressed()
 		else:
 			_on_pause_btn_pressed()
+
+func toggle_top_radar() -> void:
+	if jarvis_overlay:
+		jarvis_overlay.is_radar_expanded = !jarvis_overlay.is_radar_expanded
+		jarvis_overlay.visible = jarvis_overlay.is_radar_expanded or (player and player.is_first_person)
+		jarvis_overlay.queue_redraw()
+		if AudioManager.has_method("play"):
+			AudioManager.play("click", 1.0)
 
 func close_all_modals() -> void:
 	if pause_modal: pause_modal.visible = false
@@ -409,6 +446,8 @@ func _on_pause_resume_pressed() -> void:
 
 func _on_pause_settings_pressed() -> void:
 	AudioManager.play("click")
+	_setup_hud_settings_modular()
+	_switch_hud_settings_tab(hud_settings_tab_idx)
 	settings_modal.visible = true
 
 func _on_pause_menu_pressed() -> void:
@@ -416,22 +455,514 @@ func _on_pause_menu_pressed() -> void:
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/screens/main_menu.tscn")
 
-# Settings Menu
+# =============================================================================
+# MODULAR 4-SUBSYSTEM PAUSE SETTINGS (AUDIO, VIDEO, CONTROLS, SYSTEM)
+# =============================================================================
+var hud_settings_initialized: bool = false
+var hud_settings_subsystem_container: VBoxContainer = null
+var hud_sub_panel_audio: VBoxContainer = null
+var hud_sub_panel_graphics: VBoxContainer = null
+var hud_sub_panel_controls: VBoxContainer = null
+var hud_sub_panel_system: VBoxContainer = null
+
+var hud_tab_btn_audio: Button = null
+var hud_tab_btn_graphics: Button = null
+var hud_tab_btn_controls: Button = null
+var hud_tab_btn_system: Button = null
+
+var hud_master_slider: HSlider = null
+var hud_music_slider: HSlider = null
+var hud_sfx_slider: HSlider = null
+var hud_master_val_label: Label = null
+var hud_music_val_label: Label = null
+var hud_sfx_val_label: Label = null
+
+var hud_fps_btn_30: Button = null
+var hud_fps_btn_60: Button = null
+var hud_fps_btn_max: Button = null
+
+var hud_preset_btn_eco: Button = null
+var hud_preset_btn_med: Button = null
+var hud_preset_btn_high: Button = null
+
+var hud_invert_y_btn: Button = null
+var hud_lang_btn_es: Button = null
+var hud_lang_btn_en: Button = null
+var hud_settings_tab_idx: int = 0
+
 func _on_master_slider_changed(val: float) -> void:
 	GameManager.update_setting("master_volume", val)
+	_update_hud_slider_labels()
 
 func _on_music_slider_changed(val: float) -> void:
 	GameManager.update_setting("music_volume", val)
-
-func _on_reset_defaults_pressed() -> void:
-	AudioManager.play("click")
-	GameManager.reset_settings_to_default()
-	master_slider.value = GameManager.master_volume
-	music_slider.value = GameManager.music_volume
+	_update_hud_slider_labels()
 
 func _on_close_settings_pressed() -> void:
 	AudioManager.play("click")
-	settings_modal.visible = false
+	if is_instance_valid(settings_modal):
+		settings_modal.visible = false
+
+func _on_reset_settings_defaults_pressed() -> void:
+	AudioManager.play("click")
+	GameManager.reset_settings_to_default()
+	if is_instance_valid(master_slider): master_slider.value = GameManager.master_volume
+	if is_instance_valid(music_slider): music_slider.value = GameManager.music_volume
+	_update_hud_slider_labels()
+
+func _setup_hud_settings_modular() -> void:
+	if hud_settings_initialized or not is_instance_valid(settings_modal):
+		return
+	hud_settings_initialized = true
+	
+	# Stylized Holographic Aerospace Card Style
+	var panel_sb = StyleBoxFlat.new()
+	panel_sb.bg_color = Color(0.06, 0.05, 0.12, 0.98)
+	panel_sb.border_color = Color(0.2, 0.85, 1.0, 0.85)
+	panel_sb.set_border_width_all(2)
+	panel_sb.set_corner_radius_all(14)
+	panel_sb.shadow_color = Color(0.0, 0.0, 0.0, 0.7)
+	panel_sb.shadow_size = 20
+	settings_modal.add_theme_stylebox_override("panel", panel_sb)
+	settings_modal.custom_minimum_size = Vector2(520, 0)
+	
+	var vbox = settings_modal.get_node_or_null("VBox") as VBoxContainer
+	if not vbox:
+		return
+	vbox.add_theme_constant_override("separation", 10)
+	
+	# Title
+	var title_lbl = vbox.get_node_or_null("Title") as Label
+	if title_lbl:
+		title_lbl.text = "[ ⬡  AJUSTES // SETTINGS  ⬡ ]"
+		title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title_lbl.add_theme_color_override("font_color", Color(0.96, 0.72, 0.22))
+		title_lbl.add_theme_font_size_override("font_size", 16)
+		
+	# Hide legacy components
+	for old_n in ["VolMasterLabel", "MasterSlider", "VolMusicLabel", "MusicSlider", "ResetDefaultsBtn", "CloseSettingsBtn"]:
+		var node = vbox.get_node_or_null(old_n)
+		if node: node.visible = false
+		
+	# Tab Header Bar
+	var tab_bar = vbox.get_node_or_null("SubsystemTabBar") as HBoxContainer
+	if not tab_bar:
+		tab_bar = HBoxContainer.new()
+		tab_bar.name = "SubsystemTabBar"
+		tab_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+		tab_bar.add_theme_constant_override("separation", 8)
+		vbox.add_child(tab_bar)
+		vbox.move_child(tab_bar, 1)
+		
+		hud_tab_btn_audio = _create_hud_tab_btn("🔊 AUDIO")
+		hud_tab_btn_graphics = _create_hud_tab_btn("🖥️ VIDEO")
+		hud_tab_btn_controls = _create_hud_tab_btn("🎮 CONTROLES")
+		hud_tab_btn_system = _create_hud_tab_btn("🌐 SISTEMA")
+		
+		tab_bar.add_child(hud_tab_btn_audio)
+		tab_bar.add_child(hud_tab_btn_graphics)
+		tab_bar.add_child(hud_tab_btn_controls)
+		tab_bar.add_child(hud_tab_btn_system)
+		
+		hud_tab_btn_audio.pressed.connect(func(): _switch_hud_settings_tab(0))
+		hud_tab_btn_graphics.pressed.connect(func(): _switch_hud_settings_tab(1))
+		hud_tab_btn_controls.pressed.connect(func(): _switch_hud_settings_tab(2))
+		hud_tab_btn_system.pressed.connect(func(): _switch_hud_settings_tab(3))
+		
+	# Container for the 4 Subsystem Panels
+	hud_settings_subsystem_container = vbox.get_node_or_null("Subsystems") as VBoxContainer
+	if not hud_settings_subsystem_container:
+		hud_settings_subsystem_container = VBoxContainer.new()
+		hud_settings_subsystem_container.name = "Subsystems"
+		hud_settings_subsystem_container.custom_minimum_size = Vector2(490, 0)
+		vbox.add_child(hud_settings_subsystem_container)
+		vbox.move_child(hud_settings_subsystem_container, 2)
+		_build_hud_subsystem_panels()
+		
+	# Bottom Action Bar
+	var action_bar = vbox.get_node_or_null("SettingsActionBar") as HBoxContainer
+	if not action_bar:
+		action_bar = HBoxContainer.new()
+		action_bar.name = "SettingsActionBar"
+		action_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+		action_bar.add_theme_constant_override("separation", 16)
+		vbox.add_child(action_bar)
+		
+		# Save Button (✓)
+		var btn_save = Button.new()
+		btn_save.text = "✓"
+		btn_save.custom_minimum_size = Vector2(80, 38)
+		var save_sb = StyleBoxFlat.new()
+		save_sb.bg_color = Color(0.12, 0.38, 0.22, 0.95)
+		save_sb.border_color = Color(0.25, 0.95, 0.45)
+		save_sb.set_border_width_all(2)
+		save_sb.set_corner_radius_all(8)
+		btn_save.add_theme_stylebox_override("normal", save_sb)
+		btn_save.pressed.connect(func():
+			AudioManager.play("click")
+			GameManager.save_settings()
+			settings_modal.visible = false
+		)
+		action_bar.add_child(btn_save)
+		
+		# Reset Defaults Button (↺)
+		var btn_reset = Button.new()
+		btn_reset.text = "↺"
+		btn_reset.custom_minimum_size = Vector2(80, 38)
+		var reset_sb = StyleBoxFlat.new()
+		reset_sb.bg_color = Color(0.1, 0.2, 0.32, 0.95)
+		reset_sb.border_color = Color(0.3, 0.8, 1.0)
+		reset_sb.set_border_width_all(2)
+		reset_sb.set_corner_radius_all(8)
+		btn_reset.add_theme_stylebox_override("normal", reset_sb)
+		btn_reset.pressed.connect(func():
+			AudioManager.play("click")
+			GameManager.reset_settings_to_default()
+			if hud_master_slider: hud_master_slider.value = GameManager.master_volume
+			if hud_music_slider: hud_music_slider.value = GameManager.music_volume
+			if hud_sfx_slider: hud_sfx_slider.value = GameManager.sfx_volume
+			_update_hud_slider_labels()
+		)
+		action_bar.add_child(btn_reset)
+		
+		# Close Button (✕)
+		var btn_close = Button.new()
+		btn_close.text = "✕"
+		btn_close.custom_minimum_size = Vector2(80, 38)
+		var close_sb = StyleBoxFlat.new()
+		close_sb.bg_color = Color(0.32, 0.1, 0.12, 0.95)
+		close_sb.border_color = Color(0.95, 0.35, 0.35)
+		close_sb.set_border_width_all(2)
+		close_sb.set_corner_radius_all(8)
+		btn_close.add_theme_stylebox_override("normal", close_sb)
+		btn_close.pressed.connect(func():
+			AudioManager.play("click")
+			settings_modal.visible = false
+		)
+		action_bar.add_child(btn_close)
+
+func _create_hud_tab_btn(label: String) -> Button:
+	var btn = Button.new()
+	btn.text = label
+	btn.custom_minimum_size = Vector2(105, 32)
+	btn.focus_mode = Control.FOCUS_NONE
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(0.10, 0.12, 0.18, 0.9)
+	sb.border_color = Color(0.3, 0.4, 0.55, 0.8)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(6)
+	btn.add_theme_stylebox_override("normal", sb)
+	btn.add_theme_font_size_override("font_size", 11)
+	return btn
+
+func _build_hud_subsystem_panels() -> void:
+	var track_sb = StyleBoxFlat.new()
+	track_sb.bg_color = Color(0.12, 0.14, 0.22, 0.9)
+	track_sb.set_corner_radius_all(4)
+	track_sb.content_margin_top = 4
+	track_sb.content_margin_bottom = 4
+
+	var fill_sb = StyleBoxFlat.new()
+	fill_sb.bg_color = Color(0.2, 0.85, 1.0, 0.95)
+	fill_sb.corner_radius_top_left = 4
+	fill_sb.corner_radius_bottom_left = 4
+	fill_sb.content_margin_top = 4
+	fill_sb.content_margin_bottom = 4
+
+	var val_badge_sb = StyleBoxFlat.new()
+	val_badge_sb.bg_color = Color(0.09, 0.11, 0.18, 0.9)
+	val_badge_sb.border_color = Color(0.2, 0.85, 1.0, 0.6)
+	val_badge_sb.set_border_width_all(1)
+	val_badge_sb.set_corner_radius_all(6)
+	val_badge_sb.content_margin_left = 6
+	val_badge_sb.content_margin_right = 6
+
+	# 1. AUDIO PANEL
+	hud_sub_panel_audio = VBoxContainer.new()
+	hud_sub_panel_audio.name = "AudioPanel"
+	hud_sub_panel_audio.add_theme_constant_override("separation", 10)
+	hud_settings_subsystem_container.add_child(hud_sub_panel_audio)
+	
+	hud_master_slider = HSlider.new()
+	hud_master_val_label = Label.new()
+	hud_music_slider = HSlider.new()
+	hud_music_val_label = Label.new()
+	hud_sfx_slider = HSlider.new()
+	hud_sfx_val_label = Label.new()
+	
+	hud_sub_panel_audio.add_child(_create_hud_slider_row("🔊", "MASTER", hud_master_slider, hud_master_val_label, track_sb, fill_sb, val_badge_sb))
+	hud_sub_panel_audio.add_child(_create_hud_slider_row("🎵", "MÚSICA", hud_music_slider, hud_music_val_label, track_sb, fill_sb, val_badge_sb))
+	hud_sub_panel_audio.add_child(_create_hud_slider_row("⚡", "EFECTOS", hud_sfx_slider, hud_sfx_val_label, track_sb, fill_sb, val_badge_sb))
+	
+	hud_master_slider.value = GameManager.master_volume
+	hud_music_slider.value = GameManager.music_volume
+	hud_sfx_slider.value = GameManager.sfx_volume
+	_update_hud_slider_labels()
+	
+	hud_master_slider.value_changed.connect(func(v): GameManager.update_setting("master_volume", v); _update_hud_slider_labels())
+	hud_music_slider.value_changed.connect(func(v): GameManager.update_setting("music_volume", v); _update_hud_slider_labels())
+	hud_sfx_slider.value_changed.connect(func(v): GameManager.update_setting("sfx_volume", v); _update_hud_slider_labels())
+
+	# 2. VIDEO PANEL
+	hud_sub_panel_graphics = VBoxContainer.new()
+	hud_sub_panel_graphics.name = "GraphicsPanel"
+	hud_sub_panel_graphics.add_theme_constant_override("separation", 10)
+	hud_settings_subsystem_container.add_child(hud_sub_panel_graphics)
+	
+	var fps_row = HBoxContainer.new()
+	var fps_lbl = Label.new()
+	fps_lbl.text = "⏱️ FPS // LÍMITE:"
+	fps_lbl.custom_minimum_size = Vector2(170, 28)
+	fps_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	fps_row.add_child(fps_lbl)
+	hud_fps_btn_30 = _create_hud_pill_btn("30")
+	hud_fps_btn_60 = _create_hud_pill_btn("60")
+	hud_fps_btn_max = _create_hud_pill_btn("MAX")
+	fps_row.add_child(hud_fps_btn_30)
+	fps_row.add_child(hud_fps_btn_60)
+	fps_row.add_child(hud_fps_btn_max)
+	hud_fps_btn_30.pressed.connect(func(): _set_hud_fps_limit(30))
+	hud_fps_btn_60.pressed.connect(func(): _set_hud_fps_limit(60))
+	hud_fps_btn_max.pressed.connect(func(): _set_hud_fps_limit(0))
+	hud_sub_panel_graphics.add_child(fps_row)
+	_set_hud_fps_limit(Engine.max_fps)
+	
+	var pres_row = HBoxContainer.new()
+	var pres_lbl = Label.new()
+	pres_lbl.text = "🖥️ CALIDAD // SHADERS:"
+	pres_lbl.custom_minimum_size = Vector2(170, 28)
+	pres_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	pres_row.add_child(pres_lbl)
+	hud_preset_btn_eco = _create_hud_pill_btn("ECO")
+	hud_preset_btn_med = _create_hud_pill_btn("MEDIO")
+	hud_preset_btn_high = _create_hud_pill_btn("ALTO")
+	pres_row.add_child(hud_preset_btn_eco)
+	pres_row.add_child(hud_preset_btn_med)
+	pres_row.add_child(hud_preset_btn_high)
+	hud_preset_btn_eco.pressed.connect(func(): _set_hud_quality_preset(0))
+	hud_preset_btn_med.pressed.connect(func(): _set_hud_quality_preset(1))
+	hud_preset_btn_high.pressed.connect(func(): _set_hud_quality_preset(2))
+	hud_sub_panel_graphics.add_child(pres_row)
+	_set_hud_quality_preset(1)
+
+	# 3. CONTROLS PANEL
+	hud_sub_panel_controls = VBoxContainer.new()
+	hud_sub_panel_controls.name = "ControlsPanel"
+	hud_sub_panel_controls.add_theme_constant_override("separation", 10)
+	hud_settings_subsystem_container.add_child(hud_sub_panel_controls)
+	
+	var inv_row = HBoxContainer.new()
+	var inv_lbl = Label.new()
+	inv_lbl.text = "🎮 INVERTIR EJE Y:"
+	inv_lbl.custom_minimum_size = Vector2(170, 28)
+	inv_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	inv_row.add_child(inv_lbl)
+	hud_invert_y_btn = _create_hud_pill_btn("NORMAL")
+	inv_row.add_child(hud_invert_y_btn)
+	hud_invert_y_btn.pressed.connect(func():
+		var is_inv = hud_invert_y_btn.text == "INVERTIDO"
+		hud_invert_y_btn.text = "NORMAL" if is_inv else "INVERTIDO"
+		_style_hud_pill(hud_invert_y_btn, not is_inv)
+		GameManager.update_setting("invert_y", not is_inv)
+	)
+	hud_sub_panel_controls.add_child(inv_row)
+
+	var scale_row = HBoxContainer.new()
+	var scale_lbl = Label.new()
+	scale_lbl.text = "📱 TAMAÑO CONTROLES:"
+	scale_lbl.custom_minimum_size = Vector2(170, 28)
+	scale_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	scale_row.add_child(scale_lbl)
+	var scale_s = _create_hud_pill_btn("CHICO")
+	var scale_m = _create_hud_pill_btn("NORMAL")
+	var scale_l = _create_hud_pill_btn("GRANDE")
+	scale_row.add_child(scale_s)
+	scale_row.add_child(scale_m)
+	scale_row.add_child(scale_l)
+	scale_s.pressed.connect(func():
+		GameManager.update_setting("touch_scale", 0.85)
+		_style_hud_pill(scale_s, true); _style_hud_pill(scale_m, false); _style_hud_pill(scale_l, false)
+	)
+	scale_m.pressed.connect(func():
+		GameManager.update_setting("touch_scale", 1.0)
+		_style_hud_pill(scale_s, false); _style_hud_pill(scale_m, true); _style_hud_pill(scale_l, false)
+	)
+	scale_l.pressed.connect(func():
+		GameManager.update_setting("touch_scale", 1.2)
+		_style_hud_pill(scale_s, false); _style_hud_pill(scale_m, false); _style_hud_pill(scale_l, true)
+	)
+	_style_hud_pill(scale_m, true)
+	hud_sub_panel_controls.add_child(scale_row)
+
+	# 4. SYSTEM PANEL
+	hud_sub_panel_system = VBoxContainer.new()
+	hud_sub_panel_system.name = "SystemPanel"
+	hud_sub_panel_system.add_theme_constant_override("separation", 10)
+	hud_settings_subsystem_container.add_child(hud_sub_panel_system)
+	
+	var lang_row = HBoxContainer.new()
+	var lang_title = Label.new()
+	lang_title.text = "🌐 IDIOMA // LANGUAGE:"
+	lang_title.custom_minimum_size = Vector2(170, 32)
+	lang_title.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	lang_row.add_child(lang_title)
+	hud_lang_btn_es = _create_hud_pill_btn("🇪🇸 ESPAÑOL")
+	hud_lang_btn_es.custom_minimum_size = Vector2(120, 32)
+	hud_lang_btn_en = _create_hud_pill_btn("🇬🇧 ENGLISH")
+	hud_lang_btn_en.custom_minimum_size = Vector2(120, 32)
+	lang_row.add_child(hud_lang_btn_es)
+	lang_row.add_child(hud_lang_btn_en)
+	hud_lang_btn_es.pressed.connect(func(): _set_hud_language_pill("es"))
+	hud_lang_btn_en.pressed.connect(func(): _set_hud_language_pill("en"))
+	hud_sub_panel_system.add_child(lang_row)
+	_set_hud_language_pill(GameManager.current_language)
+
+	var unit_row = HBoxContainer.new()
+	var unit_lbl = Label.new()
+	unit_lbl.text = "🌡️ UNIDADES DE MEDIDA:"
+	unit_lbl.custom_minimum_size = Vector2(170, 28)
+	unit_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	unit_row.add_child(unit_lbl)
+	var unit_c = _create_hud_pill_btn("°C / METRO")
+	unit_c.custom_minimum_size = Vector2(120, 32)
+	var unit_k = _create_hud_pill_btn("K / KILÓMETRO")
+	unit_k.custom_minimum_size = Vector2(120, 32)
+	unit_row.add_child(unit_c)
+	unit_row.add_child(unit_k)
+	unit_c.pressed.connect(func():
+		GameManager.update_setting("units", "metric")
+		_style_hud_pill(unit_c, true); _style_hud_pill(unit_k, false)
+	)
+	unit_k.pressed.connect(func():
+		GameManager.update_setting("units", "kelvin")
+		_style_hud_pill(unit_c, false); _style_hud_pill(unit_k, true)
+	)
+	_style_hud_pill(unit_c, true)
+	hud_sub_panel_system.add_child(unit_row)
+
+func _create_hud_slider_row(icon: String, title: String, slider: HSlider, val_lbl: Label, track_sb: StyleBox, fill_sb: StyleBox, val_badge_sb: StyleBox) -> HBoxContainer:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	
+	var icon_lbl = Label.new()
+	icon_lbl.text = icon
+	icon_lbl.custom_minimum_size = Vector2(26, 28)
+	row.add_child(icon_lbl)
+	
+	var t_lbl = Label.new()
+	t_lbl.text = title
+	t_lbl.custom_minimum_size = Vector2(90, 28)
+	t_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	row.add_child(t_lbl)
+	
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.01
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.custom_minimum_size = Vector2(200, 24)
+	slider.add_theme_stylebox_override("slider", track_sb)
+	slider.add_theme_stylebox_override("grabber_area", fill_sb)
+	slider.add_theme_stylebox_override("grabber_area_highlight", fill_sb)
+	row.add_child(slider)
+	
+	val_lbl.text = "100%"
+	val_lbl.custom_minimum_size = Vector2(50, 24)
+	val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	val_lbl.add_theme_stylebox_override("normal", val_badge_sb)
+	val_lbl.add_theme_color_override("font_color", Color(0.2, 0.85, 1.0))
+	row.add_child(val_lbl)
+	
+	return row
+
+func _create_hud_pill_btn(label: String) -> Button:
+	var btn = Button.new()
+	btn.text = label
+	btn.custom_minimum_size = Vector2(70, 28)
+	btn.focus_mode = Control.FOCUS_NONE
+	_style_hud_pill(btn, false)
+	return btn
+
+func _style_hud_pill(btn: Button, active: bool) -> void:
+	if not is_instance_valid(btn): return
+	var sb = StyleBoxFlat.new()
+	if active:
+		sb.bg_color = Color(0.18, 0.36, 0.55, 0.95)
+		sb.border_color = Color(0.2, 0.95, 1.0)
+		sb.set_border_width_all(2)
+		btn.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0))
+	else:
+		sb.bg_color = Color(0.08, 0.1, 0.16, 0.8)
+		sb.border_color = Color(0.25, 0.3, 0.42, 0.6)
+		sb.set_border_width_all(1)
+		btn.add_theme_color_override("font_color", Color(0.65, 0.75, 0.85))
+	sb.set_corner_radius_all(6)
+	btn.add_theme_stylebox_override("normal", sb)
+
+func _switch_hud_settings_tab(idx: int) -> void:
+	hud_settings_tab_idx = idx
+	var tabs = [hud_tab_btn_audio, hud_tab_btn_graphics, hud_tab_btn_controls, hud_tab_btn_system]
+	var panels = [hud_sub_panel_audio, hud_sub_panel_graphics, hud_sub_panel_controls, hud_sub_panel_system]
+	
+	for i in range(tabs.size()):
+		var btn = tabs[i]
+		var pnl = panels[i]
+		if not is_instance_valid(btn) or not is_instance_valid(pnl): continue
+		var is_active = (i == idx)
+		pnl.visible = is_active
+		
+		var sb = StyleBoxFlat.new()
+		if is_active:
+			sb.bg_color = Color(0.18, 0.24, 0.38, 0.95)
+			sb.border_color = Color(0.96, 0.66, 0.16)
+			sb.set_border_width_all(2)
+			btn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+		else:
+			sb.bg_color = Color(0.08, 0.10, 0.16, 0.85)
+			sb.border_color = Color(0.25, 0.30, 0.42, 0.6)
+			sb.set_border_width_all(1)
+			btn.add_theme_color_override("font_color", Color(0.65, 0.72, 0.85))
+		sb.set_corner_radius_all(6)
+		btn.add_theme_stylebox_override("normal", sb)
+		
+	_adapt_hud_settings_size()
+
+func _adapt_hud_settings_size() -> void:
+	if not is_instance_valid(settings_modal): return
+	var vbox = settings_modal.get_node_or_null("VBox") as VBoxContainer
+	if not vbox: return
+	vbox.reset_size()
+	var min_h = vbox.get_combined_minimum_size().y + 44.0
+	var min_w = 520.0
+	settings_modal.offset_left = -min_w * 0.5
+	settings_modal.offset_right = min_w * 0.5
+	settings_modal.offset_top = -min_h * 0.5
+	settings_modal.offset_bottom = min_h * 0.5
+
+func _update_hud_slider_labels() -> void:
+	if hud_master_val_label and hud_master_slider:
+		hud_master_val_label.text = "%d%%" % int(hud_master_slider.value * 100.0)
+	if hud_music_val_label and hud_music_slider:
+		hud_music_val_label.text = "%d%%" % int(hud_music_slider.value * 100.0)
+	if hud_sfx_val_label and hud_sfx_slider:
+		hud_sfx_val_label.text = "%d%%" % int(hud_sfx_slider.value * 100.0)
+
+func _set_hud_fps_limit(fps: int) -> void:
+	Engine.max_fps = fps
+	GameManager.update_setting("max_fps", fps)
+	_style_hud_pill(hud_fps_btn_30, fps == 30)
+	_style_hud_pill(hud_fps_btn_60, fps == 60)
+	_style_hud_pill(hud_fps_btn_max, fps == 0)
+
+func _set_hud_quality_preset(preset: int) -> void:
+	GameManager.update_setting("quality_preset", preset)
+	_style_hud_pill(hud_preset_btn_eco, preset == 0)
+	_style_hud_pill(hud_preset_btn_med, preset == 1)
+	_style_hud_pill(hud_preset_btn_high, preset == 2)
+
+func _set_hud_language_pill(lang: String) -> void:
+	GameManager.set_language(lang)
+	_style_hud_pill(hud_lang_btn_es, lang == "es")
+	_style_hud_pill(hud_lang_btn_en, lang == "en")
 
 # Interaction & Context Button
 func _on_interaction_available(type: String, target: Node3D) -> void:
@@ -475,6 +1006,9 @@ func _on_interaction_available(type: String, target: Node3D) -> void:
 		"repair":
 			context_action_btn.text = "REPARAR" if GameManager.current_language == "es" else "REPAIR"
 			context_action_btn.modulate = Color(1.0, 0.4, 0.2)
+		"scavenge":
+			context_action_btn.text = "SALVAR" if GameManager.current_language == "es" else "SALVAGE"
+			context_action_btn.modulate = Color(1.0, 0.78, 0.22)
 		"attack":
 			context_action_btn.text = "ATACAR" if GameManager.current_language == "es" else "ATTACK"
 			context_action_btn.modulate = Color(1.0, 0.25, 0.25)
@@ -487,6 +1021,9 @@ func _on_interaction_available(type: String, target: Node3D) -> void:
 		"drop":
 			context_action_btn.text = "SOLTAR" if GameManager.current_language == "es" else "DROP"
 			context_action_btn.modulate = Color(1.0, 0.85, 0.25)
+		"pickup":
+			context_action_btn.text = "RECOGER" if GameManager.current_language == "es" else "PICK UP"
+			context_action_btn.modulate = Color(0.25, 0.95, 0.55)
 
 func _on_interaction_lost() -> void:
 	current_context_type = ""
@@ -502,12 +1039,22 @@ func _on_context_btn_down() -> void:
 		"drop":
 			if player and player.has_method("drop_carried_creature"):
 				player.drop_carried_creature()
+		"pickup":
+			if player and is_instance_valid(player.nearby_interactable) and player.nearby_interactable.has_method("pick_up"):
+				player.nearby_interactable.pick_up(player)
 		"attack":
 			if player and player.has_method("attack_nearest_target"):
 				player.attack_nearest_target()
 		"feed":
-			if player and is_instance_valid(player.nearby_interactable) and player.nearby_interactable.has_method("feed_creature"):
-				player.nearby_interactable.feed_creature()
+			if player and is_instance_valid(player.nearby_interactable):
+				var held_food = player.get_held_food_item() if player.has_method("get_held_food_item") else {}
+				if held_food.is_empty():
+					AudioManager.play("click", 0.7, 4.0)
+					show_status_toast("⚠ MANOS VACÍAS: Sostén alimento en la mano (madera/fibras, bayas, biogel o ración).")
+				else:
+					var food_item = player.consume_held_food() if player.has_method("consume_held_food") else "plant_fibers"
+					if player.nearby_interactable.has_method("feed_creature"):
+						player.nearby_interactable.feed_creature(food_item)
 		"open_hatch":
 			var ship = get_tree().get_first_node_in_group("spaceship")
 			if ship and ship.has_method("open_hatch"):
@@ -531,6 +1078,9 @@ func _on_context_btn_down() -> void:
 		"mine":
 			if player:
 				player.is_mining = true
+		"scavenge":
+			if player and is_instance_valid(player.nearby_interactable) and player.nearby_interactable.has_method("scavenge"):
+				player.nearby_interactable.scavenge(player)
 		"fabricator":
 			crafting_modal.visible = true
 			_update_crafting_ui()
@@ -619,8 +1169,16 @@ func _setup_modal_art_styling() -> void:
 		
 	if settings_modal:
 		settings_modal.add_theme_stylebox_override("panel", modal_card_sb)
-		_style_menu_button(reset_defaults_btn, Color(0.96, 0.66, 0.16))
-		_style_menu_button(close_settings_btn, Color(0.95, 0.4, 0.35))
+		var master_lbl = settings_modal.get_node_or_null("VBox/MasterLabel")
+		if master_lbl: master_lbl.text = "🔊"
+		var music_lbl = settings_modal.get_node_or_null("VBox/MusicLabel")
+		if music_lbl: music_lbl.text = "🎵"
+		if reset_defaults_btn:
+			reset_defaults_btn.text = "↺"
+			_style_menu_button(reset_defaults_btn, Color(0.96, 0.66, 0.16))
+		if close_settings_btn:
+			close_settings_btn.text = "✕"
+			_style_menu_button(close_settings_btn, Color(0.95, 0.4, 0.35))
 		
 	if crafting_modal:
 		crafting_modal.add_theme_stylebox_override("panel", modal_card_sb)
@@ -774,6 +1332,420 @@ func _on_cockpit_action_pressed() -> void:
 		cockpit_ship_ref.initiate_automatic_landing()
 		close_cockpit_dialog()
 		show_status_toast("REENTRADA INICIADA: Aterrizaje guiado en superficie.")
+
+func _apply_custom_touch_layout() -> void:
+	if not is_instance_valid(GameManager): return
+	var scale_factor = float(GameManager.get_setting("touch_scale", 1.0))
+	if mobile_layer:
+		mobile_layer.scale = Vector2(scale_factor, scale_factor)
+	var layout = GameManager.get_setting("custom_touch_layout", {})
+	if not (layout is Dictionary) or layout.is_empty(): return
+	if layout.has("joystick") and virtual_joystick:
+		virtual_joystick.position = layout["joystick"]
+	if layout.has("jump") and jump_btn:
+		jump_btn.position = layout["jump"]
+	if layout.has("laser") and context_action_btn:
+		context_action_btn.position = layout["laser"]
+	if layout.has("sprint") and sprint_btn:
+		sprint_btn.position = layout["sprint"]
+
+func _setup_orbital_flight_controls() -> void:
+	if orbital_controls_container:
+		return
+	
+	orbital_controls_container = Control.new()
+	orbital_controls_container.name = "OrbitalFlightControls"
+	orbital_controls_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	orbital_controls_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	orbital_controls_container.visible = false
+	add_child(orbital_controls_container)
+	
+	# Top Telemetry & Energy/Fuel Bar
+	var top_panel = PanelContainer.new()
+	top_panel.name = "OrbitalTelemetryPanel"
+	top_panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	top_panel.anchor_left = 0.5
+	top_panel.anchor_right = 0.5
+	top_panel.offset_left = -310
+	top_panel.offset_right = 310
+	top_panel.offset_top = 18
+	top_panel.offset_bottom = 100
+	
+	var sb_top = StyleBoxFlat.new()
+	sb_top.bg_color = Color(0.04, 0.07, 0.12, 0.92)
+	sb_top.border_color = Color(0.20, 0.85, 1.0, 0.85)
+	sb_top.set_border_width_all(2)
+	sb_top.set_corner_radius_all(10)
+	sb_top.content_margin_left = 14
+	sb_top.content_margin_right = 14
+	sb_top.content_margin_top = 8
+	sb_top.content_margin_bottom = 8
+	top_panel.add_theme_stylebox_override("panel", sb_top)
+	orbital_controls_container.add_child(top_panel)
+	
+	var vbox_top = VBoxContainer.new()
+	vbox_top.add_theme_constant_override("separation", 5)
+	top_panel.add_child(vbox_top)
+	
+	orbital_telemetry_lbl = Label.new()
+	orbital_telemetry_lbl.text = "ÓRBITA CIRCULAR ESTABLE • 220 km • VEL: 18.0 km/s"
+	orbital_telemetry_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	orbital_telemetry_lbl.add_theme_font_size_override("font_size", 13)
+	orbital_telemetry_lbl.add_theme_color_override("font_color", Color(0.25, 0.90, 1.0))
+	vbox_top.add_child(orbital_telemetry_lbl)
+	
+	# Meters HBox: Fuel + Ship Energy + Quick Refuel
+	var meters_hbox = HBoxContainer.new()
+	meters_hbox.add_theme_constant_override("separation", 10)
+	meters_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox_top.add_child(meters_hbox)
+	
+	# Fuel Section
+	var fuel_vbox = VBoxContainer.new()
+	fuel_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var fuel_lbl = Label.new()
+	fuel_lbl.text = "⛽ COMBUSTIBLE"
+	fuel_lbl.add_theme_font_size_override("font_size", 10)
+	fuel_lbl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
+	fuel_vbox.add_child(fuel_lbl)
+	orbital_fuel_bar = ProgressBar.new()
+	orbital_fuel_bar.max_value = 100.0
+	orbital_fuel_bar.value = 100.0
+	orbital_fuel_bar.custom_minimum_size = Vector2(100, 14)
+	orbital_fuel_bar.show_percentage = true
+	var sb_f_bg = StyleBoxFlat.new()
+	sb_f_bg.bg_color = Color(0.08, 0.10, 0.14)
+	sb_f_bg.set_corner_radius_all(3)
+	orbital_fuel_bar.add_theme_stylebox_override("background", sb_f_bg)
+	var sb_f_fill = StyleBoxFlat.new()
+	sb_f_fill.bg_color = Color(1.0, 0.70, 0.15)
+	sb_f_fill.set_corner_radius_all(3)
+	orbital_fuel_bar.add_theme_stylebox_override("fill", sb_f_fill)
+	fuel_vbox.add_child(orbital_fuel_bar)
+	meters_hbox.add_child(fuel_vbox)
+	
+	# Ship Energy Section
+	var energy_vbox = VBoxContainer.new()
+	energy_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var energy_lbl = Label.new()
+	energy_lbl.text = "⚡ ENERGÍA NAVE"
+	energy_lbl.add_theme_font_size_override("font_size", 10)
+	energy_lbl.add_theme_color_override("font_color", Color(0.2, 0.95, 0.8))
+	energy_vbox.add_child(energy_lbl)
+	orbital_energy_bar = ProgressBar.new()
+	orbital_energy_bar.max_value = 100.0
+	orbital_energy_bar.value = 100.0
+	orbital_energy_bar.custom_minimum_size = Vector2(100, 14)
+	orbital_energy_bar.show_percentage = true
+	var sb_e_bg = StyleBoxFlat.new()
+	sb_e_bg.bg_color = Color(0.08, 0.10, 0.14)
+	sb_e_bg.set_corner_radius_all(3)
+	orbital_energy_bar.add_theme_stylebox_override("background", sb_e_bg)
+	var sb_e_fill = StyleBoxFlat.new()
+	sb_e_fill.bg_color = Color(0.2, 0.95, 0.5)
+	sb_e_fill.set_corner_radius_all(3)
+	orbital_energy_bar.add_theme_stylebox_override("fill", sb_e_fill)
+	energy_vbox.add_child(orbital_energy_bar)
+	meters_hbox.add_child(energy_vbox)
+	
+	# Quick Refuel buttons
+	btn_quick_energy = Button.new()
+	btn_quick_energy.text = "+ ⚡ CÉLULA"
+	btn_quick_energy.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_quick_energy, Color(0.2, 0.9, 0.6))
+	btn_quick_energy.custom_minimum_size = Vector2(85, 26)
+	btn_quick_energy.pressed.connect(_on_quick_energy_pressed)
+	meters_hbox.add_child(btn_quick_energy)
+	
+	btn_quick_fuel = Button.new()
+	btn_quick_fuel.text = "+ ⛽ REPOSTAR"
+	btn_quick_fuel.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_quick_fuel, Color(1.0, 0.7, 0.2))
+	btn_quick_fuel.custom_minimum_size = Vector2(85, 26)
+	btn_quick_fuel.pressed.connect(_on_quick_fuel_pressed)
+	meters_hbox.add_child(btn_quick_fuel)
+	
+	# Left Cluster: Attitude D-Pad (Pitch & Yaw)
+	flight_pad_left = Control.new()
+	flight_pad_left.name = "FlightPadLeft"
+	flight_pad_left.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	flight_pad_left.offset_left = 32
+	flight_pad_left.offset_bottom = -32
+	flight_pad_left.offset_right = 212
+	flight_pad_left.offset_top = -212
+	orbital_controls_container.add_child(flight_pad_left)
+	
+	var btn_pitch_up = Button.new()
+	btn_pitch_up.text = "▲\nPITCH"
+	btn_pitch_up.offset_left = 60
+	btn_pitch_up.offset_right = 120
+	btn_pitch_up.offset_top = 0
+	btn_pitch_up.offset_bottom = 56
+	btn_pitch_up.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_pitch_up, Color(0.2, 0.85, 1.0))
+	btn_pitch_up.button_down.connect(func(): is_holding_pitch_up = true)
+	btn_pitch_up.button_up.connect(func(): is_holding_pitch_up = false)
+	flight_pad_left.add_child(btn_pitch_up)
+	
+	var btn_pitch_down = Button.new()
+	btn_pitch_down.text = "▼\nPITCH"
+	btn_pitch_down.offset_left = 60
+	btn_pitch_down.offset_right = 120
+	btn_pitch_down.offset_top = 124
+	btn_pitch_down.offset_bottom = 180
+	btn_pitch_down.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_pitch_down, Color(0.2, 0.85, 1.0))
+	btn_pitch_down.button_down.connect(func(): is_holding_pitch_down = true)
+	btn_pitch_down.button_up.connect(func(): is_holding_pitch_down = false)
+	flight_pad_left.add_child(btn_pitch_down)
+	
+	var btn_yaw_left = Button.new()
+	btn_yaw_left.text = "◄\nYAW"
+	btn_yaw_left.offset_left = 0
+	btn_yaw_left.offset_right = 56
+	btn_yaw_left.offset_top = 62
+	btn_yaw_left.offset_bottom = 118
+	btn_yaw_left.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_yaw_left, Color(0.2, 0.85, 1.0))
+	btn_yaw_left.button_down.connect(func(): is_holding_yaw_left = true)
+	btn_yaw_left.button_up.connect(func(): is_holding_yaw_left = false)
+	flight_pad_left.add_child(btn_yaw_left)
+	
+	var btn_yaw_right = Button.new()
+	btn_yaw_right.text = "►\nYAW"
+	btn_yaw_right.offset_left = 124
+	btn_yaw_right.offset_right = 180
+	btn_yaw_right.offset_top = 62
+	btn_yaw_right.offset_bottom = 118
+	btn_yaw_right.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_yaw_right, Color(0.2, 0.85, 1.0))
+	btn_yaw_right.button_down.connect(func(): is_holding_yaw_right = true)
+	btn_yaw_right.button_up.connect(func(): is_holding_yaw_right = false)
+	flight_pad_left.add_child(btn_yaw_right)
+	
+	# Right Cluster: Propulsion, Brake, Landing, Stand, Starmap
+	flight_pad_right = Control.new()
+	flight_pad_right.name = "FlightPadRight"
+	flight_pad_right.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	flight_pad_right.offset_right = -24
+	flight_pad_right.offset_bottom = -24
+	flight_pad_right.offset_left = -260
+	flight_pad_right.offset_top = -240
+	orbital_controls_container.add_child(flight_pad_right)
+	
+	var vbox_r = VBoxContainer.new()
+	vbox_r.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vbox_r.add_theme_constant_override("separation", 8)
+	flight_pad_right.add_child(vbox_r)
+	
+	var hbox_thrust = HBoxContainer.new()
+	hbox_thrust.add_theme_constant_override("separation", 8)
+	vbox_r.add_child(hbox_thrust)
+	
+	var btn_thrust = Button.new()
+	btn_thrust.text = "🚀 IMPULSO"
+	btn_thrust.custom_minimum_size = Vector2(110, 48)
+	btn_thrust.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_thrust.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_thrust, Color(0.2, 1.0, 0.45))
+	btn_thrust.button_down.connect(func(): is_holding_thrust = true)
+	btn_thrust.button_up.connect(func(): is_holding_thrust = false)
+	hbox_thrust.add_child(btn_thrust)
+	
+	var btn_brake = Button.new()
+	btn_brake.text = "🛑 FRENO"
+	btn_brake.custom_minimum_size = Vector2(110, 48)
+	btn_brake.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_brake.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_brake, Color(1.0, 0.4, 0.3))
+	btn_brake.button_down.connect(func(): is_holding_brake = true)
+	btn_brake.button_up.connect(func(): is_holding_brake = false)
+	hbox_thrust.add_child(btn_brake)
+	
+	var btn_land = Button.new()
+	btn_land.text = "🛬 ATERRIZAJE POLAR"
+	btn_land.custom_minimum_size = Vector2(230, 42)
+	btn_land.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_land, Color(0.3, 0.9, 1.0))
+	btn_land.pressed.connect(_on_orbital_land_pressed)
+	vbox_r.add_child(btn_land)
+	
+	var hbox_bottom = HBoxContainer.new()
+	hbox_bottom.add_theme_constant_override("separation", 8)
+	vbox_r.add_child(hbox_bottom)
+	
+	var btn_starmap = Button.new()
+	btn_starmap.text = "🗺️ STARMAP"
+	btn_starmap.custom_minimum_size = Vector2(110, 38)
+	btn_starmap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_starmap.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_starmap, Color(0.96, 0.66, 0.16))
+	btn_starmap.pressed.connect(func():
+		starmap_modal.visible = true
+		_build_starmap_ui()
+	)
+	hbox_bottom.add_child(btn_starmap)
+	
+	var btn_stand = Button.new()
+	btn_stand.text = "🚶 LEVANTARSE"
+	btn_stand.custom_minimum_size = Vector2(110, 38)
+	btn_stand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_stand.focus_mode = Control.FOCUS_NONE
+	_style_menu_button(btn_stand, Color(0.85, 0.5, 0.95))
+	btn_stand.pressed.connect(_on_orbital_stand_pressed)
+	hbox_bottom.add_child(btn_stand)
+	
+	# Transit Banner (Center Screen Overlay during Interplanetary Travel)
+	transit_banner = PanelContainer.new()
+	transit_banner.name = "TransitBanner"
+	transit_banner.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	transit_banner.anchor_left = 0.5
+	transit_banner.anchor_right = 0.5
+	transit_banner.offset_left = -260
+	transit_banner.offset_right = 260
+	transit_banner.offset_bottom = -130
+	transit_banner.offset_top = -215
+	var sb_tr = StyleBoxFlat.new()
+	sb_tr.bg_color = Color(0.03, 0.06, 0.12, 0.95)
+	sb_tr.border_color = Color(0.4, 0.7, 1.0, 0.9)
+	sb_tr.set_border_width_all(2)
+	sb_tr.set_corner_radius_all(10)
+	sb_tr.content_margin_left = 16
+	sb_tr.content_margin_right = 16
+	sb_tr.content_margin_top = 10
+	sb_tr.content_margin_bottom = 10
+	transit_banner.add_theme_stylebox_override("panel", sb_tr)
+	transit_banner.visible = false
+	orbital_controls_container.add_child(transit_banner)
+	
+	var vbox_tr = VBoxContainer.new()
+	vbox_tr.add_theme_constant_override("separation", 6)
+	transit_banner.add_child(vbox_tr)
+	
+	var tr_title = Label.new()
+	tr_title.text = "🚀 TRÁNSITO INTERPLANETARIO EN CURSO"
+	tr_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tr_title.add_theme_font_size_override("font_size", 14)
+	tr_title.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
+	vbox_tr.add_child(tr_title)
+	
+	transit_info_lbl = Label.new()
+	transit_info_lbl.text = "Destino: Planeta • ETA: 01:20\nEscala: 1 AU = 1 min a vel. máx."
+	transit_info_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	transit_info_lbl.add_theme_font_size_override("font_size", 12)
+	transit_info_lbl.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+	vbox_tr.add_child(transit_info_lbl)
+
+func _process(delta: float) -> void:
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if not is_instance_valid(ship):
+		if orbital_controls_container:
+			orbital_controls_container.visible = false
+		return
+		
+	var f_state = int(ship.get("flight_state"))
+	var is_seated = bool(ship.get("is_player_seated"))
+	
+	if f_state == 2 and is_seated: # PARKING_ORBIT
+		if not orbital_controls_container:
+			_setup_orbital_flight_controls()
+		orbital_controls_container.visible = true
+		if transit_banner: transit_banner.visible = false
+		if flight_pad_left: flight_pad_left.visible = true
+		if flight_pad_right: flight_pad_right.visible = true
+		
+		# Input calculation
+		var pitch = 0.0
+		if is_holding_pitch_up or Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_W): pitch += 1.0
+		if is_holding_pitch_down or Input.is_key_pressed(KEY_DOWN) or Input.is_key_pressed(KEY_S): pitch -= 1.0
+		var yaw = 0.0
+		if is_holding_yaw_left or Input.is_key_pressed(KEY_LEFT) or Input.is_key_pressed(KEY_A): yaw += 1.0
+		if is_holding_yaw_right or Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D): yaw -= 1.0
+		var thrust = 0.0
+		if is_holding_thrust or Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_SHIFT): thrust += 1.0
+		if is_holding_brake or Input.is_key_pressed(KEY_B) or Input.is_key_pressed(KEY_CTRL): thrust -= 1.0
+		
+		if absf(pitch) > 0.01 or absf(yaw) > 0.01 or absf(thrust) > 0.01:
+			ship.apply_space_flight_controls(thrust, pitch, yaw, 0.0, delta)
+			
+		_update_orbital_meters(ship)
+	elif f_state == 3: # INTERPLANETARY_TRANSIT
+		if not orbital_controls_container:
+			_setup_orbital_flight_controls()
+		orbital_controls_container.visible = true
+		if flight_pad_left: flight_pad_left.visible = false
+		if flight_pad_right: flight_pad_right.visible = is_seated
+		if transit_banner: transit_banner.visible = true
+		_update_transit_banner(ship)
+		_update_orbital_meters(ship)
+	else:
+		if orbital_controls_container:
+			orbital_controls_container.visible = false
+
+func _update_orbital_meters(ship: Node3D) -> void:
+	if not is_instance_valid(ship) or not orbital_telemetry_lbl:
+		return
+	var speed = float(ship.get("orbital_cruise_speed"))
+	var p_name = GameManager.current_planet.get("name", "Planeta")
+	orbital_telemetry_lbl.text = "ÓRBITA • %s (220 km) • VEL: %.1f km/s" % [p_name, speed]
+	
+	if orbital_fuel_bar:
+		orbital_fuel_bar.value = GameManager.player_stats.fuel
+	if orbital_energy_bar:
+		orbital_energy_bar.value = float(ship.get("current_energy"))
+
+func _update_transit_banner(ship: Node3D) -> void:
+	if not is_instance_valid(ship) or not transit_info_lbl:
+		return
+	var t_timer = float(ship.get("transit_timer"))
+	var t_dur = float(ship.get("transit_duration_sec"))
+	var rem = maxf(0.0, t_dur - t_timer)
+	var mins = int(rem) / 60
+	var secs = int(rem) % 60
+	var dest = ship.get("target_destination_planet")
+	var d_name = dest.get("name", "Destino Estelar") if dest is Dictionary else "Destino"
+	var d_au = GameManager.calc_transit_distance_au(GameManager.current_planet, dest) if dest is Dictionary else 1.0
+	var is_hyper = bool(ship.get("is_hyperdrive_transit"))
+	var mode_name = "HIPERDRIVE (2x Consumo Eléctrico, 3.5x Vel)" if is_hyper else "CRUCERO MANUAL (1 AU = 60s)"
+	transit_info_lbl.text = "Rumbo a: %s (%.2f AU) • %s\nTiempo Restante: %02d:%02d" % [d_name, d_au, mode_name, mins, secs]
+
+func update_flight_mode_ui() -> void:
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if is_instance_valid(ship):
+		_update_cockpit_dialog()
+
+func _on_orbital_land_pressed() -> void:
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if is_instance_valid(ship) and ship.has_method("initiate_atmospheric_reentry"):
+		ship.initiate_atmospheric_reentry(GameManager.current_planet)
+		show_status_toast("REENTRADA INICIADA • Maniobra de descenso polar activada.")
+
+func _on_orbital_stand_pressed() -> void:
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if is_instance_valid(ship) and is_instance_valid(player) and ship.has_method("stand_up_from_pilot_seat"):
+		ship.stand_up_from_pilot_seat(player)
+		close_cockpit_dialog()
+		show_status_toast("CABINA DE NAVE • Astronauta de pie. Muévete libremente por la cabina.")
+
+func _on_quick_energy_pressed() -> void:
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if not is_instance_valid(ship):
+		return
+	if GameManager.crafting.get_item_count("reactor_cell") > 0:
+		ship.convert_item_to_ship_energy("reactor_cell")
+	elif GameManager.crafting.get_item_count("energy_cell") > 0:
+		ship.convert_item_to_ship_energy("energy_cell")
+	else:
+		show_status_toast("SIN CÉLULAS • Fabrica células de energía o reactor en el Fabricador.")
+
+func _on_quick_fuel_pressed() -> void:
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if not is_instance_valid(ship):
+		return
+	if GameManager.crafting.get_item_count("bio_fuel") > 0:
+		ship.convert_item_to_fuel("bio_fuel")
+	else:
+		show_status_toast("SIN COMBUSTIBLE • Fabrica biocombustible en el Fabricador.")
 
 func _on_inventory_full(_item: String) -> void:
 	var msg = "¡INVENTARIO LLENO! (Manos y espalda ocupadas)" if (is_instance_valid(GameManager) and GameManager.current_language == "es") else "INVENTORY FULL! (Hands and back occupied)"
@@ -1000,6 +1972,7 @@ func _build_starmap_ui() -> void:
 	for p in planets:
 		var card = PanelContainer.new()
 		var vbox = VBoxContainer.new()
+		vbox.add_theme_constant_override("separation", 6)
 		var is_current = (p.get("name") == cur_p.get("name"))
 		
 		var title = Label.new()
@@ -1008,25 +1981,62 @@ func _build_starmap_ui() -> void:
 			title.modulate = Color(0.3, 0.9, 1.0)
 		var coords = Label.new()
 		var dist_au = GameManager.calc_transit_distance_au(cur_p, p)
-		var fuel_cost = GameManager.calc_transit_fuel_cost(dist_au)
-		coords.text = "%s: %.2f AU | %s: -%.0f%% FUEL" % [GameManager.loc("orbit"), p["orbit_au"], ("Combustible" if GameManager.current_language == "es" else "Fuel"), fuel_cost]
+		var manual_dur_s = maxf(8.0, dist_au * 60.0) # 1 AU = 1 min = 60s
+		var hyper_dur_s = maxf(4.0, manual_dur_s / 3.5)
+		var fuel_cost = clampf(dist_au * 25.0, 15.0, 60.0)
+		var energy_cost_man = clampf(dist_au * 20.0, 10.0, 45.0)
+		var energy_cost_hyp = clampf(dist_au * 40.0, 20.0, 90.0) # 2x energy
+		
+		coords.text = "Distancia: %.2f AU | Órbita: %.2f AU\nManual: %.0fs (-%.0f%% Fuel, -%.0f%% E)\nHiperdrive: %.0fs (-%.0f%% E [2x])" % [
+			dist_au, p["orbit_au"], manual_dur_s, fuel_cost, energy_cost_man, hyper_dur_s, energy_cost_hyp
+		]
 		
 		vbox.add_child(title)
 		vbox.add_child(coords)
 		
 		if not is_current:
-			var btn = Button.new()
-			btn.text = "🚀 " + ("DESPEGAR Y VIAJAR" if GameManager.current_language == "es" else "LAUNCH & FLY")
-			btn.pressed.connect(func():
-				_launch_transit_to(p, fuel_cost)
+			var hbox_btns = HBoxContainer.new()
+			hbox_btns.add_theme_constant_override("separation", 6)
+			
+			var btn_man = Button.new()
+			btn_man.text = "🚀 CRUCERO (1 AU=60s)"
+			btn_man.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			btn_man.focus_mode = Control.FOCUS_NONE
+			_style_menu_button(btn_man, Color(0.25, 0.85, 1.0))
+			btn_man.pressed.connect(func():
+				_launch_transit_to(p, fuel_cost, energy_cost_man, false)
 			)
-			vbox.add_child(btn)
+			hbox_btns.add_child(btn_man)
+			
+			var btn_hyp = Button.new()
+			btn_hyp.text = "⚡ HIPERDRIVE (2X E)"
+			btn_hyp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			btn_hyp.focus_mode = Control.FOCUS_NONE
+			_style_menu_button(btn_hyp, Color(0.95, 0.70, 0.2))
+			btn_hyp.pressed.connect(func():
+				_launch_transit_to(p, fuel_cost * 0.5, energy_cost_hyp, true)
+			)
+			hbox_btns.add_child(btn_hyp)
+			
+			vbox.add_child(hbox_btns)
 			
 		card.add_child(vbox)
 		starmap_list.add_child(card)
 
-func _launch_transit_to(target_p: Dictionary, fuel_cost: float) -> void:
+func _launch_transit_to(target_p: Dictionary, fuel_cost: float, energy_cost: float = 20.0, use_hyperdrive: bool = false) -> void:
 	starmap_modal.visible = false
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if is_instance_valid(ship):
+		var cur_fuel = GameManager.player_stats.fuel
+		var cur_energy = float(ship.get("current_energy"))
+		if cur_fuel < fuel_cost or cur_energy < energy_cost:
+			show_status_toast("ENERGÍA O PROPELENTE INSUFICIENTE • Convierte células de energía o biocombustible.")
+			AudioManager.play("click")
+			return
+		if ship.has_method("start_interplanetary_transfer"):
+			ship.start_interplanetary_transfer(target_p, use_hyperdrive)
+			return
+			
 	if GameManager.player_stats.fuel < fuel_cost:
 		AudioManager.play("click")
 		return
@@ -1050,12 +2060,29 @@ func _on_expedition_completed(summary: Dictionary) -> void:
 	victory_modal.visible = true
 	var reward_points = GameManager.award_hyperdrive_victory(int(GameManager.current_difficulty))
 	var lbl = $Modals/VictoryModal/VBox/SummaryLabel
-	if lbl: lbl.text = "%s\n%s: %s\n%s: %s\n\n✨ +%d LUNA POINTS" % [
-		GameManager.loc("victory_title"),
-		GameManager.loc("planet_label"), summary.get("planet", ""),
-		GameManager.loc("hazard"), str(summary.get("difficulty", 0)),
-		reward_points
-	]
+	var title_lbl = get_node_or_null("Modals/VictoryModal/VBox/Title") as Label
+	
+	if summary.get("homeworld_restored", false) or summary.get("status", "").contains("EVENT HORIZON") or summary.get("escaped_systems_count", 0) >= 10:
+		if title_lbl:
+			title_lbl.text = "ESCAPED THE EVENT HORIZON - HOMEWORLD RESTORED"
+		var credits_lines: Array = summary.get("credits", [])
+		var credits_txt = "\n".join(credits_lines)
+		if lbl:
+			lbl.text = "¡MISIÓN CUMPLIDA! • CORREDOR GALÁCTICO 10/10\n%s\n\n[ TELEMETRÍA DE VICTORIA ]\n• Singularidad: Gargantua superada\n• Planeta de Miller: Relatividad y megamareas superadas\n• Dilatación Temporal: x61,320 superada\n• Estado: Coordenadas del Hogar Restauradas\n\n[ CRÉDITOS ]\n%s\n\n✨ +%d LUNA POINTS" % [
+				summary.get("status", "ESCAPED THE EVENT HORIZON - HOMEWORLD RESTORED"),
+				credits_txt,
+				reward_points
+			]
+	else:
+		if title_lbl:
+			title_lbl.text = GameManager.loc("victory_title")
+		if lbl:
+			lbl.text = "%s\n%s: %s\n%s: %s\n\n✨ +%d LUNA POINTS" % [
+				GameManager.loc("victory_title"),
+				GameManager.loc("planet_label"), summary.get("planet", ""),
+				GameManager.loc("hazard"), str(summary.get("difficulty", 0)),
+				reward_points
+			]
 
 func _on_retry_pressed() -> void:
 	AudioManager.play("click")

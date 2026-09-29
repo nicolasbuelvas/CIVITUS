@@ -50,9 +50,8 @@ func _ready() -> void:
 	_capture_mouse(true)
 	current_category = 0
 	
-	# Explicitly generate Category 6 (100% Ocean World: Thalassa-777) on startup
-	current_category = 6
-	call_deferred("_generate_planet_category", 6, 700777)
+	current_category = 0
+	call_deferred("_generate_planet_category", 0, 100042)
 
 func _create_spectator_hud() -> void:
 	var canvas = CanvasLayer.new()
@@ -109,12 +108,14 @@ func _create_spectator_hud() -> void:
 	help_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	help_label.add_theme_font_size_override("font_size", 13)
 	help_label.add_theme_color_override("font_color", Color(0.82, 0.94, 1.0, 0.95))
-	help_label.text = "[WASD] Volar | [Espacio/Ctrl] Subir/Bajar | [1-8] Categorías | [R] Random | [O] Órbita | [P] Superficie | [T] Sol | [F] Giro | [H] HUD"
+	help_label.text = "[WASD] Volar | [F12 / C] 📸 TOMAR FOTO HD PNG | [H] Ocultar HUD | [1-8] Mundos | [O] Órbita | [P] Superficie | [T] Sol | [F] Giro"
 	canvas.add_child(help_label)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		match event.keycode:
+			KEY_F12, KEY_C:
+				_take_photo_hd()
 			KEY_TAB:
 				_capture_mouse(not mouse_captured)
 			KEY_ESCAPE:
@@ -161,6 +162,28 @@ func _unhandled_input(event: InputEvent) -> void:
 		yaw -= event.relative.x * mouse_sensitivity
 		pitch = clampf(pitch - event.relative.y * mouse_sensitivity, -deg_to_rad(89.0), deg_to_rad(89.0))
 		transform.basis = Basis.from_euler(Vector3(pitch, yaw, 0.0))
+
+func _take_photo_hd() -> void:
+	var canvas = get_node_or_null("SpectatorCanvas")
+	if canvas:
+		canvas.visible = false
+	
+	# Wait 2 frames so the screen renders completely without any HUD or banners
+	await get_tree().process_frame
+	await get_tree().process_frame
+	
+	var img = get_viewport().get_texture().get_image()
+	if canvas:
+		canvas.visible = hud_visible
+		
+	if img:
+		DirAccess.make_dir_absolute("res://capturas_hd")
+		var dt = Time.get_datetime_dict_from_system()
+		var timestamp = "%04d%02d%02d_%02d%02d%02d" % [dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second]
+		var filename = "res://capturas_hd/CIVITUS_%s.png" % timestamp
+		img.save_png(filename)
+		print("[Photo Mode] Captura guardada: ", filename)
+		_notify("📸 FOTO HD GUARDADA: capturas_hd/CIVITUS_%s.png" % timestamp)
 
 func _teleport_orbit() -> void:
 	global_position = Vector3(0, 240, 130)

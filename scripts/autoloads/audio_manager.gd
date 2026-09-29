@@ -39,7 +39,7 @@ func _ready() -> void:
 
 	# Music player setup
 	music_player = AudioStreamPlayer.new()
-	music_player.bus = "Master"
+	music_player.bus = "Music"
 	music_player.volume_db = default_music_volume_db
 	add_child(music_player)
 	music_player.finished.connect(_on_music_finished)
@@ -55,6 +55,7 @@ func load_sound(key: String, path: String) -> void:
 func play(key: String, pitch_scale: float = 1.0, volume_db: float = 0.0) -> void:
 	if sounds.has(key):
 		var player = AudioStreamPlayer.new()
+		player.bus = "SFX"
 		player.stream = sounds[key]
 		player.volume_db = volume_db
 		player.pitch_scale = pitch_scale + randf_range(-0.05, 0.05)

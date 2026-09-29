@@ -2,6 +2,7 @@ class_name BootSplash
 extends Control
 
 const FLAG_FILE: String = "user://intro_viewed.flag"
+const MAIN_MENU_PATH: String = "res://scenes/screens/main_menu.tscn"
 static var force_play_intro: bool = false
 
 @onready var godot_splash_layer: Control = $GodotSplashLayer
@@ -13,10 +14,13 @@ static var force_play_intro: bool = false
 var is_skipping: bool = false
 
 func _ready() -> void:
+	# Initiate background threaded preload of Main Menu immediately
+	ResourceLoader.load_threaded_request(MAIN_MENU_PATH, "PackedScene", true)
+
 	# Check if this is a subsequent launch (not first time)
 	if not force_play_intro and FileAccess.file_exists(FLAG_FILE):
 		# From the 2nd time onwards: bypass Godot symbol and intro completely!
-		get_tree().change_scene_to_file("res://scenes/screens/main_menu.tscn")
+		_load_menu_instantly()
 		return
 
 	force_play_intro = false
@@ -28,9 +32,51 @@ func _ready() -> void:
 	fade_overlay.color = Color(0.0, 0.0, 0.0, 0.0)
 
 	if skip_btn:
+		_style_skip_button()
 		skip_btn.pressed.connect(_on_skip_pressed)
 
 	_run_first_boot_flow()
+
+func _style_skip_button() -> void:
+	var is_es = false
+	if GameManager:
+		is_es = (GameManager.current_language == "es")
+	skip_btn.text = "[ ⬡ OMITIR ]" if is_es else "[ ⬡ SKIP ]"
+	skip_btn.add_theme_font_size_override("font_size", 12)
+	
+	var sb_norm = StyleBoxFlat.new()
+	sb_norm.bg_color = Color(0.02, 0.05, 0.10, 0.82)
+	sb_norm.border_width_left = 1
+	sb_norm.border_width_top = 1
+	sb_norm.border_width_right = 1
+	sb_norm.border_width_bottom = 1
+	sb_norm.border_color = Color(0.2, 0.85, 1.0, 0.75)
+	sb_norm.corner_radius_top_left = 4
+	sb_norm.corner_radius_top_right = 4
+	sb_norm.corner_radius_bottom_right = 4
+	sb_norm.corner_radius_bottom_left = 4
+	sb_norm.content_margin_left = 16
+	sb_norm.content_margin_right = 16
+	sb_norm.content_margin_top = 6
+	sb_norm.content_margin_bottom = 6
+	skip_btn.add_theme_stylebox_override("normal", sb_norm)
+	
+	var sb_hov = sb_norm.duplicate()
+	sb_hov.bg_color = Color(0.05, 0.14, 0.24, 0.92)
+	sb_hov.border_color = Color(0.4, 0.95, 1.0, 1.0)
+	skip_btn.add_theme_stylebox_override("hover", sb_hov)
+	skip_btn.add_theme_stylebox_override("pressed", sb_hov)
+	skip_btn.add_theme_color_override("font_color", Color(0.85, 0.92, 1.0))
+	skip_btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+
+func _load_menu_instantly() -> void:
+	var status = ResourceLoader.load_threaded_get_status(MAIN_MENU_PATH)
+	if status == ResourceLoader.THREAD_LOAD_LOADED:
+		var packed = ResourceLoader.load_threaded_get(MAIN_MENU_PATH) as PackedScene
+		if packed:
+			get_tree().change_scene_to_packed(packed)
+			return
+	get_tree().change_scene_to_file(MAIN_MENU_PATH)
 
 func _input(event: InputEvent) -> void:
 	if is_skipping:
@@ -85,12 +131,24 @@ func _finish_intro_and_enter_game() -> void:
 		f.store_string("1")
 		f.close()
 
-	# Smooth fade out to main menu
+	# Check threaded preload status - zero black screen delay
+	var status = ResourceLoader.load_threaded_get_status(MAIN_MENU_PATH)
+	if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		while status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			await get_tree().process_frame
+			status = ResourceLoader.load_threaded_get_status(MAIN_MENU_PATH)
+
+	var packed_menu = ResourceLoader.load_threaded_get(MAIN_MENU_PATH) as PackedScene
+
+	# Seamless 0.15s cross-fade directly into the cached scene
 	var fade_tween = create_tween()
-	fade_tween.tween_property(fade_overlay, "color:a", 1.0, 0.35).set_trans(Tween.TRANS_QUAD)
+	fade_tween.tween_property(fade_overlay, "color:a", 1.0, 0.15).set_trans(Tween.TRANS_QUAD)
 	await fade_tween.finished
 
 	if video_player.is_playing():
 		video_player.stop()
 
-	get_tree().change_scene_to_file("res://scenes/screens/main_menu.tscn")
+	if packed_menu:
+		get_tree().change_scene_to_packed(packed_menu)
+	else:
+		get_tree().change_scene_to_file(MAIN_MENU_PATH)

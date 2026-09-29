@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://crenderplanetgif01"]
+
+[ext_resource type="Script" path="res://tests/render_planet_gif.gd" id="1_render"]
+
+[node name="RenderPlanetGif" type="Node3D"]
+script = ExtResource("1_render")

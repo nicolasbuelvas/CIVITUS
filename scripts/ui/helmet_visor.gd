@@ -71,6 +71,13 @@ func _draw() -> void:
 	
 	# 3. Critical Emergency Warnings (Suffocation / Depressurization)
 	_draw_tactical_status(w, h, o2)
+	
+	# 4. Apollo NASA 2D Oxygen Safe Area Map with Compass
+	_draw_apollo_eva_minimap(w, h, player, o2)
+
+	# 5. Underwater Submersion Optical Tint & Fluid Distortion
+	if player and ("is_in_liquid" in player) and player.is_in_liquid:
+		_draw_underwater_visor_effect(w, h)
 
 func _draw_visor_weather_effects(w: float, h: float) -> void:
 	if visor_droplets.is_empty():
@@ -88,6 +95,31 @@ func _draw_visor_weather_effects(w: float, h: float) -> void:
 		draw_line(Vector2(d["pos"].x, d["pos"].y - d["trail_len"]), d["pos"], Color(col.r, col.g, col.b, col.a * 0.45), 1.2)
 		# Droplet bead
 		draw_circle(d["pos"], d["radius"], col)
+
+func _draw_underwater_visor_effect(w: float, h: float) -> void:
+	var cur_p = GameManager.current_planet if is_instance_valid(GameManager) else {}
+	var water_st = str(cur_p.get("water_status", ""))
+	var base_tint = Color(0.04, 0.24, 0.40, 0.32) # Submerged oceanic azure
+	if water_st.contains("Lava"):
+		base_tint = Color(0.50, 0.15, 0.02, 0.36)
+	elif water_st.contains("Ácido"):
+		base_tint = Color(0.08, 0.42, 0.14, 0.32)
+	elif water_st.contains("Hielo"):
+		base_tint = Color(0.12, 0.35, 0.52, 0.30)
+		
+	# Full-screen underwater optical absorption wash
+	draw_rect(Rect2(0, 0, w, h), base_tint)
+	
+	# Caustic light ripples along visor surface
+	var caustic_col = Color(base_tint.r + 0.25, base_tint.g + 0.35, base_tint.b + 0.45, 0.15)
+	for i in range(4):
+		var y_base = (float(i) * 0.24 + 0.14) * h
+		var pts = PackedVector2Array()
+		for step in range(12):
+			var px = float(step) / 11.0 * w
+			var py = y_base + sin(px * 0.015 + pulse_time * 2.2 + float(i)) * 14.0
+			pts.append(Vector2(px, py))
+		draw_polyline(pts, caustic_col, 2.5)
 
 func _get_player() -> Node3D:
 	var hud = get_parent()
@@ -306,3 +338,353 @@ func _draw_tactical_status(w: float, h: float, o2: float) -> void:
 	elif o2 < 20.0:
 		var alert_col = COLOR_RED if fmod(pulse_time * 3.0, 1.0) > 0.35 else Color(0.6, 0.2, 0.1, 0.8)
 		draw_string(font, Vector2(w * 0.5 - 115.0, 52.0), "[ SOPORTE VITAL O₂ CRÍTICO ]", HORIZONTAL_ALIGNMENT_CENTER, -1, 12, alert_col)
+
+var is_radar_expanded: bool = false
+var current_map_center: Vector2 = Vector2.ZERO
+var current_map_radius: float = 46.0
+
+func _gui_input(event: InputEvent) -> void:
+	if not is_radar_expanded:
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var close_pos = current_map_center + Vector2(current_map_radius * 0.72, -current_map_radius * 0.72)
+		if event.position.distance_to(close_pos) <= 24.0:
+			toggle_radar()
+			accept_event()
+			return
+		var dist = event.position.distance_to(current_map_center)
+		if dist > current_map_radius + 15.0:
+			toggle_radar()
+			accept_event()
+
+func toggle_radar() -> void:
+	is_radar_expanded = !is_radar_expanded
+	queue_redraw()
+
+func _draw_apollo_eva_minimap(w: float, h: float, player: Node3D, o2: float) -> void:
+	# Diegetic radar is hidden by default; strictly toggled on-demand via radar button
+	if not is_radar_expanded:
+		current_map_radius = 0.0
+		return
+		
+	var ship = get_tree().get_first_node_in_group("spaceship")
+	if not ship:
+		return
+		
+	var cur_p = GameManager.current_planet if is_instance_valid(GameManager) else {}
+	var atmo_stat = str(cur_p.get("atmosphere_status", ""))
+	var has_free_o2 = atmo_stat.contains("Respirable") or atmo_stat.contains("Oxígeno")
+	var rad_val = float(cur_p.get("radiation", 0.02))
+	var temp = int(cur_p.get("temperature", 18.0))
+	var press = float(cur_p.get("pressure", 1.0))
+	var p_type = str(cur_p.get("type", ""))
+	var is_molten = cur_p.get("is_molten", false) or p_type.contains("Volcán") or p_type.contains("Magma")
+	var is_cryo = p_type.contains("Criogénico") or p_type.contains("Hielo")
+	var is_toxic = p_type.contains("Tóxico") or p_type.contains("Ácido") or atmo_stat.contains("Ácido") or atmo_stat.contains("Tóxico")
+	
+	# Large Expanded Radar positioned at top center
+	var map_radius = minf(w * 0.40, minf(h * 0.38, 160.0))
+	var map_center = Vector2(w * 0.5, map_radius + 36.0)
+		
+	current_map_center = map_center
+	current_map_radius = map_radius
+	
+	# 1. Dark Aerospace Radar Plate
+	draw_circle(map_center, map_radius, Color(0.02, 0.05, 0.09, 0.92 if is_radar_expanded else 0.85))
+	
+	# 2. Outer Compass Ring & Ticks (Strictly ICONIC, NO TEXT)
+	var compass_col = COLOR_CYAN_SUBTLE
+	draw_arc(map_center, map_radius, 0.0, TAU, 48 if is_radar_expanded else 36, compass_col, 2.0 if is_radar_expanded else 1.5)
+	draw_arc(map_center, map_radius * 0.5, 0.0, TAU, 32, Color(compass_col.r, compass_col.g, compass_col.b, 0.2), 1.0)
+	draw_arc(map_center, map_radius * 0.75, 0.0, TAU, 32, Color(compass_col.r, compass_col.g, compass_col.b, 0.12), 1.0)
+	
+	# Crosshairs
+	draw_line(Vector2(map_center.x - map_radius, map_center.y), Vector2(map_center.x + map_radius, map_center.y), Color(compass_col.r, compass_col.g, compass_col.b, 0.18), 1.0)
+	draw_line(Vector2(map_center.x, map_center.y - map_radius), Vector2(map_center.x, map_center.y + map_radius), Color(compass_col.r, compass_col.g, compass_col.b, 0.18), 1.0)
+	
+	# Directional Triangles for Cardinals (NO TEXT, PURE DIEGETIC ICONS)
+	var card_angles = [-PI * 0.5, 0.0, PI * 0.5, PI]
+	for idx in range(4):
+		var ang = card_angles[idx]
+		var c_pos = map_center + Vector2(cos(ang), sin(ang)) * (map_radius - (6.0 if not is_radar_expanded else 10.0))
+		var fwd = Vector2(cos(ang), sin(ang))
+		var side = Vector2(-fwd.y, fwd.x)
+		var t_size = 4.0 if not is_radar_expanded else 7.0
+		var tri = PackedVector2Array([
+			c_pos + fwd * t_size,
+			c_pos - fwd * (t_size * 0.5) + side * (t_size * 0.6),
+			c_pos - fwd * (t_size * 0.5) - side * (t_size * 0.6)
+		])
+		var c_col = COLOR_AMBER if idx == 0 else Color(0.6, 0.75, 0.85, 0.65)
+		draw_colored_polygon(tri, c_col)
+		
+	# 3. Center Anchor: The Spaceship (Apollo Beacon Blip with radiating pulse)
+	var ship_pos_2d = map_center
+	var s_size = 5.0 if not is_radar_expanded else 8.5
+	
+	# Radiating Apollo beacon pulse rings
+	for r_i in range(3):
+		var p_r = fmod(pulse_time * 26.0 + float(r_i) * 16.0, map_radius * 0.75)
+		var p_alpha = (1.0 - p_r / (map_radius * 0.75)) * 0.45
+		draw_arc(ship_pos_2d, p_r, 0.0, TAU, 28, Color(COLOR_AMBER.r, COLOR_AMBER.g, COLOR_AMBER.b, p_alpha), 1.2)
+		
+	var ship_diamond = PackedVector2Array([
+		ship_pos_2d + Vector2(0, -s_size),
+		ship_pos_2d + Vector2(s_size, 0),
+		ship_pos_2d + Vector2(0, s_size),
+		ship_pos_2d + Vector2(-s_size, 0)
+	])
+	draw_colored_polygon(ship_diamond, COLOR_AMBER)
+	draw_circle(ship_pos_2d, 1.8 if not is_radar_expanded else 3.0, Color.WHITE)
+	
+	# 4. Safe Radius Walkback Limit (ONLY on airless / hazardous planets!)
+	var max_safe_m: float = 65.0
+	var current_safe_m: float = max_safe_m * clampf(o2 / 100.0, 0.0, 1.0)
+	var px_per_m: float = (map_radius * 0.82) / max_safe_m
+	var safe_r_px: float = maxf(4.0, current_safe_m * px_per_m)
+	
+	var is_outside_safe_zone = false
+	if not has_free_o2:
+		var is_o2_low = o2 < 30.0
+		var safe_border_col = Color(0.2, 0.95, 0.65, 0.8) if not is_o2_low else (COLOR_RED if fmod(pulse_time * 3.0, 1.0) > 0.35 else Color(0.8, 0.2, 0.1, 0.85))
+		var safe_fill_col = Color(0.1, 0.85, 0.45, 0.08) if not is_o2_low else Color(0.8, 0.2, 0.1, 0.06)
+		
+		# Draw safe disc & boundary
+		draw_circle(ship_pos_2d, safe_r_px, safe_fill_col)
+		draw_arc(ship_pos_2d, safe_r_px, 0.0, TAU, 36, safe_border_col, 1.6)
+	
+	# 5. Points of Interest: Cave Entrances (Cavern portal archway icons)
+	for cave in get_tree().get_nodes_in_group("caves"):
+		if is_instance_valid(cave):
+			var rel = cave.global_position - ship.global_position
+			var cx = rel.dot(ship.global_transform.basis.x)
+			var cy = rel.dot(-ship.global_transform.basis.z)
+			var c_off = Vector2(cx, -cy) * px_per_m
+			if c_off.length() <= map_radius - 4.0:
+				var c_pos = ship_pos_2d + c_off
+				var cave_col = Color(0.2, 0.85, 1.0) # Default cyan
+				if is_molten: cave_col = Color(1.0, 0.4, 0.1)
+				elif is_toxic: cave_col = Color(0.2, 1.0, 0.4)
+				elif is_cryo: cave_col = Color(0.3, 0.7, 1.0)
+				
+				# Cavern archway portal glyph
+				var arch_w = 4.0 if not is_radar_expanded else 7.0
+				var arch_h = 4.5 if not is_radar_expanded else 8.0
+				draw_arc(c_pos - Vector2(0, arch_h * 0.3), arch_w * 0.5, PI, TAU, 16, cave_col, 1.8)
+				draw_line(c_pos - Vector2(arch_w * 0.5, arch_h * 0.3), c_pos - Vector2(arch_w * 0.5, -arch_h * 0.5), cave_col, 1.8)
+				draw_line(c_pos + Vector2(arch_w * 0.5, arch_h * 0.3), c_pos + Vector2(arch_w * 0.5, -arch_h * 0.5), cave_col, 1.8)
+				draw_line(c_pos - Vector2(arch_w * 0.8, -arch_h * 0.5), c_pos + Vector2(arch_w * 0.8, -arch_h * 0.5), cave_col, 1.5)
+				draw_circle(c_pos + Vector2(0, -arch_h * 0.1), 1.5, Color.WHITE)
+
+	# 6. Mineral Radar Blips (Iron, Copper, Silicon, Uranium)
+	for ore in get_tree().get_nodes_in_group("resource_nodes"):
+		if is_instance_valid(ore):
+			var rel = ore.global_position - ship.global_position
+			var ox = rel.dot(ship.global_transform.basis.x)
+			var oy = rel.dot(-ship.global_transform.basis.z)
+			var o_off = Vector2(ox, -oy) * px_per_m
+			if o_off.length() <= map_radius - 4.0:
+				var ore_pos = ship_pos_2d + o_off
+				var o_type = ore.get("ore_type")
+				var blip_sz = 3.0 if not is_radar_expanded else 5.5
+				match o_type:
+					0: # Iron: Silver-white metallic diamond
+						var dia = PackedVector2Array([
+							ore_pos + Vector2(0, -blip_sz),
+							ore_pos + Vector2(blip_sz, 0),
+							ore_pos + Vector2(0, blip_sz),
+							ore_pos + Vector2(-blip_sz, 0)
+						])
+						draw_colored_polygon(dia, Color(0.9, 0.92, 0.98))
+						draw_circle(ore_pos, 1.2, Color.WHITE)
+					1: # Copper: Warm bronze/orange circle
+						draw_circle(ore_pos, blip_sz, Color(1.0, 0.55, 0.2))
+						draw_arc(ore_pos, blip_sz * 1.3, 0, TAU, 12, Color(1.0, 0.8, 0.4, 0.6), 1.0)
+					2: # Silicon: Electric cyan crystalline diamond
+						var si_dia = PackedVector2Array([
+							ore_pos + Vector2(0, -blip_sz * 1.2),
+							ore_pos + Vector2(blip_sz * 0.8, 0),
+							ore_pos + Vector2(0, blip_sz * 1.2),
+							ore_pos + Vector2(-blip_sz * 0.8, 0)
+						])
+						draw_colored_polygon(si_dia, Color(0.2, 0.9, 1.0))
+					3: # Uranium: Pulsing lime-green radioactive diamond
+						var u_pulse = 1.0 + sin(pulse_time * 6.0) * 0.25
+						draw_circle(ore_pos, blip_sz * u_pulse, Color(0.3, 1.0, 0.4))
+						draw_circle(ore_pos, blip_sz * 0.4, Color.WHITE)
+					_:
+						draw_circle(ore_pos, blip_sz, Color(0.85, 0.85, 0.9))
+				
+	# 7. Abandoned Shipwrecks
+	for wreck in get_tree().get_nodes_in_group("abandoned_ships"):
+		if is_instance_valid(wreck):
+			var rel = wreck.global_position - ship.global_position
+			var wx = rel.dot(ship.global_transform.basis.x)
+			var wy = rel.dot(-ship.global_transform.basis.z)
+			var w_off = Vector2(wx, -wy) * px_per_m
+			if w_off.length() <= map_radius - 4.0:
+				var w_col = Color(1.0, 0.8, 0.2) if not wreck.get("is_looted") else Color(0.4, 0.7, 0.4, 0.6)
+				var w_sz = 4.0 if not is_radar_expanded else 7.0
+				draw_rect(Rect2(ship_pos_2d + w_off - Vector2(w_sz * 0.5, w_sz * 0.5), Vector2(w_sz, w_sz)), w_col)
+
+	# 8. Astronaut Position & Heading Trajectory
+	if player:
+		var ship_trans = ship.global_transform
+		var rel_3d = player.global_position - ship.global_position
+		var dx = rel_3d.dot(ship_trans.basis.x)
+		var dy = rel_3d.dot(-ship_trans.basis.z)
+		var p_dist_m = sqrt(dx * dx + dy * dy)
+		
+		if not has_free_o2:
+			is_outside_safe_zone = (p_dist_m > current_safe_m)
+		
+		var raw_offset = Vector2(dx, -dy) * px_per_m
+		var p_offset = raw_offset
+		if p_offset.length() > map_radius - 6.0:
+			p_offset = p_offset.normalized() * (map_radius - 6.0)
+		var p_pos_2d = ship_pos_2d + p_offset
+		
+		# Lifeline connecting astronaut to ship
+		var line_col = Color(0.2, 0.85, 1.0, 0.45) if not is_outside_safe_zone else Color(1.0, 0.25, 0.2, 0.8)
+		draw_line(ship_pos_2d, p_pos_2d, line_col, 1.4)
+		
+		# Astronaut blip & direction cone
+		var p_col = COLOR_CYAN if not is_outside_safe_zone else (COLOR_RED if fmod(pulse_time * 4.0, 1.0) > 0.4 else Color.WHITE)
+		var blip_r = 3.5 if not is_radar_expanded else 6.0
+		draw_circle(p_pos_2d, blip_r, p_col)
+		draw_circle(p_pos_2d, blip_r * 0.4, Color.WHITE)
+		
+		if "cam_yaw" in player:
+			var heading_ang = player.cam_yaw - PI * 0.5
+			var head_vec = Vector2(cos(heading_ang), sin(heading_ang)) * (blip_r + 5.0)
+			draw_line(p_pos_2d, p_pos_2d + head_vec, p_col, 1.6)
+
+	# 9. Contextual Aerospace Icon Ribbon (PURE ICONOGRAPHY, ZERO TEXT)
+	var icon_y = map_center.y + map_radius + (12.0 if not is_radar_expanded else 22.0)
+	var icon_spacing = 22.0 if not is_radar_expanded else 32.0
+	var icons_to_draw: Array = []
+	
+	# Atmosphere / Oxygen contextual warning icon (Strictly omitted on breathable worlds with oxygen)
+	if not has_free_o2:
+		icons_to_draw.append({"type": "o2_cylinder", "col": COLOR_RED if is_outside_safe_zone else COLOR_AMBER})
+		
+	# Radiation warning icon
+	if rad_val > 0.02:
+		icons_to_draw.append({"type": "radiation", "col": Color(1.0, 0.85, 0.2) if rad_val < 0.1 else COLOR_RED})
+		
+	# Thermal / Extreme Heat
+	if temp > 50 or is_molten:
+		icons_to_draw.append({"type": "heat", "col": Color(1.0, 0.35, 0.1)})
+	# Cryo / Extreme Cold
+	elif temp < -20 or is_cryo:
+		icons_to_draw.append({"type": "cold", "col": Color(0.2, 0.85, 1.0)})
+		
+	# Toxic / Sulfuric
+	if is_toxic:
+		icons_to_draw.append({"type": "toxic", "col": Color(0.2, 1.0, 0.35)})
+		
+	# Vacuum / High pressure
+	if press <= 0.02:
+		icons_to_draw.append({"type": "vacuum", "col": Color(0.9, 0.6, 0.3)})
+	elif press > 3.0:
+		icons_to_draw.append({"type": "hyperbaric", "col": Color(0.95, 0.3, 0.3)})
+		
+	# Safe Haven Ping
+	if is_outside_safe_zone:
+		icons_to_draw.append({"type": "alert_triangle", "col": COLOR_RED if fmod(pulse_time * 4.0, 1.0) > 0.35 else Color(1.0, 0.8, 0.2)})
+	else:
+		icons_to_draw.append({"type": "beacon_ping", "col": COLOR_CYAN})
+		
+	var start_x = map_center.x - float(icons_to_draw.size() - 1) * 0.5 * icon_spacing
+	for i in range(icons_to_draw.size()):
+		var ic = icons_to_draw[i]
+		var ix = start_x + float(i) * icon_spacing
+		_draw_context_telemetry_icon(Vector2(ix, icon_y), ic["type"], ic["col"], 1.0 if not is_radar_expanded else 1.4)
+
+	# Close Button [ ✕ ] in top-right of expanded radar
+	if is_radar_expanded:
+		var close_pos = map_center + Vector2(map_radius * 0.72, -map_radius * 0.72)
+		draw_circle(close_pos, 15.0, Color(0.12, 0.08, 0.16, 0.95))
+		draw_arc(close_pos, 15.0, 0.0, TAU, 24, Color(0.95, 0.35, 0.35, 0.9), 1.8)
+		draw_line(close_pos + Vector2(-5.5, -5.5), close_pos + Vector2(5.5, 5.5), Color(1.0, 0.45, 0.45), 2.2)
+		draw_line(close_pos + Vector2(-5.5, 5.5), close_pos + Vector2(5.5, -5.5), Color(1.0, 0.45, 0.45), 2.2)
+
+func _draw_context_telemetry_icon(pos: Vector2, icon_type: String, col: Color, s: float) -> void:
+	match icon_type:
+		"breathable_atmo":
+			# Crisp atmospheric dome with serene breeze waves
+			draw_arc(pos, 7.0 * s, PI * 0.8, PI * 2.2, 16, col, 1.4 * s)
+			draw_line(pos + Vector2(-5.0, 0.0) * s, pos + Vector2(5.0, 0.0) * s, col, 1.2 * s)
+			draw_line(pos + Vector2(-3.0, 2.5) * s, pos + Vector2(3.0, 2.5) * s, col, 1.0 * s)
+		"o2_cylinder":
+			# Oxygen bottle glyph with top valve
+			var w_box = 4.0 * s
+			var h_box = 9.0 * s
+			draw_rect(Rect2(pos - Vector2(w_box * 0.5, h_box * 0.5), Vector2(w_box, h_box)), col, false, 1.4 * s)
+			draw_line(pos - Vector2(w_box * 0.3, h_box * 0.5 + 2.0 * s), pos + Vector2(w_box * 0.3, -h_box * 0.5 - 2.0 * s), col, 1.5 * s)
+		"radiation":
+			# Clean trefoil ion radiation symbol
+			draw_circle(pos, 1.8 * s, col)
+			for b in range(3):
+				var ang = float(b) * (TAU / 3.0) - PI * 0.5
+				var pt1 = pos + Vector2(cos(ang - 0.35), sin(ang - 0.35)) * 6.5 * s
+				var pt2 = pos + Vector2(cos(ang + 0.35), sin(ang + 0.35)) * 6.5 * s
+				var blade = PackedVector2Array([pos, pt1, pt2])
+				draw_colored_polygon(blade, col)
+		"heat":
+			# High-temp flame chevrons
+			var flame = PackedVector2Array([
+				pos + Vector2(0.0, -8.0 * s),
+				pos + Vector2(4.5 * s, 0.0),
+				pos + Vector2(2.0 * s, 6.0 * s),
+				pos + Vector2(-2.0 * s, 6.0 * s),
+				pos + Vector2(-4.5 * s, 0.0)
+			])
+			draw_colored_polygon(flame, col)
+			draw_circle(pos + Vector2(0.0, 1.5 * s), 1.8 * s, Color.WHITE)
+		"cold":
+			# 6-pointed ice snowflake crystal
+			for arm in range(3):
+				var ang = float(arm) * (PI / 3.0)
+				var v = Vector2(cos(ang), sin(ang)) * 6.5 * s
+				draw_line(pos - v, pos + v, col, 1.4 * s)
+				var b1 = Vector2(cos(ang + 0.5), sin(ang + 0.5)) * 2.5 * s
+				draw_line(pos + v * 0.6, pos + v * 0.6 + b1, col, 1.2 * s)
+				draw_line(pos - v * 0.6, pos - v * 0.6 - b1, col, 1.2 * s)
+		"toxic":
+			# Sulfuric toxic droplet with vapor lines
+			var drop = PackedVector2Array([
+				pos + Vector2(0.0, -7.0 * s),
+				pos + Vector2(4.5 * s, 2.0 * s),
+				pos + Vector2(0.0, 6.5 * s),
+				pos + Vector2(-4.5 * s, 2.0 * s)
+			])
+			draw_colored_polygon(drop, col)
+			draw_circle(pos + Vector2(0.0, 1.5 * s), 1.5 * s, Color.BLACK)
+		"vacuum":
+			# Expanding 4-way depressurization arrows
+			draw_arc(pos, 4.0 * s, 0, TAU, 16, col, 1.2 * s)
+			for d in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:
+				draw_line(pos + d * 4.0 * s, pos + d * 8.0 * s, col, 1.4 * s)
+		"hyperbaric":
+			# Compressing 4-way hyperbaric arrows
+			draw_circle(pos, 3.0 * s, col)
+			for d in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:
+				draw_line(pos + d * 8.0 * s, pos + d * 4.5 * s, col, 1.5 * s)
+		"alert_triangle":
+			# Hazard warning triangle
+			var tri_pts = PackedVector2Array([
+				pos + Vector2(0, -6.5 * s),
+				pos + Vector2(7.5 * s, 6.5 * s),
+				pos + Vector2(-7.5 * s, 6.5 * s)
+			])
+			draw_colored_polygon(tri_pts, col)
+			draw_line(pos + Vector2(0, -2.0 * s), pos + Vector2(0, 2.0 * s), Color.BLACK, 1.5 * s)
+			draw_circle(pos + Vector2(0, 4.0 * s), 0.8 * s, Color.BLACK)
+		"beacon_ping":
+			# Serene radio ping waves
+			draw_arc(pos, 4.0 * s, -PI * 0.75, -PI * 0.25, 8, COLOR_CYAN_SUBTLE, 1.5 * s)
+			draw_arc(pos, 8.0 * s, -PI * 0.75, -PI * 0.25, 8, COLOR_CYAN_SUBTLE, 1.5 * s)
+			draw_circle(pos, 1.8 * s, col)
+		_:
+			draw_circle(pos, 2.0 * s, col)

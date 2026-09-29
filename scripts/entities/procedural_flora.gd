@@ -47,15 +47,26 @@ var tumble_dir: Vector3 = Vector3.FORWARD
 var tumble_speed: float = 0.0
 var is_tumbling: bool = false
 var spore_cooldown: float = 0.0
+var expansion_timer: float = 30.0
+var thorn_cooldown: float = 0.0
+var vine_cooldown: float = 0.0
+var is_sapling: bool = false
+var growth_t: float = 1.0
+var lod_level: int = 0
+var current_planet_params: Dictionary = {}
 
 # Node references
 @onready var col_shape: CollisionShape3D = get_node_or_null("CollisionShape3D")
 @onready var visuals: Node3D = get_node_or_null("Visuals")
 @onready var omni_light: OmniLight3D = get_node_or_null("CaveOmniLight")
 
+var current_health: float = 0.8
+var max_health: float = 0.8
+
 func _ready() -> void:
-	collision_layer = 1
+	collision_layer = 2 # Mining layer
 	collision_mask = 0
+	add_to_group("resource_nodes")
 	anim_phase = randf_range(0.0, TAU)
 	sway_time = randf_range(2.0, 4.0)
 	sway_mag = randf_range(0.03, 0.07)
@@ -67,6 +78,7 @@ func _ready() -> void:
 
 func setup_flora(type_id: int, planet_params: Dictionary, up_direction: Vector3 = Vector3.UP) -> void:
 	flora_type = type_id as FloraType
+	current_planet_params = planet_params
 	
 	# Group into domains
 	if flora_type <= FloraType.REED_CLUSTERS:
@@ -86,24 +98,109 @@ func setup_flora(type_id: int, planet_params: Dictionary, up_direction: Vector3 
 func _process(delta: float) -> void:
 	anim_phase += delta
 	
+	# 0. Smooth sapling ecological growth lifecycle
+	if is_sapling:
+		growth_t = minf(1.0, growth_t + delta / 22.0)
+		scale = Vector3.ONE * lerpf(0.35, 1.0, growth_t)
+		if growth_t >= 1.0:
+			is_sapling = false
+	
 	# 1. Gentle wind sway for terrestrial and aquatic flora
 	if visuals and (flora_domain == FloraDomain.TERRESTRIAL or flora_domain == FloraDomain.AQUATIC):
 		var sway = sin(anim_phase * (TAU / sway_time)) * sway_mag
 		visuals.rotation.z = sway
 		visuals.rotation.x = cos(anim_phase * (TAU / (sway_time * 1.3))) * (sway_mag * 0.7)
 
-	# 2. Exotic: Carnivorous Snapper jaw mechanics
+	# 2. Aggressive Flora: Carnivorous Snapper jaw mechanics
 	if flora_type == FloraType.CARNIVOROUS_SNAPPER:
 		snap_cooldown -= delta
+		var nearest_threat: Node3D = null
+		var min_d: float = 2.5
 		var player = get_tree().get_first_node_in_group("player")
-		if player is Node3D:
-			var d = global_position.distance_to(player.global_position)
-			if d < 2.4 and not is_snapper_shut and snap_cooldown <= 0.0:
-				_snap_jaws(true)
-			elif d > 3.2 and is_snapper_shut:
-				_snap_jaws(false)
+		if is_instance_valid(player) and global_position.distance_to(player.global_position) < min_d:
+			nearest_threat = player
+			min_d = global_position.distance_to(player.global_position)
+		for cr in get_tree().get_nodes_in_group("creatures"):
+			if is_instance_valid(cr) and not cr.get("is_dead") and global_position.distance_to(cr.global_position) < min_d:
+				nearest_threat = cr
+				min_d = global_position.distance_to(cr.global_position)
+				
+		if nearest_threat != null and not is_snapper_shut and snap_cooldown <= 0.0:
+			_snap_jaws(true)
+		elif nearest_threat == null and is_snapper_shut and snap_cooldown <= 0.0:
+			_snap_jaws(false)
 
-	# 3. Exotic: Desert Tumbleweed rolling across surface
+	# 3. Aggressive Flora: Toxic Spore Pod Bulb pulsing & hazardous spore eruption
+	elif flora_type == FloraType.SPORE_POD_BULB and visuals:
+		var pulse = 1.0 + sin(anim_phase * 3.5) * 0.08
+		visuals.scale = Vector3(pulse, 1.0 + cos(anim_phase * 3.5) * 0.12, pulse)
+		spore_cooldown -= delta
+		if spore_cooldown <= 0.0:
+			var player = get_tree().get_first_node_in_group("player")
+			var triggered = false
+			if is_instance_valid(player) and global_position.distance_to(player.global_position) < 3.2:
+				spore_cooldown = 3.8
+				triggered = true
+				AudioManager.play("splash", 0.9, 1.0)
+				AudioManager.play("thruster", 1.8, -4.0)
+				if player.has_method("take_damage"):
+					player.take_damage(10.0, global_position)
+				var hud = get_tree().get_first_node_in_group("hud")
+				if hud and hud.has_method("show_status_toast"):
+					hud.show_status_toast("⚠ ¡ESPORAS TÓXICAS! Toxinas vegetales dañan el traje (-10 HULL).")
+			
+			if not triggered:
+				for cr in get_tree().get_nodes_in_group("creatures"):
+					if is_instance_valid(cr) and not cr.get("is_dead") and global_position.distance_to(cr.global_position) < 3.2:
+						spore_cooldown = 3.8
+						AudioManager.play("splash", 0.9, 1.0)
+						if cr.has_method("take_damage"):
+							cr.take_damage(12.0)
+						break
+
+	# 4. Aggressive Flora: Columnar Cactus needle defense (thorns)
+	elif flora_type == FloraType.COLUMNAR_CACTUS:
+		thorn_cooldown -= delta
+		if thorn_cooldown <= 0.0:
+			var player = get_tree().get_first_node_in_group("player")
+			if is_instance_valid(player) and global_position.distance_to(player.global_position) < 1.6:
+				thorn_cooldown = 1.6
+				AudioManager.play("mine", 1.4, 0.0)
+				if player.has_method("take_damage"):
+					player.take_damage(7.0, global_position)
+				var hud = get_tree().get_first_node_in_group("hud")
+				if hud and hud.has_method("show_status_toast"):
+					hud.show_status_toast("⚠ ¡ESPINAS DE CACTUS! Punzada lacerante (-7 HULL).")
+			else:
+				for cr in get_tree().get_nodes_in_group("creatures"):
+					if is_instance_valid(cr) and not cr.get("is_dead") and global_position.distance_to(cr.global_position) < 1.6:
+						thorn_cooldown = 1.6
+						if cr.has_method("take_damage"):
+							cr.take_damage(8.0)
+						break
+
+	# 5. Aggressive Flora: Basalt Vine whipping hazard
+	elif flora_type == FloraType.BASALT_VINE and visuals:
+		vine_cooldown -= delta
+		if vine_cooldown <= 0.0:
+			var player = get_tree().get_first_node_in_group("player")
+			if is_instance_valid(player) and global_position.distance_to(player.global_position) < 2.0:
+				vine_cooldown = 2.0
+				AudioManager.play("thruster", 1.6, -3.0)
+				if player.has_method("take_damage"):
+					player.take_damage(8.0, global_position)
+				var hud = get_tree().get_first_node_in_group("hud")
+				if hud and hud.has_method("show_status_toast"):
+					hud.show_status_toast("⚠ ¡ZARCILLO DE BASALTO! Latigazo vegetal cortante (-8 HULL).")
+			else:
+				for cr in get_tree().get_nodes_in_group("creatures"):
+					if is_instance_valid(cr) and not cr.get("is_dead") and global_position.distance_to(cr.global_position) < 2.0:
+						vine_cooldown = 2.0
+						if cr.has_method("take_damage"):
+							cr.take_damage(10.0)
+						break
+
+	# 6. Exotic: Desert Tumbleweed rolling across surface
 	elif flora_type == FloraType.DESERT_TUMBLEWEED and is_tumbling:
 		var pos = global_position
 		var up_dir = pos.normalized()
@@ -113,34 +210,78 @@ func _process(delta: float) -> void:
 		
 		# Move along tangent
 		position += tumble_dir * (tumble_speed * delta)
-		# Re-project to sphere surface
-		var p_len = position.length()
 		if planet_radius > 10.0:
 			position = position.normalized() * (planet_radius + 0.45)
 		if visuals:
 			visuals.rotate(up_dir.cross(tumble_dir).normalized(), tumble_speed * delta * 2.5)
 
-	# 4. Exotic: Vesicle Floater buoyant vertical oscillation
+	# 7. Exotic: Vesicle Floater buoyant vertical oscillation
 	elif flora_type == FloraType.VESICLE_FLOATER and visuals:
 		visuals.position.y = 1.1 + sin(anim_phase * 2.2) * 0.22
 
-	# 5. Exotic: Spore Pod Bulb pulsing & player proximity reaction
-	elif flora_type == FloraType.SPORE_POD_BULB and visuals:
-		var pulse = 1.0 + sin(anim_phase * 3.5) * 0.08
-		visuals.scale = Vector3(pulse, 1.0 + cos(anim_phase * 3.5) * 0.12, pulse)
-		spore_cooldown -= delta
-		var player = get_tree().get_first_node_in_group("player")
-		if player is Node3D and spore_cooldown <= 0.0:
-			if global_position.distance_to(player.global_position) < 3.0:
-				spore_cooldown = 4.0
-				AudioManager.play("plasma_shot", 0.6, 2.0)
-				var hud = get_tree().get_first_node_in_group("hud")
-				if hud and hud.has_method("show_status_toast"):
-					hud.show_status_toast("¡ESPORAS ACTIVAS! Muestra bio-vegetal liberada.")
+	# 8. Ecological survival & reproduction: disperse seeds/fruits & propagate saplings
+	expansion_timer -= delta
+	if expansion_timer <= 0.0:
+		expansion_timer = randf_range(35.0, 70.0)
+		_attempt_flora_expansion()
+
+func _attempt_flora_expansion() -> void:
+	var parent_planet = get_parent()
+	if not parent_planet:
+		return
+		
+	# A. Drop harvestable organic resource chunk on the ground
+	var drop_scene = load("res://scenes/entities/dropped_item.tscn")
+	if drop_scene:
+		var res_key = "plant_fibers"
+		if flora_type == FloraType.BERRY_BUSH:
+			res_key = "berries"
+		elif flora_type == FloraType.CARNIVOROUS_SNAPPER:
+			res_key = "alien_meat"
+		elif flora_type == FloraType.FRACTAL_TREE or flora_type == FloraType.CONICAL_PINE:
+			res_key = "wood"
+		elif flora_type == FloraType.LUMEN_ANEMONE or flora_type == FloraType.CAVE_GLOW_SHROOM:
+			res_key = "biogel_sample"
+			
+		var drop = drop_scene.instantiate()
+		drop.setup_drop(res_key, 1, planet_radius)
+		parent_planet.add_child(drop)
+		var up = global_position.normalized()
+		var tangent = Vector3(randf_range(-1,1), randf_range(-1,1), randf_range(-1,1)).cross(up).normalized()
+		drop.global_position = global_position + (tangent * randf_range(1.5, 3.2)) + (up * 0.8)
+		drop.apply_central_impulse(tangent * 2.0 + up * 1.5)
+		
+	# B. Spread new living sapling nearby if local density allows
+	var local_flora_count = 0
+	for f in get_tree().get_nodes_in_group("resource_nodes"):
+		if f is ProceduralFlora and is_instance_valid(f):
+			if global_position.distance_to(f.global_position) < 8.0:
+				local_flora_count += 1
+				
+	if local_flora_count < 5 and parent_planet:
+		var flora_scene = load("res://scenes/entities/procedural_flora.tscn")
+		if flora_scene:
+			var sapling = flora_scene.instantiate() as ProceduralFlora
+			var up_dir = global_position.normalized()
+			var rand_t = Vector3(randf_range(-1,1), randf_range(-1,1), randf_range(-1,1)).cross(up_dir).normalized()
+			var sapling_pos = global_position + rand_t * randf_range(3.2, 5.8)
+			var sapling_dir = sapling_pos.normalized()
+			
+			var surf_elev = 0.0
+			if parent_planet.has_method("_get_elevation"):
+				surf_elev = parent_planet._get_elevation(sapling_dir)
+			sapling.position = sapling_dir * (planet_radius + surf_elev)
+			sapling.is_sapling = true
+			sapling.growth_t = 0.25
+			sapling.scale = Vector3.ONE * 0.25
+			parent_planet.add_child(sapling)
+			sapling.setup_flora(int(flora_type), current_planet_params, sapling_dir)
+			if parent_planet.get("spawned_flora") is Array:
+				parent_planet.spawned_flora.append(sapling)
 
 func _snap_jaws(shut: bool) -> void:
 	is_snapper_shut = shut
-	snap_cooldown = 0.5
+	snap_cooldown = 1.6
 	var jaw_top = get_node_or_null("Visuals/JawTop")
 	var jaw_bot = get_node_or_null("Visuals/JawBottom")
 	if jaw_top and jaw_bot:
@@ -148,10 +289,55 @@ func _snap_jaws(shut: bool) -> void:
 		if shut:
 			tw.tween_property(jaw_top, "rotation:x", deg_to_rad(5.0), 0.12).set_trans(Tween.TRANS_BACK)
 			tw.tween_property(jaw_bot, "rotation:x", deg_to_rad(-5.0), 0.12).set_trans(Tween.TRANS_BACK)
-			AudioManager.play("mine", 1.5, -2.0)
+			AudioManager.play("mine", 1.6, -1.0)
+			
+			# Carnivorous snap damage on player and creatures!
+			var player = get_tree().get_first_node_in_group("player")
+			if is_instance_valid(player) and global_position.distance_to(player.global_position) < 2.5:
+				if player.has_method("take_damage"):
+					player.take_damage(16.0, global_position)
+				var hud = get_tree().get_first_node_in_group("hud")
+				if hud and hud.has_method("show_status_toast"):
+					hud.show_status_toast("⚠ ¡PLANTA CARNÍVORA! Mandíbulas cerradas con fuerza (-16 HULL).")
+			for cr in get_tree().get_nodes_in_group("creatures"):
+				if is_instance_valid(cr) and not cr.get("is_dead") and global_position.distance_to(cr.global_position) < 2.5:
+					if cr.has_method("take_damage"):
+						var up_dir = global_position.normalized()
+						var knock = (cr.global_position - global_position).normalized() * 7.0 + up_dir * 3.0
+						cr.take_damage(18.0, knock)
 		else:
 			tw.tween_property(jaw_top, "rotation:x", deg_to_rad(38.0), 0.35).set_trans(Tween.TRANS_SINE)
 			tw.tween_property(jaw_bot, "rotation:x", deg_to_rad(-38.0), 0.35).set_trans(Tween.TRANS_SINE)
+
+func set_lod_level(level: int) -> void:
+	lod_level = level
+	if level >= 3:
+		visible = false
+		process_mode = Node.PROCESS_MODE_DISABLED
+		return
+	visible = true
+	match level:
+		0:
+			process_mode = Node.PROCESS_MODE_INHERIT
+			set_process(true)
+			_set_flora_shadows(GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
+			if omni_light: omni_light.visible = true
+		1:
+			process_mode = Node.PROCESS_MODE_INHERIT
+			set_process(true)
+			_set_flora_shadows(GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+			if omni_light: omni_light.visible = false
+		2:
+			process_mode = Node.PROCESS_MODE_DISABLED
+			set_process(false)
+			_set_flora_shadows(GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+			if omni_light: omni_light.visible = false
+
+func _set_flora_shadows(setting: GeometryInstance3D.ShadowCastingSetting) -> void:
+	if visuals:
+		for c in visuals.get_children():
+			if c is MeshInstance3D:
+				c.cast_shadow = setting
 
 func _build_procedural_mesh(planet_params: Dictionary, up_direction: Vector3) -> void:
 	if not visuals:
@@ -610,3 +796,19 @@ func _build_vine_mesh(mat: Material) -> void:
 		segment.position = Vector3(sin(i) * 0.1, 0.25 + i * 0.42, cos(i) * 0.1)
 		segment.rotation.z = deg_to_rad(sin(i) * 20.0)
 		visuals.add_child(segment)
+
+func mine_tick(delta: float) -> bool:
+	current_health -= delta
+	if current_health <= 0.0:
+		break_and_harvest()
+		return true
+	return false
+
+func break_and_harvest() -> void:
+	collision_layer = 0
+	if GameManager and GameManager.crafting:
+		GameManager.crafting.add_resource("plant_fibers", 2)
+	AudioManager.play("collect", 1.2, 2.0)
+	var tw = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "scale", Vector3.ZERO, 0.25)
+	tw.tween_callback(queue_free)

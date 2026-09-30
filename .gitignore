@@ -33,3 +33,14 @@ test_*.png.import
 
 # Local development simulators & secret keys
 SIMULAR_COMPRAS_Y_ANUNCIOS.bat
+
+# Android signing keys & secrets
+*.keystore
+*.jks
+release.keystore
+
+# Local scratch & AI session notes
+ACTUALIZACION_SISTEMAS_*.md
+ESTADO_PROYECTO_*.md
+TODO_ROADMAP.md
+DEVPOST_SUBMISSION.md

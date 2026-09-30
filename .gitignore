@@ -8,6 +8,11 @@ build/
 *.idsig
 *.class
 android/build/
+android/.build_version
+
+# Large media & local screen recordings
+CIVITUS_Gameplay_Demo.mp4
+capturas_hd/
 
 # Python / Tools
 __pycache__/
@@ -20,7 +25,16 @@ Thumbs.db
 *.tmp
 *.log
 
-# Agent & BMad metadata
+# Android signing keys & secrets
+*.keystore
+*.jks
+release.keystore
+
+# Local development simulators & secret keys
+SIMULAR_COMPRAS_Y_ANUNCIOS.bat
+SIMULAR_PRIMERA_VEZ.bat
+
+# Local scratch & AI session notes
 .agents/
 .specify/
 _bmad/
@@ -30,16 +44,6 @@ screenshot_*.png
 screenshot_*.png.import
 test_*.png
 test_*.png.import
-
-# Local development simulators & secret keys
-SIMULAR_COMPRAS_Y_ANUNCIOS.bat
-
-# Android signing keys & secrets
-*.keystore
-*.jks
-release.keystore
-
-# Local scratch & AI session notes
 ACTUALIZACION_SISTEMAS_*.md
 ESTADO_PROYECTO_*.md
 TODO_ROADMAP.md
